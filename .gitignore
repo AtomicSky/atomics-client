@@ -1,0 +1,12 @@
+.gradle/
+build/
+run/
+.idea/
+
+*.class
+*.log
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
+*.zip
+*.tmp
+*.bak
