@@ -11,24 +11,23 @@ public final class ItemRenderColorContext {
     public static final float NO_HUE_SHIFT = 0.0f;
     public static final float DYNAMIC_TOTEM_HUE_SHIFT = Float.NaN;
 
-    private static final ThreadLocal<Integer> COLOR_TINT = ThreadLocal.withInitial(() -> NO_COLOR_TINT);
-    private static final ThreadLocal<Float> HUE_SHIFT = ThreadLocal.withInitial(() -> NO_HUE_SHIFT);
     private static final Map<Integer, int[]> TINT_ARRAY_CACHE = new HashMap<>();
+    private static int colorTint = NO_COLOR_TINT;
+    private static float hueShift = NO_HUE_SHIFT;
 
     private ItemRenderColorContext() {}
 
     public static void set(int colorTint, float hueShift) {
-        COLOR_TINT.set(colorTint);
-        HUE_SHIFT.set(hueShift);
+        ItemRenderColorContext.colorTint = colorTint;
+        ItemRenderColorContext.hueShift = hueShift;
     }
 
     public static void clear() {
-        COLOR_TINT.set(NO_COLOR_TINT);
-        HUE_SHIFT.set(NO_HUE_SHIFT);
+        colorTint = NO_COLOR_TINT;
+        hueShift = NO_HUE_SHIFT;
     }
 
     public static boolean active() {
-        int colorTint = COLOR_TINT.get();
         if (colorTint == DYNAMIC_EMPTY_BUCKET_COLOR) {
             return AtomicsClient.getLiveEmptyBucketOverlayColor() != NO_COLOR_TINT;
         }
@@ -36,7 +35,6 @@ public final class ItemRenderColorContext {
             return true;
         }
 
-        float hueShift = HUE_SHIFT.get();
         if (Float.isNaN(hueShift)) {
             return AtomicsClient.getLiveTotemHueShift() != NO_HUE_SHIFT;
         }
@@ -44,7 +42,6 @@ public final class ItemRenderColorContext {
     }
 
     public static int tintColor() {
-        int colorTint = COLOR_TINT.get();
         if (colorTint == DYNAMIC_EMPTY_BUCKET_COLOR) {
             int liveBucketColor = AtomicsClient.getLiveEmptyBucketOverlayColor();
             return liveBucketColor == NO_COLOR_TINT ? 0xFFFFFFFF : liveBucketColor;
@@ -53,7 +50,7 @@ public final class ItemRenderColorContext {
             return colorTint;
         }
 
-        float hueShift = HUE_SHIFT.get();
+        float hueShift = ItemRenderColorContext.hueShift;
         if (Float.isNaN(hueShift)) {
             hueShift = AtomicsClient.getLiveTotemHueShift();
         }
@@ -71,6 +68,13 @@ public final class ItemRenderColorContext {
 
     public static int[] tintArray() {
         int color = tintColor();
-        return TINT_ARRAY_CACHE.computeIfAbsent(color, cachedColor -> new int[] { cachedColor });
+        int[] cached = TINT_ARRAY_CACHE.get(color);
+        if (cached != null) {
+            return cached;
+        }
+
+        int[] created = new int[] { color };
+        TINT_ARRAY_CACHE.put(color, created);
+        return created;
     }
 }

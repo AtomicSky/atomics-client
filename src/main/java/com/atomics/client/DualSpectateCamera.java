@@ -153,7 +153,11 @@ public final class DualSpectateCamera {
         }
 
         float progress = clamp(tickProgress, 0.0f, 1.0f);
-        Vec3d cameraPos = lastCameraPos.lerp(currentCameraPos, progress);
+        Vec3d cameraPos = new Vec3d(
+                lastCameraPos.x + (currentCameraPos.x - lastCameraPos.x) * progress,
+                lastCameraPos.y + (currentCameraPos.y - lastCameraPos.y) * progress,
+                lastCameraPos.z + (currentCameraPos.z - lastCameraPos.z) * progress
+        );
         float yaw = lerpAngle(lastYaw, currentYaw, progress);
         float pitch = lerp(lastPitch, currentPitch, progress);
 
@@ -301,20 +305,22 @@ public final class DualSpectateCamera {
             return side;
         }
 
-        Vec3d currentSide = currentCameraPos.subtract(midpoint);
-        double dot = currentSide.x * side.x + currentSide.z * side.z;
+        double dot = (currentCameraPos.x - midpoint.x) * side.x + (currentCameraPos.z - midpoint.z) * side.z;
         return dot < 0.0 ? side.multiply(-1.0) : side;
     }
 
     private static float calculateYaw(Vec3d cameraPos, Vec3d targetPos) {
-        Vec3d direction = targetPos.subtract(cameraPos);
-        return (float) (Math.toDegrees(Math.atan2(direction.z, direction.x)) - 90.0);
+        double directionX = targetPos.x - cameraPos.x;
+        double directionZ = targetPos.z - cameraPos.z;
+        return (float) (Math.toDegrees(Math.atan2(directionZ, directionX)) - 90.0);
     }
 
     private static float calculatePitch(Vec3d cameraPos, Vec3d targetPos) {
-        Vec3d direction = targetPos.subtract(cameraPos);
-        double horizontal = Math.sqrt(direction.x * direction.x + direction.z * direction.z);
-        return clamp((float) -Math.toDegrees(Math.atan2(direction.y, horizontal)), -89.0f, 89.0f);
+        double directionX = targetPos.x - cameraPos.x;
+        double directionY = targetPos.y - cameraPos.y;
+        double directionZ = targetPos.z - cameraPos.z;
+        double horizontal = Math.sqrt(directionX * directionX + directionZ * directionZ);
+        return clamp((float) -Math.toDegrees(Math.atan2(directionY, horizontal)), -89.0f, 89.0f);
     }
 
     private static Vec3d smoothStep(Vec3d current, Vec3d target, float amount) {

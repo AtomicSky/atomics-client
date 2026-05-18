@@ -14,8 +14,14 @@ import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
+import net.minecraft.util.math.random.Random;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.UUID;
 
 public final class ClientFeatureManager {
     private static final long REACH_DISPLAY_MS = 1400L;
@@ -23,8 +29,10 @@ public final class ClientFeatureManager {
     private static final float ZOOM_MAX = 8.0f;
     private static final float ZOOM_SCROLL_STEP = 0.25f;
 
-    private static double lastReach;
     private static long lastReachMillis;
+    private static String lastReachTextString = "";
+    private static Text lastReachText = Text.empty();
+    private static int lastReachTextWidth = -1;
     private static int trailTick;
     private static boolean fullBrightApplied;
     private static boolean timeChangerApplied;
@@ -32,6 +40,11 @@ public final class ClientFeatureManager {
     private static float targetZoomMultiplier = 1.0f;
     private static long lastZoomUpdateNanos;
     private static long lastZoomFeedbackMillis;
+    private static final Map<UUID, String> MASKED_PLAYER_NAMES = new HashMap<>();
+    private static final Text[] TNT_TIMER_TEXT_CACHE = new Text[2001];
+    private static final List<PreparedParticleBurst> PREPARED_PROJECTILE_TRAIL_PARTICLES = new ArrayList<>();
+    private static boolean projectileTrailParticleCacheInitialized;
+    private static int projectileTrailParticleFingerprint;
 
     private ClientFeatureManager() {
     }
@@ -40,6 +53,9 @@ public final class ClientFeatureManager {
         TpsConfig cfg = liveConfig();
         if (cfg == null || client == null || client.player == null || client.world == null) {
             updateZoom(cfg);
+            if (client == null || client.world == null) {
+                MASKED_PLAYER_NAMES.clear();
+            }
             if (client != null && client.player != null) {
                 disableFullBrightIfNeeded(client);
             }
@@ -52,8 +68,7 @@ public final class ClientFeatureManager {
         updateZoom(cfg);
 
         if (cfg.visual.fullBrightEnabled) {
-            client.player.addStatusEffect(new StatusEffectInstance(StatusEffects.NIGHT_VISION, 260, 0, false, false, false));
-            fullBrightApplied = true;
+            applyFullBrightIfNeeded(client);
         } else {
             disableFullBrightIfNeeded(client);
         }
@@ -88,8 +103,10 @@ public final class ClientFeatureManager {
             return;
         }
 
-        lastReach = reach;
         lastReachMillis = System.currentTimeMillis();
+        lastReachTextString = String.format(Locale.US, "%.2fm", reach);
+        lastReachText = Text.literal(lastReachTextString);
+        lastReachTextWidth = -1;
     }
 
     /**
@@ -109,7 +126,10 @@ public final class ClientFeatureManager {
         double closestY = clampDouble(eyePos.y, box.minY, box.maxY);
         double closestZ = clampDouble(eyePos.z, box.minZ, box.maxZ);
 
-        return eyePos.distanceTo(new Vec3d(closestX, closestY, closestZ));
+        double dx = eyePos.x - closestX;
+        double dy = eyePos.y - closestY;
+        double dz = eyePos.z - closestZ;
+        return Math.sqrt(dx * dx + dy * dy + dz * dz);
     }
 
     private static double clampDouble(double value, double min, double max) {
@@ -135,7 +155,18 @@ public final class ClientFeatureManager {
 
     public static String maskedPlayerName(Entity entity) {
         if (entity == null) return "Player";
-        return "Player " + (Math.floorMod(entity.getUuid().hashCode(), 900) + 100);
+        UUID uuid = entity.getUuid();
+        String cached = MASKED_PLAYER_NAMES.get(uuid);
+        if (cached != null) {
+            return cached;
+        }
+
+        if (MASKED_PLAYER_NAMES.size() > 512) {
+            MASKED_PLAYER_NAMES.clear();
+        }
+        String maskedName = "Player " + (Math.floorMod(uuid.hashCode(), 900) + 100);
+        MASKED_PLAYER_NAMES.put(uuid, maskedName);
+        return maskedName;
     }
 
     public static boolean isZoomActive() {
@@ -203,13 +234,15 @@ public final class ClientFeatureManager {
         float alpha = 1.0f - Math.max(0.0f, (age - 900L) / 500.0f);
         int a = Math.max(30, Math.min(150, Math.round(alpha * 150.0f)));
         int color = (a << 24) | 0xB8B8B8;
-        String text = String.format(Locale.US, "%.2fm", lastReach);
         float scale = 0.72f;
-        int x = client.getWindow().getScaledWidth() / 2 - Math.round(client.textRenderer.getWidth(text) * scale / 2.0f);
+        if (lastReachTextWidth < 0) {
+            lastReachTextWidth = client.textRenderer.getWidth(lastReachTextString);
+        }
+        int x = client.getWindow().getScaledWidth() / 2 - Math.round(lastReachTextWidth * scale / 2.0f);
         int y = client.getWindow().getScaledHeight() / 2 + 12;
         context.getMatrices().pushMatrix();
         context.getMatrices().scale(scale, scale);
-        context.drawTextWithShadow(client.textRenderer, Text.literal(text), Math.round(x / scale), Math.round(y / scale), color);
+        context.drawTextWithShadow(client.textRenderer, lastReachText, Math.round(x / scale), Math.round(y / scale), color);
         context.getMatrices().popMatrix();
     }
 
@@ -224,7 +257,21 @@ public final class ClientFeatureManager {
     }
 
     public static Text tntTimerText(TntEntity tnt) {
-        float seconds = Math.max(0.0f, tnt.getFuse() / 20.0f);
+        int fuse = Math.max(0, tnt.getFuse());
+        if (fuse < TNT_TIMER_TEXT_CACHE.length) {
+            Text cached = TNT_TIMER_TEXT_CACHE[fuse];
+            if (cached != null) {
+                return cached;
+            }
+            Text created = createTntTimerText(fuse);
+            TNT_TIMER_TEXT_CACHE[fuse] = created;
+            return created;
+        }
+        return createTntTimerText(fuse);
+    }
+
+    private static Text createTntTimerText(int fuse) {
+        float seconds = fuse / 20.0f;
         Formatting color = seconds <= 1.0f ? Formatting.RED : seconds <= 2.0f ? Formatting.GOLD : Formatting.GRAY;
         return Text.literal(String.format(Locale.US, "%.1fs", seconds)).formatted(color);
     }
@@ -237,7 +284,13 @@ public final class ClientFeatureManager {
         if (visual.projectileTrailParticles == null || visual.projectileTrailParticles.isEmpty()) {
             return;
         }
+        List<PreparedParticleBurst> preparedParticles = prepareProjectileTrailParticles(visual.projectileTrailParticles);
+        if (preparedParticles.isEmpty()) {
+            return;
+        }
+
         double rangeSq = 128.0 * 128.0;
+        Random random = client.world.random;
 
         for (Entity entity : client.world.getEntities()) {
             if (!(entity instanceof ProjectileEntity) || entity.squaredDistanceTo(client.player) > rangeSq) {
@@ -247,29 +300,74 @@ public final class ClientFeatureManager {
                 continue;
             }
 
-            for (TpsConfig.ParticleBurst burst : visual.projectileTrailParticles) {
-                ParticleEffect effect = TotemPopEffects.getParticleEffect(burst.particle);
-                if (effect == null) {
-                    continue;
-                }
-                int count = Math.max(0, burst.count);
+            for (PreparedParticleBurst prepared : preparedParticles) {
+                TpsConfig.ParticleBurst burst = prepared.burst;
+                ParticleEffect effect = prepared.effect;
+                int count = prepared.count;
                 for (int i = 0; i < count; i++) {
-                    double x = entity.getX() + (client.world.random.nextDouble() - 0.5) * burst.spreadX;
-                    double y = entity.getY() + (client.world.random.nextDouble() - 0.5) * burst.spreadY;
-                    double z = entity.getZ() + (client.world.random.nextDouble() - 0.5) * burst.spreadZ;
-                    double vx = (client.world.random.nextDouble() - 0.5) * burst.speed;
-                    double vy = (client.world.random.nextDouble() - 0.5) * burst.speed;
-                    double vz = (client.world.random.nextDouble() - 0.5) * burst.speed;
+                    double x = entity.getX() + (random.nextDouble() - 0.5) * burst.spreadX;
+                    double y = entity.getY() + (random.nextDouble() - 0.5) * burst.spreadY;
+                    double z = entity.getZ() + (random.nextDouble() - 0.5) * burst.spreadZ;
+                    double vx = (random.nextDouble() - 0.5) * burst.speed;
+                    double vy = (random.nextDouble() - 0.5) * burst.speed;
+                    double vz = (random.nextDouble() - 0.5) * burst.speed;
                     client.particleManager.addParticle(effect, x, y, z, vx, vy, vz);
                 }
             }
         }
     }
 
+    private static List<PreparedParticleBurst> prepareProjectileTrailParticles(List<TpsConfig.ParticleBurst> bursts) {
+        int fingerprint = particleBurstFingerprint(bursts);
+        if (projectileTrailParticleCacheInitialized && fingerprint == projectileTrailParticleFingerprint) {
+            return PREPARED_PROJECTILE_TRAIL_PARTICLES;
+        }
+
+        projectileTrailParticleCacheInitialized = true;
+        projectileTrailParticleFingerprint = fingerprint;
+        PREPARED_PROJECTILE_TRAIL_PARTICLES.clear();
+        for (TpsConfig.ParticleBurst burst : bursts) {
+            if (burst == null) {
+                continue;
+            }
+            int count = Math.max(0, burst.count);
+            if (count <= 0) {
+                continue;
+            }
+            ParticleEffect effect = TotemPopEffects.getParticleEffect(burst.particle);
+            if (effect != null) {
+                PREPARED_PROJECTILE_TRAIL_PARTICLES.add(new PreparedParticleBurst(burst, effect, count));
+            }
+        }
+        return PREPARED_PROJECTILE_TRAIL_PARTICLES;
+    }
+
+    private static int particleBurstFingerprint(List<TpsConfig.ParticleBurst> bursts) {
+        int result = bursts.size();
+        for (TpsConfig.ParticleBurst burst : bursts) {
+            if (burst == null) {
+                result = 31 * result;
+                continue;
+            }
+            result = 31 * result + (burst.particle == null ? 0 : burst.particle.hashCode());
+            result = 31 * result + burst.count;
+            result = 31 * result + Double.hashCode(burst.spreadX);
+            result = 31 * result + Double.hashCode(burst.spreadY);
+            result = 31 * result + Double.hashCode(burst.spreadZ);
+            result = 31 * result + Double.hashCode(burst.speed);
+        }
+        return result;
+    }
+
     private static void updateZoom(TpsConfig cfg) {
         targetZoomMultiplier = cfg != null && cfg.visual.zoomEnabled && AtomicsClient.isZoomKeyPressed()
                 ? clampFloat(cfg.visual.zoomMultiplier, ZOOM_MIN, ZOOM_MAX)
                 : 1.0f;
+        if (targetZoomMultiplier == 1.0f && currentZoomMultiplier == 1.0f) {
+            lastZoomUpdateNanos = 0L;
+            return;
+        }
+
         long now = System.nanoTime();
         float elapsedSeconds = lastZoomUpdateNanos == 0L ? 0.05f : Math.min(0.2f, (now - lastZoomUpdateNanos) / 1_000_000_000.0f);
         lastZoomUpdateNanos = now;
@@ -278,6 +376,18 @@ public final class ClientFeatureManager {
         if (Math.abs(targetZoomMultiplier - currentZoomMultiplier) < 0.01f) {
             currentZoomMultiplier = targetZoomMultiplier;
         }
+    }
+
+    private static void applyFullBrightIfNeeded(MinecraftClient client) {
+        StatusEffectInstance effect = client.player.getStatusEffect(StatusEffects.NIGHT_VISION);
+        if (effect == null
+                || effect.getAmplifier() != 0
+                || effect.getDuration() < 220
+                || effect.shouldShowParticles()
+                || effect.shouldShowIcon()) {
+            client.player.addStatusEffect(new StatusEffectInstance(StatusEffects.NIGHT_VISION, 260, 0, false, false, false));
+        }
+        fullBrightApplied = true;
     }
 
     private static void disableFullBrightIfNeeded(MinecraftClient client) {
@@ -315,5 +425,8 @@ public final class ClientFeatureManager {
             return null;
         }
         return AtomicsClient.CONFIG;
+    }
+
+    private record PreparedParticleBurst(TpsConfig.ParticleBurst burst, ParticleEffect effect, int count) {
     }
 }

@@ -14,17 +14,25 @@ import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
+import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.registry.Registries;
+import net.minecraft.util.hit.EntityHitResult;
 import net.minecraft.util.Identifier;
+import net.minecraft.util.math.Box;
+import net.minecraft.util.math.Vec3d;
 import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
+import java.util.Set;
 
 public class AtomicsClient implements ClientModInitializer {
     public static final String MOD_ID = "atomics_client";
@@ -41,13 +49,22 @@ public class AtomicsClient implements ClientModInitializer {
     private static KeyBinding toggleTimeChangerKey;
     private static KeyBinding toggleProjectileTrailKey;
     private static KeyBinding toggleStreamerModeKey;
+    private static KeyBinding cycleFriendFoeKey;
     private static final List<KeyBinding> macroKeys = new ArrayList<>();
     private static final int EMPTY_BUCKET_OVERLAY_COLOR = 0xFFFF2828;
     private static final int SHIELD_WARNING_OVERLAY_COLOR = 0xFFFF2323;
     private static String cachedReplacementItemId;
     private static Item cachedReplacementItem;
     private static long lastLocalShieldDisabledMillis;
-    private static final ThreadLocal<Boolean> renderingLocalPlayerHeldItem = ThreadLocal.withInitial(() -> false);
+    private static long lastFriendAttackBlockedMillis;
+    private static boolean renderingLocalPlayerHeldItem;
+    private static final Set<String> cachedFriendNames = new HashSet<>();
+    private static final Set<String> cachedFoeNames = new HashSet<>();
+    private static boolean friendFoeCacheInitialized;
+    private static int friendFoeCacheFingerprint;
+    private static boolean cachedFriendFoeOverlayEnabled;
+    private static int cachedFriendOverlayColor = -1;
+    private static int cachedFoeOverlayColor = -1;
 
     @Override
     public void onInitializeClient() {
@@ -82,6 +99,7 @@ public class AtomicsClient implements ClientModInitializer {
             toggleTimeChangerKey = registerUnboundKey("key.atomics_client.toggle_time_changer");
             toggleProjectileTrailKey = registerUnboundKey("key.atomics_client.toggle_projectile_trail");
             toggleStreamerModeKey = registerUnboundKey("key.atomics_client.toggle_streamer_mode");
+            cycleFriendFoeKey = registerUnboundKey("key.atomics_client.cycle_friend_foe");
 
             registerMacroKeys(TpsConfig.MAX_MACRO_SLOTS);
         } catch (RuntimeException e) {
@@ -112,6 +130,9 @@ public class AtomicsClient implements ClientModInitializer {
             }
             while (toggleStreamerModeKey != null && toggleStreamerModeKey.wasPressed()) {
                 toggleStreamerMode(client);
+            }
+            while (cycleFriendFoeKey != null && cycleFriendFoeKey.wasPressed()) {
+                cycleLookedAtPlayerFriendFoe(client);
             }
             for (int i = 0; i < macroKeys.size(); i++) {
                 KeyBinding macroKey = macroKeys.get(i);
@@ -190,6 +211,10 @@ public class AtomicsClient implements ClientModInitializer {
         return toggleStreamerModeKey;
     }
 
+    public static KeyBinding getCycleFriendFoeKeyBinding() {
+        return cycleFriendFoeKey;
+    }
+
     public static KeyBinding getMacroKeyBinding(int index) {
         return index >= 0 && index < macroKeys.size() ? macroKeys.get(index) : null;
     }
@@ -257,6 +282,93 @@ public class AtomicsClient implements ClientModInitializer {
         saveConfigQuietly();
         if (client != null && client.player != null) {
             client.player.sendMessage(net.minecraft.text.Text.literal(label + ": " + (enabled ? "ON" : "OFF")), true);
+        }
+    }
+
+    private static void cycleLookedAtPlayerFriendFoe(MinecraftClient client) {
+        PlayerEntity player = findLookedAtPlayer(client);
+        if (player == null) {
+            sendActionMessage(client, "Look at a player to mark them");
+            return;
+        }
+        if (CONFIG == null) {
+            CONFIG = new TpsConfig();
+        }
+        CONFIG.normalize();
+        String name = player.getGameProfile() == null ? player.getName().getString() : player.getGameProfile().name();
+        String normalized = name == null ? "" : name.trim();
+        if (normalized.isEmpty()) {
+            sendActionMessage(client, "Could not read player name");
+            return;
+        }
+
+        String lowerName = normalized.toLowerCase(Locale.ROOT);
+        boolean friend = containsName(CONFIG.pvp.friendNames, lowerName);
+        boolean foe = containsName(CONFIG.pvp.foeNames, lowerName);
+        removeName(CONFIG.pvp.friendNames, lowerName);
+        removeName(CONFIG.pvp.foeNames, lowerName);
+
+        String state;
+        if (!friend && !foe) {
+            CONFIG.pvp.friendNames.add(normalized);
+            state = "Friend";
+        } else if (friend) {
+            CONFIG.pvp.foeNames.add(normalized);
+            state = "Foe";
+        } else {
+            state = "Neutral";
+        }
+        CONFIG.pvp.friendFoeOverlayEnabled = true;
+        CONFIG.normalize();
+        saveConfigQuietly();
+        sendActionMessage(client, normalized + ": " + state);
+    }
+
+    private static PlayerEntity findLookedAtPlayer(MinecraftClient client) {
+        if (client == null || client.player == null || client.world == null) {
+            return null;
+        }
+
+        if (client.crosshairTarget instanceof EntityHitResult entityHitResult
+                && entityHitResult.getEntity() instanceof PlayerEntity player
+                && player != client.player) {
+            return player;
+        }
+        if (client.targetedEntity instanceof PlayerEntity player && player != client.player) {
+            return player;
+        }
+
+        Entity cameraEntity = client.getCameraEntity() == null ? client.player : client.getCameraEntity();
+        Vec3d start = cameraEntity.getCameraPosVec(1.0f);
+        Vec3d direction = cameraEntity.getRotationVec(1.0f);
+        double range = 96.0;
+        Vec3d end = start.add(direction.multiply(range));
+
+        PlayerEntity best = null;
+        double bestDistanceSq = range * range;
+        for (PlayerEntity candidate : client.world.getPlayers()) {
+            if (candidate == client.player || !candidate.isAlive() || candidate.isSpectator()) {
+                continue;
+            }
+
+            Box box = candidate.getBoundingBox().expand(Math.max(0.3, candidate.getTargetingMargin() + 0.25));
+            Optional<Vec3d> hit = box.raycast(start, end);
+            if (hit.isEmpty()) {
+                continue;
+            }
+
+            double distanceSq = start.squaredDistanceTo(hit.get());
+            if (distanceSq < bestDistanceSq) {
+                bestDistanceSq = distanceSq;
+                best = candidate;
+            }
+        }
+        return best;
+    }
+
+    private static void sendActionMessage(MinecraftClient client, String message) {
+        if (client != null && client.player != null) {
+            client.player.sendMessage(net.minecraft.text.Text.literal(message), true);
         }
     }
 
@@ -361,15 +473,15 @@ public class AtomicsClient implements ClientModInitializer {
 
     public static void setRenderingLocalPlayerHeldItem(LivingEntity entity) {
         MinecraftClient client = MinecraftClient.getInstance();
-        renderingLocalPlayerHeldItem.set(client != null && entity == client.player);
+        renderingLocalPlayerHeldItem = client != null && entity == client.player;
     }
 
     public static void clearRenderingLocalPlayerHeldItem() {
-        renderingLocalPlayerHeldItem.remove();
+        renderingLocalPlayerHeldItem = false;
     }
 
     public static boolean isRenderingLocalPlayerHeldItem() {
-        return renderingLocalPlayerHeldItem.get();
+        return renderingLocalPlayerHeldItem;
     }
 
     public static boolean isEmptyBucketOverlayTarget(ItemStack stack) {
@@ -443,6 +555,163 @@ public class AtomicsClient implements ClientModInitializer {
         }
 
         return -1;
+    }
+
+    public static int getPlayerFriendFoeOverlayColor(PlayerEntity player) {
+        syncFriendFoeCache();
+        if (player == null || !cachedFriendFoeOverlayEnabled) {
+            return -1;
+        }
+
+        String name = getPlayerProfileName(player);
+        String normalizedName = normalizeName(name);
+        if (normalizedName.isEmpty()) {
+            return -1;
+        }
+
+        if (cachedFriendNames.contains(normalizedName)) {
+            return cachedFriendOverlayColor;
+        }
+        if (cachedFoeNames.contains(normalizedName)) {
+            return cachedFoeOverlayColor;
+        }
+        return -1;
+    }
+
+    public static boolean shouldBlockFriendAttack(PlayerEntity target) {
+        syncFriendFoeCache();
+        return target != null
+                && cachedFriendFoeOverlayEnabled
+                && isFriend(target);
+    }
+
+    public static void notifyFriendAttackBlocked(PlayerEntity target) {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client == null || client.player == null) {
+            return;
+        }
+        long now = System.currentTimeMillis();
+        if (now - lastFriendAttackBlockedMillis < 750L) {
+            return;
+        }
+        lastFriendAttackBlockedMillis = now;
+        String name = getPlayerProfileName(target);
+        client.player.sendMessage(net.minecraft.text.Text.literal("Blocked attack on friend" + (name == null || name.isBlank() ? "" : ": " + name)), true);
+    }
+
+    private static boolean isFriend(PlayerEntity player) {
+        String name = getPlayerProfileName(player);
+        String normalizedName = normalizeName(name);
+        return !normalizedName.isEmpty() && cachedFriendNames.contains(normalizedName);
+    }
+
+    private static String getPlayerProfileName(PlayerEntity player) {
+        if (player == null) {
+            return null;
+        }
+        return player.getGameProfile() == null ? player.getName().getString() : player.getGameProfile().name();
+    }
+
+    private static boolean containsName(List<String> names, String normalizedName) {
+        if (names == null || normalizedName == null) {
+            return false;
+        }
+        for (String name : names) {
+            if (name != null && normalizedName.equals(name.trim().toLowerCase(Locale.ROOT))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public static void removeName(List<String> names, String normalizedName) {
+        if (names == null || normalizedName == null) {
+            return;
+        }
+        names.removeIf(name -> name != null && normalizedName.equals(name.trim().toLowerCase(Locale.ROOT)));
+    }
+
+    private static void syncFriendFoeCache() {
+        TpsConfig cfg = CONFIG;
+        TpsConfig.PvpSettings pvp = cfg == null ? null : cfg.pvp;
+        boolean enabled = cfg != null && cfg.enabled && pvp != null && pvp.friendFoeOverlayEnabled;
+        int fingerprint = friendFoeFingerprint(pvp, enabled);
+        if (friendFoeCacheInitialized && fingerprint == friendFoeCacheFingerprint) {
+            return;
+        }
+
+        friendFoeCacheInitialized = true;
+        friendFoeCacheFingerprint = fingerprint;
+        cachedFriendFoeOverlayEnabled = enabled;
+        cachedFriendNames.clear();
+        cachedFoeNames.clear();
+        cachedFriendOverlayColor = -1;
+        cachedFoeOverlayColor = -1;
+        if (!enabled) {
+            return;
+        }
+
+        addNormalizedNames(pvp.friendNames, cachedFriendNames);
+        addNormalizedNames(pvp.foeNames, cachedFoeNames);
+        cachedFriendOverlayColor = colorWithAlpha(pvp.friendOverlayR, pvp.friendOverlayG, pvp.friendOverlayB, pvp.friendOverlayAlpha);
+        cachedFoeOverlayColor = colorWithAlpha(pvp.foeOverlayR, pvp.foeOverlayG, pvp.foeOverlayB, pvp.foeOverlayAlpha);
+    }
+
+    private static int friendFoeFingerprint(TpsConfig.PvpSettings pvp, boolean enabled) {
+        int result = Boolean.hashCode(enabled);
+        if (pvp == null) {
+            return result;
+        }
+        result = 31 * result + pvp.friendOverlayR;
+        result = 31 * result + pvp.friendOverlayG;
+        result = 31 * result + pvp.friendOverlayB;
+        result = 31 * result + Float.floatToIntBits(pvp.friendOverlayAlpha);
+        result = 31 * result + pvp.foeOverlayR;
+        result = 31 * result + pvp.foeOverlayG;
+        result = 31 * result + pvp.foeOverlayB;
+        result = 31 * result + Float.floatToIntBits(pvp.foeOverlayAlpha);
+        result = 31 * result + listFingerprint(pvp.friendNames);
+        result = 31 * result + listFingerprint(pvp.foeNames);
+        return result;
+    }
+
+    private static int listFingerprint(List<String> names) {
+        if (names == null) {
+            return 0;
+        }
+        int result = names.size();
+        for (String name : names) {
+            result = 31 * result + (name == null ? 0 : name.hashCode());
+        }
+        return result;
+    }
+
+    private static void addNormalizedNames(List<String> names, Set<String> target) {
+        if (names == null) {
+            return;
+        }
+        for (String name : names) {
+            String normalizedName = normalizeName(name);
+            if (!normalizedName.isEmpty()) {
+                target.add(normalizedName);
+            }
+        }
+    }
+
+    private static String normalizeName(String name) {
+        if (name == null) {
+            return "";
+        }
+        String trimmed = name.trim();
+        return trimmed.isEmpty() ? "" : trimmed.toLowerCase(Locale.ROOT);
+    }
+
+    private static int colorWithAlpha(int r, int g, int b, float alpha) {
+        int a = Math.max(0, Math.min(255, Math.round(alpha * 255.0f)));
+        int cr = Math.max(0, Math.min(255, r));
+        int cg = Math.max(0, Math.min(255, g));
+        int cb = Math.max(0, Math.min(255, b));
+        return (a << 24) | (cr << 16) | (cg << 8) | cb;
     }
 
     public static boolean isTotemHueShiftCandidate(ItemStack stack) {

@@ -12,8 +12,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public class GameRendererMixin {
     @Inject(method = "getFov", at = @At("RETURN"), cancellable = true)
     private void atomics_client$applyZoom(Camera camera, float tickProgress, boolean changingFov, CallbackInfoReturnable<Float> cir) {
-        if (ClientFeatureManager.isZoomActive()) {
-            cir.setReturnValue(cir.getReturnValue() * ClientFeatureManager.getZoomFovMultiplier());
+        float zoomMultiplier = ClientFeatureManager.getZoomFovMultiplier();
+        if (zoomMultiplier < 0.999f) {
+            cir.setReturnValue(cir.getReturnValue() * zoomMultiplier);
         }
     }
 }

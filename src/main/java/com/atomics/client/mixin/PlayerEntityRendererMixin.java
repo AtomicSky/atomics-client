@@ -1,5 +1,7 @@
 package com.atomics.client.mixin;
 
+import com.atomics.client.AtomicsClient;
+import com.atomics.client.access.PlayerOverlayRenderStateAccess;
 import com.atomics.client.ClientFeatureManager;
 import com.atomics.client.PvpStatsManager;
 import net.minecraft.client.render.entity.PlayerEntityRenderer;
@@ -17,20 +19,25 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public class PlayerEntityRendererMixin {
     @Inject(method = "updateRenderState", at = @At("TAIL"))
     private void atomics_client$addWinOddsToNametag(PlayerLikeEntity player, PlayerEntityRenderState state, float tickProgress, CallbackInfo ci) {
+        if (player instanceof PlayerEntity playerEntity) {
+            ((PlayerOverlayRenderStateAccess) state).atomics_client$setFriendFoeOverlayColor(AtomicsClient.getPlayerFriendFoeOverlayColor(playerEntity));
+        } else {
+            ((PlayerOverlayRenderStateAccess) state).atomics_client$setFriendFoeOverlayColor(-1);
+        }
+
         if (!(player instanceof PlayerEntity playerEntity) || state.displayName == null) {
             return;
         }
 
         boolean maskNames = ClientFeatureManager.shouldMaskPlayerNames();
-        MutableText suffix = Text.empty().copy()
-                .append(PvpStatsManager.getWinOddsNameSuffix(playerEntity));
-        if (!maskNames && suffix.getString().isEmpty()) {
+        Text suffix = PvpStatsManager.getWinOddsNameSuffix(playerEntity);
+        if (!maskNames && suffix == null) {
             return;
         }
 
         MutableText displayName = maskNames
                 ? Text.literal(ClientFeatureManager.maskedPlayerName(playerEntity))
                 : state.displayName.copy();
-        state.displayName = displayName.append(suffix);
+        state.displayName = suffix == null ? displayName : displayName.append(suffix);
     }
 }

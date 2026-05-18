@@ -16,10 +16,13 @@
     "ItemRenderStateMixin",
     "LayerRenderStateMixin",
     "LivingEntityMixin",
+    "LivingEntityRendererMixin",
     "MinecraftClientMixin",
     "MouseMixin",
     "PerspectiveMixin",
+    "PlayerEntityRenderStateMixin",
     "PlayerEntityRendererMixin",
+    "RenderCommandQueueMixin",
     "ShieldModelRendererMixin",
     "TntEntityRendererMixin",
     "TitleScreenMixin"

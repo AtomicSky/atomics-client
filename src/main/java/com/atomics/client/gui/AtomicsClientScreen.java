@@ -98,6 +98,7 @@ public class AtomicsClientScreen extends Screen {
     private boolean dualSpectateEnabled;
     private boolean dualSpectateAutoFill;
     private boolean dualSpectateForceThirdPerson;
+    private boolean friendFoeOverlayEnabled;
     private boolean reachDisplayEnabled;
     private boolean opponentInfoEnabled;
     private boolean fullBrightEnabled;
@@ -117,10 +118,18 @@ public class AtomicsClientScreen extends Screen {
     private String dualSpectatePlayerTwo;
     private int timeOfDay;
     private int tntTimerRange;
+    private int friendOverlayR;
+    private int friendOverlayG;
+    private int friendOverlayB;
+    private int foeOverlayR;
+    private int foeOverlayG;
+    private int foeOverlayB;
     private int projectileTrailParticleCount;
     private float dualSpectatePadding;
     private float dualSpectateMinDistance;
     private float dualSpectateMaxDistance;
+    private float friendOverlayAlpha;
+    private float foeOverlayAlpha;
     private float zoomMultiplier;
     private float shieldDownX;
     private float shieldDownY;
@@ -568,7 +577,7 @@ public class AtomicsClientScreen extends Screen {
             y += 10;
         }
 
-        if (shouldShowFeature("keybinds.module_toggles", "Module Toggles", "auto gg", "duel spectate", "full bright", "time changer", "projectile trail", "streamer mode")) {
+        if (shouldShowFeature("keybinds.module_toggles", "Module Toggles", "auto gg", "duel spectate", "full bright", "time changer", "projectile trail", "streamer mode", "friend", "foe")) {
             y = addFeatureSection(y, "keybinds.module_toggles", "Module Toggles");
             if (!isFeatureCollapsed("keybinds.module_toggles")) {
                 addKeybindButton(leftX, y, controlWidth, "Auto GG", AtomicsClient.getToggleAutoGgKeyBinding()); y += ROW_HEIGHT;
@@ -577,6 +586,7 @@ public class AtomicsClientScreen extends Screen {
                 addKeybindButton(leftX, y, controlWidth, "Time Changer", AtomicsClient.getToggleTimeChangerKeyBinding()); y += ROW_HEIGHT;
                 addKeybindButton(leftX, y, controlWidth, "Projectile Trail", AtomicsClient.getToggleProjectileTrailKeyBinding()); y += ROW_HEIGHT;
                 addKeybindButton(leftX, y, controlWidth, "Streamer Mode", AtomicsClient.getToggleStreamerModeKeyBinding()); y += ROW_HEIGHT;
+                addKeybindButton(leftX, y, controlWidth, "Cycle Friend/Foe Target", AtomicsClient.getCycleFriendFoeKeyBinding()); y += ROW_HEIGHT;
             }
             y += 10;
         }
@@ -655,6 +665,27 @@ public class AtomicsClientScreen extends Screen {
                 addToggle(leftX, y, controlWidth, "Send Opponent Tier Chat", opponentInfoEnabled, TpsConfig.DEFAULT_OPPONENT_INFO_ENABLED, () -> opponentInfoEnabled, value -> opponentInfoEnabled = value, false); y += ROW_HEIGHT;
                 labels.add(new DrawLabel("Posts local tier info in chat when a supported duel starts.", leftX + 8, y + 4, 0xAAAAAA));
                 y += 22;
+            }
+            y += 10;
+        }
+
+        if (shouldShowFeature("pvp.friend_foe_overlay", "Friend/Foe Overlay", "friends", "foes", "highlight", "green", "red")) {
+            y = addFeatureSection(y, "pvp.friend_foe_overlay", "Friend/Foe Overlay");
+            if (!isFeatureCollapsed("pvp.friend_foe_overlay")) {
+                addToggle(leftX, y, controlWidth, "Enable Friend/Foe Overlay", friendFoeOverlayEnabled, TpsConfig.DEFAULT_FRIEND_FOE_OVERLAY_ENABLED, () -> friendFoeOverlayEnabled, value -> friendFoeOverlayEnabled = value, true); y += ROW_HEIGHT;
+                if (friendFoeOverlayEnabled) {
+                    addWideButton(leftX, y, controlWidth, "Edit Player List (" + getFriendFoeCount() + ")", b -> this.client.setScreen(new FriendFoeListScreen(this))); y += ROW_HEIGHT;
+                    addIntSlider(leftX, y, controlWidth, "Friend Red", friendOverlayR, 0, 255, 1, TpsConfig.DEFAULT_FRIEND_OVERLAY_R, value -> friendOverlayR = value); y += ROW_HEIGHT;
+                    addIntSlider(leftX, y, controlWidth, "Friend Green", friendOverlayG, 0, 255, 1, TpsConfig.DEFAULT_FRIEND_OVERLAY_G, value -> friendOverlayG = value); y += ROW_HEIGHT;
+                    addIntSlider(leftX, y, controlWidth, "Friend Blue", friendOverlayB, 0, 255, 1, TpsConfig.DEFAULT_FRIEND_OVERLAY_B, value -> friendOverlayB = value); y += ROW_HEIGHT;
+                    addDoubleSlider(leftX, y, controlWidth, "Friend Opacity", friendOverlayAlpha, 0.0, 1.0, 0.025, TpsConfig.DEFAULT_FRIEND_OVERLAY_ALPHA, value -> friendOverlayAlpha = (float) value, value -> formatPercent(value)); y += ROW_HEIGHT;
+                    addIntSlider(leftX, y, controlWidth, "Foe Red", foeOverlayR, 0, 255, 1, TpsConfig.DEFAULT_FOE_OVERLAY_R, value -> foeOverlayR = value); y += ROW_HEIGHT;
+                    addIntSlider(leftX, y, controlWidth, "Foe Green", foeOverlayG, 0, 255, 1, TpsConfig.DEFAULT_FOE_OVERLAY_G, value -> foeOverlayG = value); y += ROW_HEIGHT;
+                    addIntSlider(leftX, y, controlWidth, "Foe Blue", foeOverlayB, 0, 255, 1, TpsConfig.DEFAULT_FOE_OVERLAY_B, value -> foeOverlayB = value); y += ROW_HEIGHT;
+                    addDoubleSlider(leftX, y, controlWidth, "Foe Opacity", foeOverlayAlpha, 0.0, 1.0, 0.025, TpsConfig.DEFAULT_FOE_OVERLAY_ALPHA, value -> foeOverlayAlpha = (float) value, value -> formatPercent(value)); y += ROW_HEIGHT;
+                    labels.add(new DrawLabel("Use the keybind to cycle a looked-at player through Friend, Foe, and Neutral.", leftX + 8, y + 4, 0xAAAAAA));
+                    y += 22;
+                }
             }
             y += 10;
         }
@@ -1050,6 +1081,15 @@ public class AtomicsClientScreen extends Screen {
         dualSpectatePadding = cfg.pvp.dualSpectatePadding;
         dualSpectateMinDistance = cfg.pvp.dualSpectateMinDistance;
         dualSpectateMaxDistance = cfg.pvp.dualSpectateMaxDistance;
+        friendFoeOverlayEnabled = cfg.pvp.friendFoeOverlayEnabled;
+        friendOverlayR = cfg.pvp.friendOverlayR;
+        friendOverlayG = cfg.pvp.friendOverlayG;
+        friendOverlayB = cfg.pvp.friendOverlayB;
+        friendOverlayAlpha = cfg.pvp.friendOverlayAlpha;
+        foeOverlayR = cfg.pvp.foeOverlayR;
+        foeOverlayG = cfg.pvp.foeOverlayG;
+        foeOverlayB = cfg.pvp.foeOverlayB;
+        foeOverlayAlpha = cfg.pvp.foeOverlayAlpha;
         reachDisplayEnabled = cfg.combat.reachDisplayEnabled;
         opponentInfoEnabled = cfg.combat.opponentInfoEnabled;
         fullBrightEnabled = cfg.visual.fullBrightEnabled;
@@ -1168,6 +1208,15 @@ public class AtomicsClientScreen extends Screen {
         dualSpectatePadding = 1.35f;
         dualSpectateMinDistance = 6.0f;
         dualSpectateMaxDistance = 80.0f;
+        friendFoeOverlayEnabled = TpsConfig.DEFAULT_FRIEND_FOE_OVERLAY_ENABLED;
+        friendOverlayR = TpsConfig.DEFAULT_FRIEND_OVERLAY_R;
+        friendOverlayG = TpsConfig.DEFAULT_FRIEND_OVERLAY_G;
+        friendOverlayB = TpsConfig.DEFAULT_FRIEND_OVERLAY_B;
+        friendOverlayAlpha = TpsConfig.DEFAULT_FRIEND_OVERLAY_ALPHA;
+        foeOverlayR = TpsConfig.DEFAULT_FOE_OVERLAY_R;
+        foeOverlayG = TpsConfig.DEFAULT_FOE_OVERLAY_G;
+        foeOverlayB = TpsConfig.DEFAULT_FOE_OVERLAY_B;
+        foeOverlayAlpha = TpsConfig.DEFAULT_FOE_OVERLAY_ALPHA;
         reachDisplayEnabled = TpsConfig.DEFAULT_REACH_DISPLAY_ENABLED;
         opponentInfoEnabled = TpsConfig.DEFAULT_OPPONENT_INFO_ENABLED;
         fullBrightEnabled = TpsConfig.DEFAULT_FULL_BRIGHT_ENABLED;
@@ -1195,6 +1244,8 @@ public class AtomicsClientScreen extends Screen {
             AtomicsClient.CONFIG.particles.bursts = new ArrayList<>(List.of(TpsConfig.defaultParticleBurst()));
             AtomicsClient.CONFIG.visual.projectileTrailParticles = new ArrayList<>(List.of(TpsConfig.defaultProjectileTrailParticle()));
             AtomicsClient.CONFIG.sounds.sounds = new ArrayList<>(List.of(TpsConfig.defaultSoundPlay()));
+            AtomicsClient.CONFIG.pvp.friendNames = new ArrayList<>();
+            AtomicsClient.CONFIG.pvp.foeNames = new ArrayList<>();
         }
         changed();
         clearAndInit();
@@ -1276,6 +1327,15 @@ public class AtomicsClientScreen extends Screen {
         cfg.pvp.dualSpectatePadding = Math.max(1.0f, Math.min(2.5f, dualSpectatePadding));
         cfg.pvp.dualSpectateMinDistance = Math.max(2.0f, Math.min(30.0f, dualSpectateMinDistance));
         cfg.pvp.dualSpectateMaxDistance = Math.max(10.0f, Math.min(160.0f, dualSpectateMaxDistance));
+        cfg.pvp.friendFoeOverlayEnabled = friendFoeOverlayEnabled;
+        cfg.pvp.friendOverlayR = Math.max(0, Math.min(255, friendOverlayR));
+        cfg.pvp.friendOverlayG = Math.max(0, Math.min(255, friendOverlayG));
+        cfg.pvp.friendOverlayB = Math.max(0, Math.min(255, friendOverlayB));
+        cfg.pvp.friendOverlayAlpha = Math.max(0.0f, Math.min(1.0f, friendOverlayAlpha));
+        cfg.pvp.foeOverlayR = Math.max(0, Math.min(255, foeOverlayR));
+        cfg.pvp.foeOverlayG = Math.max(0, Math.min(255, foeOverlayG));
+        cfg.pvp.foeOverlayB = Math.max(0, Math.min(255, foeOverlayB));
+        cfg.pvp.foeOverlayAlpha = Math.max(0.0f, Math.min(1.0f, foeOverlayAlpha));
         cfg.combat.reachDisplayEnabled = reachDisplayEnabled;
         cfg.combat.opponentInfoEnabled = opponentInfoEnabled;
         cfg.visual.fullBrightEnabled = fullBrightEnabled;
@@ -1884,6 +1944,16 @@ public class AtomicsClientScreen extends Screen {
 
     private int getSoundCount() {
         return AtomicsClient.CONFIG == null || AtomicsClient.CONFIG.sounds == null || AtomicsClient.CONFIG.sounds.sounds == null ? 0 : AtomicsClient.CONFIG.sounds.sounds.size();
+    }
+
+    private int getFriendFoeCount() {
+        TpsConfig cfg = AtomicsClient.CONFIG;
+        if (cfg == null || cfg.pvp == null) {
+            return 0;
+        }
+        int friends = cfg.pvp.friendNames == null ? 0 : cfg.pvp.friendNames.size();
+        int foes = cfg.pvp.foeNames == null ? 0 : cfg.pvp.foeNames.size();
+        return friends + foes;
     }
 
     private static String normalizeStatsTimeframe(String value) {

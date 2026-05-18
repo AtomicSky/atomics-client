@@ -19,14 +19,14 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(HeldItemRenderer.class)
 public class HeldItemRendererMixin {
     @Unique
-    private static final ThreadLocal<LivingEntity> atomics_client$currentEntity = new ThreadLocal<>();
+    private static LivingEntity atomics_client$currentEntity;
 
     @Inject(
             method = "renderItem(Lnet/minecraft/entity/LivingEntity;Lnet/minecraft/item/ItemStack;Lnet/minecraft/item/ItemDisplayContext;Lnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/command/OrderedRenderCommandQueue;I)V",
             at = @At("HEAD")
     )
     private void atomics_client$captureHeldEntity(LivingEntity entity, ItemStack stack, ItemDisplayContext renderMode, MatrixStack matrices, OrderedRenderCommandQueue queue, int light, CallbackInfo ci) {
-        atomics_client$currentEntity.set(entity);
+        atomics_client$currentEntity = entity;
         AtomicsClient.setRenderingLocalPlayerHeldItem(entity);
     }
 
@@ -35,7 +35,7 @@ public class HeldItemRendererMixin {
             at = @At("RETURN")
     )
     private void atomics_client$clearHeldEntity(LivingEntity entity, ItemStack stack, ItemDisplayContext renderMode, MatrixStack matrices, OrderedRenderCommandQueue queue, int light, CallbackInfo ci) {
-        atomics_client$currentEntity.remove();
+        atomics_client$currentEntity = null;
         AtomicsClient.clearRenderingLocalPlayerHeldItem();
     }
 
@@ -48,7 +48,7 @@ public class HeldItemRendererMixin {
             index = 1
     )
     private ItemStack atomics_client$retextureHeldTotem(ItemStack stack) {
-        return AtomicsClient.getVisualHeldStack(atomics_client$currentEntity.get(), stack);
+        return AtomicsClient.getVisualHeldStack(atomics_client$currentEntity, stack);
     }
 
     @Inject(

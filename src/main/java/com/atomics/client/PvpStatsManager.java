@@ -115,6 +115,11 @@ public final class PvpStatsManager {
     private static long lastMatchEndMillis;
     private static String lastOpponentInfoName = "";
     private static long lastOpponentInfoMillis;
+    private static long nextPeriodBaselineCheckMillis;
+    private static String cachedServerAddressRaw = null;
+    private static String cachedServerAddress = "";
+    private static String cachedSpoofedHealthAddress = null;
+    private static boolean cachedSpoofedHealthServer;
 
     private PvpStatsManager() {
     }
@@ -264,14 +269,15 @@ public final class PvpStatsManager {
     }
 
     public static Text getWinOddsNameSuffix(PlayerEntity player) {
-        if (player == null || !getPvpSettings().winOddsEnabled || isLocalPlayer(player)) {
-            return Text.empty();
+        TpsConfig.PvpSettings pvp = livePvpSettings();
+        if (player == null || pvp == null || !pvp.winOddsEnabled || isLocalPlayer(player)) {
+            return null;
         }
 
         MinecraftClient client = MinecraftClient.getInstance();
         PlayerEntity spectatedOpponent = DualSpectateCamera.getOtherSpectatedPlayer(player);
         if (spectatedOpponent == null && !isTrackableOpponent(client, player)) {
-            return Text.empty();
+            return null;
         }
 
         WinOddsDisplay display;
@@ -285,17 +291,10 @@ public final class PvpStatsManager {
             WIN_ODDS_BY_OPPONENT.put(player.getUuid(), display);
         }
         if (!display.available) {
-            return Text.empty();
+            return null;
         }
 
-        int odds = display.percent;
-        int color = winOddsGradientColor(odds);
-
-        if (display.showPopCount) {
-            return Text.literal(" " + odds + "% [" + formatPopCount(display.opponentPops) + "]").withColor(color);
-        }
-
-        return Text.literal(" " + odds + "%").withColor(color);
+        return display.suffix;
     }
 
     private static WinOddsDisplay buildWinOddsDisplay(MinecraftClient client, PlayerEntity opponent) {
@@ -307,7 +306,7 @@ public final class PvpStatsManager {
 
         if (!opponentHealth.available && hasAnyTotemPops(stats)) {
             int percent = getPopBasedWinOddsPercent(stats);
-            return new WinOddsDisplay(percent, 0.0f, true, stats.totemPops, true);
+            return WinOddsDisplay.available(percent, 0.0f, true, stats.totemPops);
         }
         if (!opponentHealth.available) {
             return WinOddsDisplay.UNAVAILABLE;
@@ -315,7 +314,7 @@ public final class PvpStatsManager {
 
         int percent = getHealthAndPopWinOddsPercent(localHealth, opponentHealth.value, stats);
         boolean showPopCount = stats != null && stats.totemPops > 0;
-        return new WinOddsDisplay(percent, opponentHealth.value, showPopCount, stats.totemPops, true);
+        return WinOddsDisplay.available(percent, opponentHealth.value, showPopCount, stats.totemPops);
     }
 
     private static WinOddsDisplay buildWinOddsDisplay(MinecraftClient client, PlayerEntity subject, PlayerEntity opponent) {
@@ -329,7 +328,7 @@ public final class PvpStatsManager {
 
         if ((!subjectHealth.available || !opponentHealth.available) && showPopCount) {
             int percent = getPopBasedWinOddsPercent(subjectStats.totemPops, opponentStats.totemPops);
-            return new WinOddsDisplay(percent, 0.0f, true, subjectStats.totemPops, true);
+            return WinOddsDisplay.available(percent, 0.0f, true, subjectStats.totemPops);
         }
         if (!subjectHealth.available || !opponentHealth.available) {
             return WinOddsDisplay.UNAVAILABLE;
@@ -341,7 +340,7 @@ public final class PvpStatsManager {
                 subjectStats.totemPops,
                 opponentStats.totemPops
         );
-        return new WinOddsDisplay(percent, subjectHealth.value, showPopCount, subjectStats.totemPops, true);
+        return WinOddsDisplay.available(percent, subjectHealth.value, showPopCount, subjectStats.totemPops);
     }
 
     private static HealthRead readOpponentHealth(MinecraftClient client, PlayerEntity opponent, OpponentDuelStats stats) {
@@ -365,15 +364,20 @@ public final class PvpStatsManager {
 
     private static boolean usesSpoofedOpponentHealth(MinecraftClient client) {
         String address = getCurrentServerAddress(client);
-        if (address.isEmpty()) return false;
+        if (address.equals(cachedSpoofedHealthAddress)) {
+            return cachedSpoofedHealthServer;
+        }
 
-        return hostMatches(address, "minemen.club")
+        cachedSpoofedHealthAddress = address;
+        cachedSpoofedHealthServer = !address.isEmpty()
+                && (hostMatches(address, "minemen.club")
                 || hostMatches(address, "mcpvp.club")
                 || hostMatches(address, "mcpvp.xyz")
                 || hostMatches(address, "catpvp.xyz")
                 || hostMatches(address, "catpvp.com")
                 || hostMatches(address, "catpvp.minehut.gg")
-                || hostMatches(address, "flowpvp.gg");
+                || hostMatches(address, "flowpvp.gg"));
+        return cachedSpoofedHealthServer;
     }
 
     public static void recordOutcomeFromServerMessage(Text text) {
@@ -489,19 +493,36 @@ public final class PvpStatsManager {
 
     private static boolean messageMentionsLocalLoss(String message, String localName) {
         String lower = message.toLowerCase(Locale.ROOT);
+        String cleanedLocalName = cleanPlayerName(localName).toLowerCase(Locale.ROOT);
         return lower.contains("you died")
                 || lower.contains("you lost")
                 || lower.contains("you were defeated")
                 || lower.contains("you have been defeated")
-                || lower.contains(cleanPlayerName(localName).toLowerCase(Locale.ROOT) + " lost")
-                || lower.contains(cleanPlayerName(localName).toLowerCase(Locale.ROOT) + " was defeated");
+                || (!cleanedLocalName.isEmpty()
+                && (lower.contains(cleanedLocalName + " lost")
+                || lower.contains(cleanedLocalName + " was defeated")));
     }
 
     private static boolean messageMentionsLocalPlayer(String message, String localName) {
         String cleanedLocalName = cleanPlayerName(localName);
-        return Pattern.compile("(?i)(?<![a-z0-9_])" + Pattern.quote(cleanedLocalName) + "(?![a-z0-9_])")
-                .matcher(message)
-                .find();
+        if (cleanedLocalName.isEmpty()) {
+            return false;
+        }
+
+        String lowerMessage = message.toLowerCase(Locale.ROOT);
+        String lowerName = cleanedLocalName.toLowerCase(Locale.ROOT);
+        int index = lowerMessage.indexOf(lowerName);
+        while (index >= 0) {
+            int before = index - 1;
+            int after = index + lowerName.length();
+            boolean leftBoundary = before < 0 || !isNameCharacter(lowerMessage.charAt(before));
+            boolean rightBoundary = after >= lowerMessage.length() || !isNameCharacter(lowerMessage.charAt(after));
+            if (leftBoundary && rightBoundary) {
+                return true;
+            }
+            index = lowerMessage.indexOf(lowerName, index + 1);
+        }
+        return false;
     }
 
     private static void recordOpponentInfoFromStartMessage(MinecraftClient client, String message, String localName) {
@@ -673,18 +694,35 @@ public final class PvpStatsManager {
 
     private static String cleanPlayerName(String name) {
         if (name == null) return "";
-        String cleaned = name.trim();
-        while (!cleaned.isEmpty() && !Character.isLetterOrDigit(cleaned.charAt(0)) && cleaned.charAt(0) != '_') {
-            cleaned = cleaned.substring(1);
+        int start = 0;
+        int end = name.length();
+        while (start < end && Character.isWhitespace(name.charAt(start))) {
+            start++;
         }
-        return cleaned;
+        while (end > start && Character.isWhitespace(name.charAt(end - 1))) {
+            end--;
+        }
+        while (start < end && !isNameCharacter(name.charAt(start))) {
+            start++;
+        }
+        return start >= end ? "" : name.substring(start, end);
+    }
+
+    private static boolean isNameCharacter(char c) {
+        return Character.isLetterOrDigit(c) || c == '_';
     }
 
     private static String getCurrentServerAddress(MinecraftClient client) {
         if (client == null) return "";
         ServerInfo serverInfo = client.getCurrentServerEntry();
         if (serverInfo == null || serverInfo.address == null) return "";
-        return serverInfo.address.trim().toLowerCase(Locale.ROOT);
+        String rawAddress = serverInfo.address;
+        if (rawAddress.equals(cachedServerAddressRaw)) {
+            return cachedServerAddress;
+        }
+        cachedServerAddressRaw = rawAddress;
+        cachedServerAddress = rawAddress.trim().toLowerCase(Locale.ROOT);
+        return cachedServerAddress;
     }
 
     private static boolean hostMatches(String address, String domain) {
@@ -700,7 +738,8 @@ public final class PvpStatsManager {
 
     private static void tickOpponentCache(MinecraftClient client) {
         if (client == null || client.world == null || client.player == null) return;
-        if (!getPvpSettings().winOddsEnabled) {
+        TpsConfig.PvpSettings pvp = livePvpSettings();
+        if (pvp == null || !pvp.winOddsEnabled) {
             if (!WIN_ODDS_BY_OPPONENT.isEmpty()) {
                 WIN_ODDS_BY_OPPONENT.clear();
             }
@@ -810,7 +849,13 @@ public final class PvpStatsManager {
     }
 
     private static OpponentDuelStats statsFor(PlayerEntity opponent) {
-        return OPPONENT_STATS.computeIfAbsent(opponent.getUuid(), uuid -> new OpponentDuelStats());
+        UUID uuid = opponent.getUuid();
+        OpponentDuelStats stats = OPPONENT_STATS.get(uuid);
+        if (stats == null) {
+            stats = new OpponentDuelStats();
+            OPPONENT_STATS.put(uuid, stats);
+        }
+        return stats;
     }
 
     public static void recordEntityHurt(Entity entity) {
@@ -1143,8 +1188,19 @@ public final class PvpStatsManager {
             AtomicsClient.CONFIG.normalize();
         }
         TpsConfig.PvpSettings pvp = AtomicsClient.CONFIG.pvp;
-        ensurePeriodBaselines(pvp);
+        long now = System.currentTimeMillis();
+        if (now >= nextPeriodBaselineCheckMillis) {
+            nextPeriodBaselineCheckMillis = now + 30_000L;
+            ensurePeriodBaselines(pvp);
+        }
         return pvp;
+    }
+
+    private static TpsConfig.PvpSettings livePvpSettings() {
+        if (AtomicsClient.CONFIG == null || !AtomicsClient.CONFIG.enabled || AtomicsClient.CONFIG.pvp == null) {
+            return null;
+        }
+        return AtomicsClient.CONFIG.pvp;
     }
 
     private static void ensurePeriodBaselines(TpsConfig.PvpSettings pvp) {
@@ -1314,9 +1370,17 @@ public final class PvpStatsManager {
     }
 
     private record WinOddsDisplay(int percent, float opponentHealth, boolean showPopCount, int opponentPops,
-                                  boolean available) {
-        private static final WinOddsDisplay UNAVAILABLE = new WinOddsDisplay(50, 0.0f, false, 0, false);
+                                  boolean available, Text suffix) {
+        private static final WinOddsDisplay UNAVAILABLE = new WinOddsDisplay(50, 0.0f, false, 0, false, null);
         private static final WinOddsDisplay DEFAULT = UNAVAILABLE;
+
+        private static WinOddsDisplay available(int percent, float opponentHealth, boolean showPopCount, int opponentPops) {
+            int color = winOddsGradientColor(percent);
+            Text suffix = showPopCount
+                    ? Text.literal(" " + percent + "% [" + formatPopCount(opponentPops) + "]").withColor(color)
+                    : Text.literal(" " + percent + "%").withColor(color);
+            return new WinOddsDisplay(percent, opponentHealth, showPopCount, opponentPops, true, suffix);
+        }
     }
 
     public static class Counters {

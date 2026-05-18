@@ -49,6 +49,15 @@ public class TpsConfig {
     public static final boolean DEFAULT_EMPTY_BUCKET_OVERLAY_ENABLED = false;
     public static final boolean DEFAULT_REACH_DISPLAY_ENABLED = false;
     public static final boolean DEFAULT_OPPONENT_INFO_ENABLED = false;
+    public static final boolean DEFAULT_FRIEND_FOE_OVERLAY_ENABLED = false;
+    public static final int DEFAULT_FRIEND_OVERLAY_R = 60;
+    public static final int DEFAULT_FRIEND_OVERLAY_G = 255;
+    public static final int DEFAULT_FRIEND_OVERLAY_B = 110;
+    public static final float DEFAULT_FRIEND_OVERLAY_ALPHA = 0.35f;
+    public static final int DEFAULT_FOE_OVERLAY_R = 255;
+    public static final int DEFAULT_FOE_OVERLAY_G = 60;
+    public static final int DEFAULT_FOE_OVERLAY_B = 60;
+    public static final float DEFAULT_FOE_OVERLAY_ALPHA = 0.35f;
     public static final boolean DEFAULT_FULL_BRIGHT_ENABLED = false;
     public static final boolean DEFAULT_TIME_CHANGER_ENABLED = false;
     public static final int DEFAULT_TIME_OF_DAY = 6000;
@@ -163,6 +172,18 @@ public class TpsConfig {
         pvp.deathRecapEnabled = false;
         if (pvp.dualSpectatePlayerOne == null) pvp.dualSpectatePlayerOne = "";
         if (pvp.dualSpectatePlayerTwo == null) pvp.dualSpectatePlayerTwo = "";
+        if (pvp.friendNames == null) pvp.friendNames = new ArrayList<>();
+        if (pvp.foeNames == null) pvp.foeNames = new ArrayList<>();
+        normalizeNameList(pvp.friendNames);
+        normalizeNameList(pvp.foeNames);
+        pvp.friendOverlayR = clampInt(pvp.friendOverlayR, 0, 255);
+        pvp.friendOverlayG = clampInt(pvp.friendOverlayG, 0, 255);
+        pvp.friendOverlayB = clampInt(pvp.friendOverlayB, 0, 255);
+        pvp.friendOverlayAlpha = clampFloat(pvp.friendOverlayAlpha, 0.0f, 1.0f);
+        pvp.foeOverlayR = clampInt(pvp.foeOverlayR, 0, 255);
+        pvp.foeOverlayG = clampInt(pvp.foeOverlayG, 0, 255);
+        pvp.foeOverlayB = clampInt(pvp.foeOverlayB, 0, 255);
+        pvp.foeOverlayAlpha = clampFloat(pvp.foeOverlayAlpha, 0.0f, 1.0f);
         if (pvp.autoGgMessage == null || pvp.autoGgMessage.isBlank()) pvp.autoGgMessage = "gg";
         if (pvp.autoGgWinMessage == null || pvp.autoGgWinMessage.isBlank()) pvp.autoGgWinMessage = pvp.autoGgMessage;
         if (pvp.autoGgLoseMessage == null || pvp.autoGgLoseMessage.isBlank()) pvp.autoGgLoseMessage = pvp.autoGgMessage;
@@ -270,6 +291,19 @@ public class TpsConfig {
     private static double clampDouble(double value, double min, double max) {
         if (!Double.isFinite(value)) return min;
         return Math.max(min, Math.min(max, value));
+    }
+
+    private static void normalizeNameList(List<String> names) {
+        if (names == null) {
+            return;
+        }
+        names.removeIf(name -> name == null || name.isBlank());
+        LinkedHashSet<String> seen = new LinkedHashSet<>();
+        for (int i = 0; i < names.size(); i++) {
+            String name = names.get(i).trim();
+            names.set(i, name.length() > 16 ? name.substring(0, 16) : name);
+        }
+        names.removeIf(name -> !seen.add(name.toLowerCase(java.util.Locale.ROOT)));
     }
 
     public static class ParticleSettings {
@@ -426,6 +460,17 @@ public class TpsConfig {
         public float dualSpectatePadding = 1.35f;
         public float dualSpectateMinDistance = 6.0f;
         public float dualSpectateMaxDistance = 80.0f;
+        public boolean friendFoeOverlayEnabled = DEFAULT_FRIEND_FOE_OVERLAY_ENABLED;
+        public List<String> friendNames = new ArrayList<>();
+        public List<String> foeNames = new ArrayList<>();
+        public int friendOverlayR = DEFAULT_FRIEND_OVERLAY_R;
+        public int friendOverlayG = DEFAULT_FRIEND_OVERLAY_G;
+        public int friendOverlayB = DEFAULT_FRIEND_OVERLAY_B;
+        public float friendOverlayAlpha = DEFAULT_FRIEND_OVERLAY_ALPHA;
+        public int foeOverlayR = DEFAULT_FOE_OVERLAY_R;
+        public int foeOverlayG = DEFAULT_FOE_OVERLAY_G;
+        public int foeOverlayB = DEFAULT_FOE_OVERLAY_B;
+        public float foeOverlayAlpha = DEFAULT_FOE_OVERLAY_ALPHA;
 
         public int allTimeDeaths = 0;
         public int allTimeKills = 0;

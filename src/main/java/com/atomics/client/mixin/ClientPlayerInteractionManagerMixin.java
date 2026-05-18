@@ -1,5 +1,6 @@
 package com.atomics.client.mixin;
 
+import com.atomics.client.AtomicsClient;
 import com.atomics.client.ClientFeatureManager;
 import com.atomics.client.PvpStatsManager;
 import net.minecraft.client.network.ClientPlayerInteractionManager;
@@ -12,8 +13,13 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(ClientPlayerInteractionManager.class)
 public class ClientPlayerInteractionManagerMixin {
-    @Inject(method = "attackEntity", at = @At("HEAD"))
+    @Inject(method = "attackEntity", at = @At("HEAD"), cancellable = true)
     private void atomics_client$trackAttackTarget(PlayerEntity player, Entity target, CallbackInfo ci) {
+        if (target instanceof PlayerEntity targetPlayer && AtomicsClient.shouldBlockFriendAttack(targetPlayer)) {
+            AtomicsClient.notifyFriendAttackBlocked(targetPlayer);
+            ci.cancel();
+            return;
+        }
         ClientFeatureManager.onReachAttack(player, target);
         PvpStatsManager.recordAttackTarget(target);
     }

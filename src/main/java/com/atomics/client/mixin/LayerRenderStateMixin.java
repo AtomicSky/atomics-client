@@ -9,10 +9,15 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.ModifyArg;
 
 import java.util.ArrayList;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 
 @Mixin(ItemRenderState.LayerRenderState.class)
 public class LayerRenderStateMixin {
+    @Unique
+    private static final Map<List<BakedQuad>, List<BakedQuad>> atomics_client$tintedQuadCache = new IdentityHashMap<>();
+
     @ModifyArg(
             method = "render(Lnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/command/OrderedRenderCommandQueue;III)V",
             at = @At(
@@ -38,6 +43,11 @@ public class LayerRenderStateMixin {
             return original;
         }
 
+        List<BakedQuad> cached = atomics_client$tintedQuadCache.get(original);
+        if (cached != null) {
+            return cached;
+        }
+
         boolean needsRetint = false;
         for (BakedQuad quad : original) {
             if (quad.tintIndex() != 0) {
@@ -46,6 +56,7 @@ public class LayerRenderStateMixin {
             }
         }
         if (!needsRetint) {
+            atomics_client$tintedQuadCache.put(original, original);
             return original;
         }
 
@@ -53,6 +64,7 @@ public class LayerRenderStateMixin {
         for (BakedQuad quad : original) {
             tinted.add(atomics_client$withTintIndexZero(quad));
         }
+        atomics_client$tintedQuadCache.put(original, tinted);
         return tinted;
     }
 
