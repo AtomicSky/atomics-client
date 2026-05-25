@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "atomics_client",
+  "version": "${version}",
+  "name": "Atomics Client",
+  "description": "Atomics Client is a mod that provides some nice QOL features for PvP",
+  "authors": ["AtomicSky1"],
+  "contact": {},
+  "license": "MIT",
+  "environment": "client",
+  "entrypoints": {
+    "client": ["com.atomics.client.AtomicsClient"]
+  },
+  "mixins": ["atomics_client.mixins.json"],
+  "depends": {
+    "fabricloader": ">=0.18.1",
+    "minecraft": "1.21.11",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}
