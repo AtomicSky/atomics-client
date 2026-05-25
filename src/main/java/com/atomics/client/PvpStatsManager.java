@@ -297,6 +297,19 @@ public final class PvpStatsManager {
         return display.suffix;
     }
 
+    public static Text getTotemPopNameSuffix(PlayerEntity player) {
+        TpsConfig.PvpSettings pvp = livePvpSettings();
+        if (player == null || pvp == null || !pvp.totemPopNametagEnabled || isLocalPlayer(player)) {
+            return null;
+        }
+
+        OpponentDuelStats stats = statsFor(player);
+        if (stats == null || stats.totemPops <= 0) {
+            return null;
+        }
+        return Text.literal(formatPopCount(stats.totemPops)).formatted(Formatting.GOLD);
+    }
+
     private static WinOddsDisplay buildWinOddsDisplay(MinecraftClient client, PlayerEntity opponent) {
         if (client == null || client.player == null || opponent == null) return WinOddsDisplay.DEFAULT;
 
@@ -1376,9 +1389,7 @@ public final class PvpStatsManager {
 
         private static WinOddsDisplay available(int percent, float opponentHealth, boolean showPopCount, int opponentPops) {
             int color = winOddsGradientColor(percent);
-            Text suffix = showPopCount
-                    ? Text.literal(" " + percent + "% [" + formatPopCount(opponentPops) + "]").withColor(color)
-                    : Text.literal(" " + percent + "%").withColor(color);
+            Text suffix = Text.literal(percent + "%").withColor(color);
             return new WinOddsDisplay(percent, opponentHealth, showPopCount, opponentPops, true, suffix);
         }
     }

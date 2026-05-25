@@ -9,6 +9,8 @@ import org.spongepowered.asm.mixin.Unique;
 public class PlayerEntityRenderStateMixin implements PlayerOverlayRenderStateAccess {
     @Unique
     private int atomics_client$friendFoeOverlayColor = -1;
+    @Unique
+    private int atomics_client$friendFoeOverlayStyle = 0;
 
     @Override
     public void atomics_client$setFriendFoeOverlayColor(int color) {
@@ -18,5 +20,15 @@ public class PlayerEntityRenderStateMixin implements PlayerOverlayRenderStateAcc
     @Override
     public int atomics_client$getFriendFoeOverlayColor() {
         return this.atomics_client$friendFoeOverlayColor;
+    }
+
+    @Override
+    public void atomics_client$setFriendFoeOverlayStyle(int style) {
+        this.atomics_client$friendFoeOverlayStyle = style;
+    }
+
+    @Override
+    public int atomics_client$getFriendFoeOverlayStyle() {
+        return this.atomics_client$friendFoeOverlayStyle;
     }
 }

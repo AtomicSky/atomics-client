@@ -1,5 +1,6 @@
 package com.atomics.client;
 
+import com.atomics.client.config.TpsConfig;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -7,7 +8,9 @@ import com.google.gson.JsonParser;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.util.Formatting;
+import net.minecraft.util.Identifier;
 import net.minecraft.text.MutableText;
+import net.minecraft.text.StyleSpriteSource;
 import net.minecraft.text.Text;
 
 import java.io.IOException;
@@ -43,6 +46,7 @@ public final class TierWeightManager {
     private static final Map<String, Map<String, String>> MODE_TITLE_CACHE = new ConcurrentHashMap<>();
     private static final Pattern NUMERIC_TIER_PATTERN = Pattern.compile("[1-5]");
     private static final int HEADER_ORANGE = 0xFF9A2E;
+    private static final StyleSpriteSource.Font TIER_TAGGER_ICON_FONT = new StyleSpriteSource.Font(Identifier.of(AtomicsClient.MOD_ID, "tiertagger_icons"));
     private static final ProviderEndpoint[] PROVIDER_ENDPOINTS = new ProviderEndpoint[] {
             new ProviderEndpoint("MCTiers", "https://mctiers.com/api", "/v2/profile/by-name/", "/v2/mode/list", TierSchema.MCTIERS),
             new ProviderEndpoint("PvPTiers", "https://api.skypractice.xyz/api/metatl", "/profile/by-name/", "/mode/list", TierSchema.SKY)
@@ -65,7 +69,44 @@ public final class TierWeightManager {
     }
 
     public static Text getNameSuffix(PlayerEntity player) {
-        return Text.empty();
+        if (!shouldShowNameSuffix(player)) {
+            return null;
+        }
+
+        TierProfile profile = getOrRequest(player.getName().getString());
+        if (profile == null || !profile.hasData()) {
+            return null;
+        }
+
+        TierLine bestLine = bestTierLine(profile);
+        String tier = bestLine == null ? "" : normalizeTierTaggerLabel(bestLine.tier());
+        if (tier.isBlank()) {
+            return null;
+        }
+        String format = TpsConfig.normalizeOpponentStatsNametagFormat(AtomicsClient.CONFIG.pvp.opponentStatsNametagFormat);
+        MutableText result = Text.empty();
+        if (TpsConfig.OPPONENT_STATS_NAMETAG_ICON_TIER.equals(format)) {
+            String icon = modeIcon(bestLine.mode());
+            if (!icon.isBlank()) {
+                result.append(Text.literal(icon).styled(style -> style.withFont(TIER_TAGGER_ICON_FONT)));
+            }
+        } else if (TpsConfig.OPPONENT_STATS_NAMETAG_MODE_TIER.equals(format)) {
+            String mode = compactMode(bestLine.mode());
+            if (!mode.isBlank()) {
+                result.append(Text.literal(mode + " ").formatted(gameModeColor(bestLine.mode())));
+            }
+        }
+        result.append(Text.literal(tier).withColor(tierTaggerColor(tier)));
+        return result;
+    }
+
+    private static boolean shouldShowNameSuffix(PlayerEntity player) {
+        return player != null
+                && !isLocalPlayer(player)
+                && AtomicsClient.CONFIG != null
+                && AtomicsClient.CONFIG.enabled
+                && AtomicsClient.CONFIG.pvp != null
+                && AtomicsClient.CONFIG.pvp.opponentStatsNametagEnabled;
     }
 
     public static void sendOpponentInfoChat(String username) {
@@ -536,6 +577,63 @@ public final class TierWeightManager {
         return text;
     }
 
+    private static TierLine bestTierLine(TierProfile profile) {
+        TierLine best = null;
+        int bestRank = Integer.MAX_VALUE;
+        if (profile.providers() != null) {
+            for (TierProviderStats provider : profile.providers()) {
+                if (provider == null || provider.lines() == null) continue;
+                for (TierLine line : provider.lines()) {
+                    int rank = tierRank(line == null ? null : line.tier());
+                    if (rank < bestRank) {
+                        best = line;
+                        bestRank = rank;
+                    }
+                }
+            }
+        }
+        if (profile.lines() != null) {
+            for (TierLine line : profile.lines()) {
+                int rank = tierRank(line == null ? null : line.tier());
+                if (rank < bestRank) {
+                    best = line;
+                    bestRank = rank;
+                }
+            }
+        }
+        return best;
+    }
+
+    private static int tierRank(String tier) {
+        String normalized = tier == null ? "" : tier.toUpperCase(Locale.ROOT).replace(" ", "");
+        if (normalized.length() < 3) return Integer.MAX_VALUE;
+        int number = Character.digit(normalized.charAt(2), 10);
+        if (number < 1 || number > 5) return Integer.MAX_VALUE;
+        int highLow = normalized.startsWith("HT") ? 0 : normalized.startsWith("LT") ? 1 : 2;
+        return number * 10 + highLow;
+    }
+
+    private static String compactMode(String mode) {
+        String key = normalizeModeKey(mode);
+        return switch (key) {
+            case "crystal", "cpvp" -> "CPVP";
+            case "sword", "swordpvp" -> "Sword";
+            case "axe", "axepvp" -> "Axe";
+            case "uhc" -> "UHC";
+            case "smp", "survival" -> "SMP";
+            case "nethpot", "netheritepot", "nethop", "netheriteop" -> "Neth";
+            case "pot", "potpvp" -> "Pot";
+            case "diamond", "dia", "diapot" -> "Dia";
+            case "mace" -> "Mace";
+            case "bow" -> "Bow";
+            case "overall" -> "";
+            default -> {
+                String pretty = prettifyMode(mode);
+                yield pretty.length() > 8 ? pretty.substring(0, 8) : pretty;
+            }
+        };
+    }
+
     private static Formatting gameModeColor(String mode) {
         String key = normalizeModeKey(mode);
         return switch (key) {
@@ -549,6 +647,69 @@ public final class TierWeightManager {
             case "mace" -> Formatting.YELLOW;
             case "bow" -> Formatting.DARK_GREEN;
             default -> Formatting.WHITE;
+        };
+    }
+
+    private static String modeIcon(String mode) {
+        String key = normalizeModeKey(mode);
+        return switch (key) {
+            case "axe", "axepvp" -> "\uE701";
+            case "mace" -> "\uE702";
+            case "nethop", "netheriteop", "nethpot", "netheritepot" -> "\uE703";
+            case "pot", "potpvp" -> "\uE704";
+            case "smp", "survival" -> "\uE705";
+            case "sword", "swordpvp" -> "\uE706";
+            case "uhc" -> "\uE707";
+            case "vanilla", "crystal", "cpvp" -> "\uE708";
+            case "bed", "bedfight" -> "\uE801";
+            case "bow" -> "\uE802";
+            case "creeper" -> "\uE803";
+            case "debuff" -> "\uE804";
+            case "diacrystal", "diamondcrystal", "diapot", "diamond", "dia" -> "\uE805";
+            case "diasmp", "diamondsmp" -> "\uE806";
+            case "elytra" -> "\uE807";
+            case "manhunt" -> "\uE808";
+            case "minecart" -> "\uE809";
+            case "ogvanilla" -> "\uE810";
+            case "speed" -> "\uE811";
+            case "trident" -> "\uE812";
+            default -> "";
+        };
+    }
+
+    private static String normalizeTierTaggerLabel(String tier) {
+        if (tier == null) {
+            return "";
+        }
+        String normalized = tier.trim()
+                .toUpperCase(Locale.ROOT)
+                .replace(" ", "")
+                .replace("_", "")
+                .replace("-", "");
+        if (normalized.startsWith("R") && normalized.length() >= 4) {
+            String activeTier = normalized.substring(1);
+            if (activeTier.matches("[HL]T[1-5]")) {
+                return "R" + activeTier;
+            }
+        }
+        return normalized.matches("[HL]T[1-5]") ? normalized : "";
+    }
+
+    private static int tierTaggerColor(String tier) {
+        String normalized = tier == null ? "" : tier.toUpperCase(Locale.ROOT);
+        if (normalized.startsWith("R")) return 10671871;
+        return switch (normalized) {
+            case "HT1" -> 15252026;
+            case "LT1" -> 14005077;
+            case "HT2" -> 12899303;
+            case "LT2" -> 10528690;
+            case "HT3" -> 16293722;
+            case "LT3" -> 13007682;
+            case "HT4" -> 8483994;
+            case "LT4" -> 6642553;
+            case "HT5" -> 9405096;
+            case "LT5" -> 6642553;
+            default -> 13882323;
         };
     }
 

@@ -18,7 +18,8 @@ public class LivingEntityRendererMixin {
     @Inject(method = "render(Lnet/minecraft/client/render/entity/state/LivingEntityRenderState;Lnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/command/OrderedRenderCommandQueue;Lnet/minecraft/client/render/state/CameraRenderState;)V", at = @At("HEAD"))
     private void atomics_client$beginPlayerFriendFoeOverlay(LivingEntityRenderState state, MatrixStack matrices, OrderedRenderCommandQueue queue, CameraRenderState cameraState, CallbackInfo ci) {
         if (state instanceof PlayerEntityRenderState) {
-            PlayerOverlayColorContext.set(((PlayerOverlayRenderStateAccess) state).atomics_client$getFriendFoeOverlayColor());
+            PlayerOverlayRenderStateAccess access = (PlayerOverlayRenderStateAccess) state;
+            PlayerOverlayColorContext.set(access.atomics_client$getFriendFoeOverlayColor(), access.atomics_client$getFriendFoeOverlayStyle());
         }
     }
 

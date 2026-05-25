@@ -94,6 +94,9 @@ public class AtomicsClientScreen extends Screen {
     private boolean statsGraphKdRatioVisible;
     private boolean statsGraphAccuracyVisible;
     private boolean winOddsEnabled;
+    private boolean totemPopNametagEnabled;
+    private boolean opponentStatsNametagEnabled;
+    private boolean pingNametagEnabled;
     private boolean autoGgEnabled;
     private boolean dualSpectateEnabled;
     private boolean dualSpectateAutoFill;
@@ -102,6 +105,8 @@ public class AtomicsClientScreen extends Screen {
     private boolean reachDisplayEnabled;
     private boolean opponentInfoEnabled;
     private boolean fullBrightEnabled;
+    private boolean armorHudEnabled;
+    private boolean armorDurabilityWarningEnabled;
     private boolean timeChangerEnabled;
     private boolean tntTimerEnabled;
     private boolean projectileTrailEnabled;
@@ -112,24 +117,37 @@ public class AtomicsClientScreen extends Screen {
     private String autoGgLoseMessage;
     private String settingsSearch = "";
     private final List<String> macroMessages = new ArrayList<>();
+    private final List<String> nametagItemOrder = new ArrayList<>();
+    private final List<String> nametagItemsBeforeName = new ArrayList<>();
+    private String opponentStatsNametagFormat;
     private String statsNumbersTimeframe;
     private String statsBarGraphTimeframe;
+    private String friendFoeOverlayStyle;
     private String dualSpectatePlayerOne;
     private String dualSpectatePlayerTwo;
     private int timeOfDay;
     private int tntTimerRange;
+    private int armorDurabilityWarningPercent;
     private int friendOverlayR;
     private int friendOverlayG;
     private int friendOverlayB;
     private int foeOverlayR;
     private int foeOverlayG;
     private int foeOverlayB;
+    private int shieldWarningOverlayR;
+    private int shieldWarningOverlayG;
+    private int shieldWarningOverlayB;
+    private int emptyBucketOverlayR;
+    private int emptyBucketOverlayG;
+    private int emptyBucketOverlayB;
     private int projectileTrailParticleCount;
     private float dualSpectatePadding;
     private float dualSpectateMinDistance;
     private float dualSpectateMaxDistance;
     private float friendOverlayAlpha;
     private float foeOverlayAlpha;
+    private float shieldWarningOverlayAlpha;
+    private float emptyBucketOverlayAlpha;
     private float zoomMultiplier;
     private float shieldDownX;
     private float shieldDownY;
@@ -209,6 +227,8 @@ public class AtomicsClientScreen extends Screen {
             y = buildToolsSettings(y);
         } else if (selectedTab == Tab.KEYBINDS) {
             y = buildKeybindSettings(y);
+        } else if (selectedTab == Tab.SEARCH) {
+            y = buildSearchSettings(y);
         } else {
             y = buildPlaceholderSettings(y, selectedTab.label, "No settings available yet.");
         }
@@ -217,7 +237,12 @@ public class AtomicsClientScreen extends Screen {
         maxScroll = Math.max(0, contentHeight - (contentBottom - contentTop));
         scrollOffset = Math.max(0, Math.min(scrollOffset, maxScroll));
 
-        addSettingsSearchField();
+        if (selectedTab == Tab.SEARCH) {
+            addSettingsSearchField();
+        } else {
+            settingsSearchFocused = false;
+            settingsSearchField = null;
+        }
 
         addFooterButtons();
         initializing = false;
@@ -380,7 +405,7 @@ public class AtomicsClientScreen extends Screen {
             y += 10;
         }
 
-        if (!normalizeSearch(settingsSearch).isEmpty() && y == startY) {
+        if (selectedTab != Tab.SEARCH && !normalizeSearch(settingsSearch).isEmpty() && y == startY) {
             labels.add(new DrawLabel("No settings matched the search.", leftX + 8, y + 8, 0xCCCCCC));
             y += 34;
         }
@@ -426,7 +451,13 @@ public class AtomicsClientScreen extends Screen {
         if (shouldShowFeature("misc.shield_warning_overlay", "Shield Warning Overlay", "shield warning", "shield delay", "disabled shield", "red shield")) {
             y = addFeatureSection(y, "misc.shield_warning_overlay", "Shield Warning Overlay");
             if (!isFeatureCollapsed("misc.shield_warning_overlay")) {
-                addToggle(leftX, y, controlWidth, "Enable Shield Warning Overlay", shieldWarningOverlayEnabled, TpsConfig.DEFAULT_SHIELD_WARNING_OVERLAY_ENABLED, () -> shieldWarningOverlayEnabled, value -> shieldWarningOverlayEnabled = value, false); y += ROW_HEIGHT;
+                addToggle(leftX, y, controlWidth, "Enable Shield Warning Overlay", shieldWarningOverlayEnabled, TpsConfig.DEFAULT_SHIELD_WARNING_OVERLAY_ENABLED, () -> shieldWarningOverlayEnabled, value -> shieldWarningOverlayEnabled = value, true); y += ROW_HEIGHT;
+                if (shieldWarningOverlayEnabled) {
+                    addIntSlider(leftX, y, controlWidth, "Warning Red", shieldWarningOverlayR, 0, 255, 1, TpsConfig.DEFAULT_SHIELD_WARNING_OVERLAY_R, value -> shieldWarningOverlayR = value); y += ROW_HEIGHT;
+                    addIntSlider(leftX, y, controlWidth, "Warning Green", shieldWarningOverlayG, 0, 255, 1, TpsConfig.DEFAULT_SHIELD_WARNING_OVERLAY_G, value -> shieldWarningOverlayG = value); y += ROW_HEIGHT;
+                    addIntSlider(leftX, y, controlWidth, "Warning Blue", shieldWarningOverlayB, 0, 255, 1, TpsConfig.DEFAULT_SHIELD_WARNING_OVERLAY_B, value -> shieldWarningOverlayB = value); y += ROW_HEIGHT;
+                    addDoubleSlider(leftX, y, controlWidth, "Warning Opacity", shieldWarningOverlayAlpha, 0.0, 1.0, 0.025, TpsConfig.DEFAULT_SHIELD_WARNING_OVERLAY_ALPHA, value -> shieldWarningOverlayAlpha = (float) value, value -> formatPercent(value)); y += ROW_HEIGHT;
+                }
                 labels.add(new DrawLabel("Tints shields red during the block delay or shield cooldown.", leftX + 8, y + 4, 0xAAAAAA));
                 y += 22;
             }
@@ -449,14 +480,20 @@ public class AtomicsClientScreen extends Screen {
         if (shouldShowFeature("misc.empty_bucket", "Empty Bucket Overlay", "bucket", "empty bucket")) {
             y = addFeatureSection(y, "misc.empty_bucket", "Empty Bucket Overlay");
             if (!isFeatureCollapsed("misc.empty_bucket")) {
-                addToggle(leftX, y, controlWidth, "Enable Empty Bucket Overlay", emptyBucketOverlayEnabled, TpsConfig.DEFAULT_EMPTY_BUCKET_OVERLAY_ENABLED, () -> emptyBucketOverlayEnabled, value -> emptyBucketOverlayEnabled = value, false); y += ROW_HEIGHT;
+                addToggle(leftX, y, controlWidth, "Enable Empty Bucket Overlay", emptyBucketOverlayEnabled, TpsConfig.DEFAULT_EMPTY_BUCKET_OVERLAY_ENABLED, () -> emptyBucketOverlayEnabled, value -> emptyBucketOverlayEnabled = value, true); y += ROW_HEIGHT;
+                if (emptyBucketOverlayEnabled) {
+                    addIntSlider(leftX, y, controlWidth, "Bucket Red", emptyBucketOverlayR, 0, 255, 1, TpsConfig.DEFAULT_EMPTY_BUCKET_OVERLAY_R, value -> emptyBucketOverlayR = value); y += ROW_HEIGHT;
+                    addIntSlider(leftX, y, controlWidth, "Bucket Green", emptyBucketOverlayG, 0, 255, 1, TpsConfig.DEFAULT_EMPTY_BUCKET_OVERLAY_G, value -> emptyBucketOverlayG = value); y += ROW_HEIGHT;
+                    addIntSlider(leftX, y, controlWidth, "Bucket Blue", emptyBucketOverlayB, 0, 255, 1, TpsConfig.DEFAULT_EMPTY_BUCKET_OVERLAY_B, value -> emptyBucketOverlayB = value); y += ROW_HEIGHT;
+                    addDoubleSlider(leftX, y, controlWidth, "Bucket Opacity", emptyBucketOverlayAlpha, 0.0, 1.0, 0.025, TpsConfig.DEFAULT_EMPTY_BUCKET_OVERLAY_ALPHA, value -> emptyBucketOverlayAlpha = (float) value, value -> formatPercent(value)); y += ROW_HEIGHT;
+                }
                 labels.add(new DrawLabel("Shows on opponents, and on yourself only in F5.", leftX + 8, y + 4, 0xAAAAAA));
                 y += 22;
             }
             y += 10;
         }
 
-        if (!normalizeSearch(settingsSearch).isEmpty() && y == startY) {
+        if (selectedTab != Tab.SEARCH && !normalizeSearch(settingsSearch).isEmpty() && y == startY) {
             labels.add(new DrawLabel("No settings matched the search.", leftX + 8, y + 8, 0xCCCCCC));
             y += 34;
         }
@@ -471,6 +508,20 @@ public class AtomicsClientScreen extends Screen {
             y = addFeatureSection(y, "tools.full_bright", "Full Bright");
             if (!isFeatureCollapsed("tools.full_bright")) {
                 addToggle(leftX, y, controlWidth, "Enable Full Bright", fullBrightEnabled, TpsConfig.DEFAULT_FULL_BRIGHT_ENABLED, () -> fullBrightEnabled, value -> fullBrightEnabled = value, false); y += ROW_HEIGHT;
+            }
+            y += 10;
+        }
+
+        if (shouldShowFeature("tools.armor_hud", "Armor HUD", "armor", "durability", "dura", "warning", "low armor")) {
+            y = addFeatureSection(y, "tools.armor_hud", "Armor HUD");
+            if (!isFeatureCollapsed("tools.armor_hud")) {
+                addToggle(leftX, y, controlWidth, "Show Armor Durability HUD", armorHudEnabled, TpsConfig.DEFAULT_ARMOR_HUD_ENABLED, () -> armorHudEnabled, value -> armorHudEnabled = value, true); y += ROW_HEIGHT;
+                addToggle(leftX, y, controlWidth, "Warn On Low Armor", armorDurabilityWarningEnabled, TpsConfig.DEFAULT_ARMOR_DURABILITY_WARNING_ENABLED, () -> armorDurabilityWarningEnabled, value -> armorDurabilityWarningEnabled = value, true); y += ROW_HEIGHT;
+                if (armorHudEnabled || armorDurabilityWarningEnabled) {
+                    addIntSlider(leftX, y, controlWidth, "Low Armor Percent", armorDurabilityWarningPercent, 1, 100, 1, TpsConfig.DEFAULT_ARMOR_DURABILITY_WARNING_PERCENT, value -> armorDurabilityWarningPercent = value); y += ROW_HEIGHT;
+                    labels.add(new DrawLabel("Shows remaining durability under each equipped armor piece.", leftX + 8, y + 4, 0xAAAAAA));
+                    y += 22;
+                }
             }
             y += 10;
         }
@@ -553,7 +604,7 @@ public class AtomicsClientScreen extends Screen {
             y += 10;
         }
 
-        if (!normalizeSearch(settingsSearch).isEmpty() && y == contentTop - scrollOffset) {
+        if (selectedTab != Tab.SEARCH && !normalizeSearch(settingsSearch).isEmpty() && y == contentTop - scrollOffset) {
             labels.add(new DrawLabel("No settings matched the search.", leftX + 8, y + 8, 0xCCCCCC));
             y += 34;
         }
@@ -603,7 +654,7 @@ public class AtomicsClientScreen extends Screen {
             y += 10;
         }
 
-        if (!normalizeSearch(settingsSearch).isEmpty() && y == startY) {
+        if (selectedTab != Tab.SEARCH && !normalizeSearch(settingsSearch).isEmpty() && y == startY) {
             labels.add(new DrawLabel("No settings matched the search.", leftX + 8, y + 8, 0xCCCCCC));
             y += 34;
         }
@@ -643,8 +694,46 @@ public class AtomicsClientScreen extends Screen {
             y = addFeatureSection(y, "pvp.opponent_odds", "Opponent Odds");
             if (!isFeatureCollapsed("pvp.opponent_odds")) {
                 addToggle(leftX, y, controlWidth, "Show Win Odds On Nametags", winOddsEnabled, true, () -> winOddsEnabled, value -> winOddsEnabled = value, false); y += ROW_HEIGHT;
-                labels.add(new DrawLabel("Uses direct health only. If hidden, falls back to pop counts or hides odds.", leftX + 8, y + 4, 0xAAAAAA));
+                labels.add(new DrawLabel("Displays only the win percentage. HP and pop counts stay separate.", leftX + 8, y + 4, 0xAAAAAA));
                 y += 22;
+            }
+            y += 10;
+        }
+
+        if (shouldShowFeature("pvp.totem_pop_counter", "Totem Pop Counter", "totem pops", "pop count", "nametags")) {
+            y = addFeatureSection(y, "pvp.totem_pop_counter", "Totem Pop Counter");
+            if (!isFeatureCollapsed("pvp.totem_pop_counter")) {
+                addToggle(leftX, y, controlWidth, "Show Totem Pops On Nametags", totemPopNametagEnabled, TpsConfig.DEFAULT_TOTEM_POP_NAMETAG_ENABLED, () -> totemPopNametagEnabled, value -> totemPopNametagEnabled = value, true); y += ROW_HEIGHT;
+                labels.add(new DrawLabel("Tracks opponent pops as its own movable nametag item.", leftX + 8, y + 4, 0xAAAAAA));
+                y += 22;
+            }
+            y += 10;
+        }
+
+        if (shouldShowFeature("pvp.ping_nametags", "Ping Nametags", "ping", "latency", "ms")) {
+            y = addFeatureSection(y, "pvp.ping_nametags", "Ping Nametags");
+            if (!isFeatureCollapsed("pvp.ping_nametags")) {
+                addToggle(leftX, y, controlWidth, "Show Ping On Nametags", pingNametagEnabled, TpsConfig.DEFAULT_PING_NAMETAG_ENABLED, () -> pingNametagEnabled, value -> pingNametagEnabled = value, true); y += ROW_HEIGHT;
+                labels.add(new DrawLabel("Displays each player's tab-list ping beside their nametag.", leftX + 8, y + 4, 0xAAAAAA));
+                y += 22;
+            }
+            y += 10;
+        }
+
+        if (shouldShowFeature("pvp.nametags", "Nametag Customization", "nametag", "layout", "move", "order")) {
+            y = addFeatureSection(y, "pvp.nametags", "Nametag Customization");
+            if (!isFeatureCollapsed("pvp.nametags")) {
+                List<String> enabledItems = enabledNametagItems();
+                if (enabledItems.isEmpty()) {
+                    labels.add(new DrawLabel("Enable a nametag item to move it around.", leftX + 8, y + 4, 0xAAAAAA));
+                    y += 22;
+                } else {
+                    for (String item : enabledItems) {
+                        y = addNametagLayoutRow(y, item, enabledItems);
+                    }
+                    labels.add(new DrawLabel("Only enabled nametag items appear here.", leftX + 8, y + 4, 0xAAAAAA));
+                    y += 22;
+                }
             }
             y += 10;
         }
@@ -663,7 +752,13 @@ public class AtomicsClientScreen extends Screen {
             y = addFeatureSection(y, "pvp.opponent_info", "Opponent Info");
             if (!isFeatureCollapsed("pvp.opponent_info")) {
                 addToggle(leftX, y, controlWidth, "Send Opponent Tier Chat", opponentInfoEnabled, TpsConfig.DEFAULT_OPPONENT_INFO_ENABLED, () -> opponentInfoEnabled, value -> opponentInfoEnabled = value, false); y += ROW_HEIGHT;
-                labels.add(new DrawLabel("Posts local tier info in chat when a supported duel starts.", leftX + 8, y + 4, 0xAAAAAA));
+                addToggle(leftX, y, controlWidth, "Show Opponent Stats On Nametags", opponentStatsNametagEnabled, TpsConfig.DEFAULT_OPPONENT_STATS_NAMETAG_ENABLED, () -> opponentStatsNametagEnabled, value -> opponentStatsNametagEnabled = value, true); y += ROW_HEIGHT;
+                addWideButton(leftX, y, controlWidth, "Nametag Format: " + opponentStatsNametagFormatLabel(opponentStatsNametagFormat), b -> {
+                    opponentStatsNametagFormat = nextOpponentStatsNametagFormat(opponentStatsNametagFormat);
+                    changed();
+                    clearAndInit();
+                }); y += ROW_HEIGHT;
+                labels.add(new DrawLabel("Chat posts duel tier info. Nametag shows the best cached tier/ranking tag.", leftX + 8, y + 4, 0xAAAAAA));
                 y += 22;
             }
             y += 10;
@@ -675,6 +770,11 @@ public class AtomicsClientScreen extends Screen {
                 addToggle(leftX, y, controlWidth, "Enable Friend/Foe Overlay", friendFoeOverlayEnabled, TpsConfig.DEFAULT_FRIEND_FOE_OVERLAY_ENABLED, () -> friendFoeOverlayEnabled, value -> friendFoeOverlayEnabled = value, true); y += ROW_HEIGHT;
                 if (friendFoeOverlayEnabled) {
                     addWideButton(leftX, y, controlWidth, "Edit Player List (" + getFriendFoeCount() + ")", b -> this.client.setScreen(new FriendFoeListScreen(this))); y += ROW_HEIGHT;
+                    addWideButton(leftX, y, controlWidth, "Render Style: " + friendFoeStyleLabel(friendFoeOverlayStyle), b -> {
+                        friendFoeOverlayStyle = nextFriendFoeStyle(friendFoeOverlayStyle);
+                        changed();
+                        clearAndInit();
+                    }); y += ROW_HEIGHT;
                     addIntSlider(leftX, y, controlWidth, "Friend Red", friendOverlayR, 0, 255, 1, TpsConfig.DEFAULT_FRIEND_OVERLAY_R, value -> friendOverlayR = value); y += ROW_HEIGHT;
                     addIntSlider(leftX, y, controlWidth, "Friend Green", friendOverlayG, 0, 255, 1, TpsConfig.DEFAULT_FRIEND_OVERLAY_G, value -> friendOverlayG = value); y += ROW_HEIGHT;
                     addIntSlider(leftX, y, controlWidth, "Friend Blue", friendOverlayB, 0, 255, 1, TpsConfig.DEFAULT_FRIEND_OVERLAY_B, value -> friendOverlayB = value); y += ROW_HEIGHT;
@@ -683,6 +783,8 @@ public class AtomicsClientScreen extends Screen {
                     addIntSlider(leftX, y, controlWidth, "Foe Green", foeOverlayG, 0, 255, 1, TpsConfig.DEFAULT_FOE_OVERLAY_G, value -> foeOverlayG = value); y += ROW_HEIGHT;
                     addIntSlider(leftX, y, controlWidth, "Foe Blue", foeOverlayB, 0, 255, 1, TpsConfig.DEFAULT_FOE_OVERLAY_B, value -> foeOverlayB = value); y += ROW_HEIGHT;
                     addDoubleSlider(leftX, y, controlWidth, "Foe Opacity", foeOverlayAlpha, 0.0, 1.0, 0.025, TpsConfig.DEFAULT_FOE_OVERLAY_ALPHA, value -> foeOverlayAlpha = (float) value, value -> formatPercent(value)); y += ROW_HEIGHT;
+                    labels.add(new DrawLabel("Styles: full tint, outline, outline + tint, or pulsing tint.", leftX + 8, y + 4, 0xAAAAAA));
+                    y += 14;
                     labels.add(new DrawLabel("Use the keybind to cycle a looked-at player through Friend, Foe, and Neutral.", leftX + 8, y + 4, 0xAAAAAA));
                     y += 22;
                 }
@@ -724,11 +826,26 @@ public class AtomicsClientScreen extends Screen {
             y += 10;
         }
 
-        if (!normalizeSearch(settingsSearch).isEmpty() && y == startY) {
+        if (selectedTab != Tab.SEARCH && !normalizeSearch(settingsSearch).isEmpty() && y == startY) {
             labels.add(new DrawLabel("No settings matched the search.", leftX + 8, y + 8, 0xCCCCCC));
             y += 34;
         }
 
+        return y;
+    }
+
+    private int buildSearchSettings(int y) {
+        int startY = y;
+        y = buildTotemSettings(y);
+        y = buildPvpSettings(y);
+        y = buildToolsSettings(y);
+        y = buildMiscSettings(y);
+        y = buildKeybindSettings(y);
+
+        if (!normalizeSearch(settingsSearch).isEmpty() && y == startY) {
+            labels.add(new DrawLabel("No modules matched the search.", leftX + 8, y + 8, 0xCCCCCC));
+            y += 34;
+        }
         return y;
     }
 
@@ -863,6 +980,9 @@ public class AtomicsClientScreen extends Screen {
     }
 
     private boolean shouldShowFeature(String key, String title, String... terms) {
+        if (selectedTab != Tab.SEARCH) {
+            return true;
+        }
         String query = normalizeSearch(settingsSearch);
         if (query.isEmpty()) return true;
         if (key != null && key.toLowerCase(Locale.ROOT).contains(query)) return true;
@@ -889,7 +1009,10 @@ public class AtomicsClientScreen extends Screen {
     }
 
     private boolean isFeatureCollapsed(String key) {
-        return normalizeSearch(settingsSearch).isEmpty() && collapsedSections.contains(key);
+        if (selectedTab == Tab.SEARCH) {
+            return normalizeSearch(settingsSearch).isEmpty();
+        }
+        return collapsedSections.contains(key);
     }
 
     private void toggleFeatureSection(String key) {
@@ -910,6 +1033,49 @@ public class AtomicsClientScreen extends Screen {
     private void addWideButton(int x, int y, int width, String label, ButtonWidget.PressAction action) {
         if (!isWidgetVisible(y)) return;
         addDrawableChild(ButtonWidget.builder(Text.literal(label), action).dimensions(x, y, width, BUTTON_HEIGHT).build());
+    }
+
+    private int addNametagLayoutRow(int y, String item, List<String> enabledItems) {
+        if (!isWidgetVisible(y)) {
+            return y + ROW_HEIGHT;
+        }
+
+        int gap = 6;
+        int sideWidth = Math.min(120, Math.max(96, leftWidth / 5));
+        int buttonWidth = 42;
+        int labelWidth = Math.max(90, leftWidth - sideWidth - buttonWidth * 2 - gap * 3);
+        int itemIndex = enabledItems.indexOf(item);
+        boolean beforeName = nametagItemsBeforeName.contains(item);
+
+        ButtonWidget sideButton = ButtonWidget.builder(Text.literal((itemIndex + 1) + ". " + nametagItemLabel(item) + ": " + (beforeName ? "Before" : "After")), b -> {
+            toggleNametagItemSide(item);
+            changed();
+            clearAndInit();
+        }).dimensions(leftX, y, labelWidth, BUTTON_HEIGHT).build();
+        addDrawableChild(sideButton);
+
+        ButtonWidget upButton = ButtonWidget.builder(Text.literal("Up"), b -> {
+            moveNametagItem(item, -1);
+            changed();
+            clearAndInit();
+        }).dimensions(leftX + labelWidth + gap, y, buttonWidth, BUTTON_HEIGHT).build();
+        upButton.active = itemIndex > 0;
+        addDrawableChild(upButton);
+
+        ButtonWidget downButton = ButtonWidget.builder(Text.literal("Down"), b -> {
+            moveNametagItem(item, 1);
+            changed();
+            clearAndInit();
+        }).dimensions(leftX + labelWidth + gap + buttonWidth + gap, y, buttonWidth, BUTTON_HEIGHT).build();
+        downButton.active = itemIndex >= 0 && itemIndex < enabledItems.size() - 1;
+        addDrawableChild(downButton);
+
+        addDrawableChild(ButtonWidget.builder(Text.literal(beforeName ? "Put After" : "Put Before"), b -> {
+            toggleNametagItemSide(item);
+            changed();
+            clearAndInit();
+        }).dimensions(leftX + labelWidth + gap + buttonWidth * 2 + gap * 2, y, sideWidth, BUTTON_HEIGHT).build());
+        return y + ROW_HEIGHT;
     }
 
     private void addMacroListButtons(int x, int y, int width) {
@@ -1044,6 +1210,14 @@ public class AtomicsClientScreen extends Screen {
         shieldWarningOverlayEnabled = cfg.misc.shieldWarningOverlayEnabled;
         fireOverlayEnabled = cfg.misc.fireOverlayEnabled;
         emptyBucketOverlayEnabled = cfg.misc.emptyBucketOverlayEnabled;
+        shieldWarningOverlayR = cfg.misc.shieldWarningOverlayR;
+        shieldWarningOverlayG = cfg.misc.shieldWarningOverlayG;
+        shieldWarningOverlayB = cfg.misc.shieldWarningOverlayB;
+        shieldWarningOverlayAlpha = cfg.misc.shieldWarningOverlayAlpha;
+        emptyBucketOverlayR = cfg.misc.emptyBucketOverlayR;
+        emptyBucketOverlayG = cfg.misc.emptyBucketOverlayG;
+        emptyBucketOverlayB = cfg.misc.emptyBucketOverlayB;
+        emptyBucketOverlayAlpha = cfg.misc.emptyBucketOverlayAlpha;
         shieldDownX = cfg.misc.shieldDownX;
         shieldDownY = cfg.misc.shieldDownY;
         shieldDownZ = cfg.misc.shieldDownZ;
@@ -1070,6 +1244,14 @@ public class AtomicsClientScreen extends Screen {
         statsNumbersTimeframe = normalizeStatsTimeframe(cfg.pvp.statsNumbersTimeframe);
         statsBarGraphTimeframe = normalizeStatsTimeframe(cfg.pvp.statsBarGraphTimeframe);
         winOddsEnabled = cfg.pvp.winOddsEnabled;
+        totemPopNametagEnabled = cfg.pvp.totemPopNametagEnabled;
+        opponentStatsNametagEnabled = cfg.pvp.opponentStatsNametagEnabled;
+        opponentStatsNametagFormat = TpsConfig.normalizeOpponentStatsNametagFormat(cfg.pvp.opponentStatsNametagFormat);
+        pingNametagEnabled = cfg.pvp.pingNametagEnabled;
+        nametagItemOrder.clear();
+        nametagItemOrder.addAll(normalizeNametagItemOrder(cfg.pvp.nametagItemOrder));
+        nametagItemsBeforeName.clear();
+        nametagItemsBeforeName.addAll(normalizeNametagItemsBeforeName(cfg.pvp.nametagItemsBeforeName));
         autoGgEnabled = cfg.pvp.autoGgEnabled;
         autoGgWinMessage = cfg.pvp.autoGgWinMessage;
         autoGgLoseMessage = cfg.pvp.autoGgLoseMessage;
@@ -1082,6 +1264,7 @@ public class AtomicsClientScreen extends Screen {
         dualSpectateMinDistance = cfg.pvp.dualSpectateMinDistance;
         dualSpectateMaxDistance = cfg.pvp.dualSpectateMaxDistance;
         friendFoeOverlayEnabled = cfg.pvp.friendFoeOverlayEnabled;
+        friendFoeOverlayStyle = TpsConfig.normalizeFriendFoeStyle(cfg.pvp.friendFoeOverlayStyle);
         friendOverlayR = cfg.pvp.friendOverlayR;
         friendOverlayG = cfg.pvp.friendOverlayG;
         friendOverlayB = cfg.pvp.friendOverlayB;
@@ -1093,6 +1276,9 @@ public class AtomicsClientScreen extends Screen {
         reachDisplayEnabled = cfg.combat.reachDisplayEnabled;
         opponentInfoEnabled = cfg.combat.opponentInfoEnabled;
         fullBrightEnabled = cfg.visual.fullBrightEnabled;
+        armorHudEnabled = cfg.visual.armorHudEnabled;
+        armorDurabilityWarningEnabled = cfg.visual.armorDurabilityWarningEnabled;
+        armorDurabilityWarningPercent = cfg.visual.armorDurabilityWarningPercent;
         timeChangerEnabled = cfg.visual.timeChangerEnabled;
         timeOfDay = cfg.visual.timeOfDay;
         tntTimerEnabled = cfg.visual.tntTimerEnabled;
@@ -1171,6 +1357,14 @@ public class AtomicsClientScreen extends Screen {
         shieldWarningOverlayEnabled = TpsConfig.DEFAULT_SHIELD_WARNING_OVERLAY_ENABLED;
         fireOverlayEnabled = TpsConfig.DEFAULT_MISC_FIRE_OVERLAY_ENABLED;
         emptyBucketOverlayEnabled = TpsConfig.DEFAULT_EMPTY_BUCKET_OVERLAY_ENABLED;
+        shieldWarningOverlayR = TpsConfig.DEFAULT_SHIELD_WARNING_OVERLAY_R;
+        shieldWarningOverlayG = TpsConfig.DEFAULT_SHIELD_WARNING_OVERLAY_G;
+        shieldWarningOverlayB = TpsConfig.DEFAULT_SHIELD_WARNING_OVERLAY_B;
+        shieldWarningOverlayAlpha = TpsConfig.DEFAULT_SHIELD_WARNING_OVERLAY_ALPHA;
+        emptyBucketOverlayR = TpsConfig.DEFAULT_EMPTY_BUCKET_OVERLAY_R;
+        emptyBucketOverlayG = TpsConfig.DEFAULT_EMPTY_BUCKET_OVERLAY_G;
+        emptyBucketOverlayB = TpsConfig.DEFAULT_EMPTY_BUCKET_OVERLAY_B;
+        emptyBucketOverlayAlpha = TpsConfig.DEFAULT_EMPTY_BUCKET_OVERLAY_ALPHA;
         shieldDownX = TpsConfig.DEFAULT_SHIELD_DOWN_X;
         shieldDownY = TpsConfig.DEFAULT_SHIELD_DOWN_Y;
         shieldDownZ = TpsConfig.DEFAULT_SHIELD_DOWN_Z;
@@ -1197,6 +1391,14 @@ public class AtomicsClientScreen extends Screen {
         statsNumbersTimeframe = "session";
         statsBarGraphTimeframe = "session";
         winOddsEnabled = true;
+        totemPopNametagEnabled = TpsConfig.DEFAULT_TOTEM_POP_NAMETAG_ENABLED;
+        opponentStatsNametagEnabled = TpsConfig.DEFAULT_OPPONENT_STATS_NAMETAG_ENABLED;
+        opponentStatsNametagFormat = TpsConfig.DEFAULT_OPPONENT_STATS_NAMETAG_FORMAT;
+        pingNametagEnabled = TpsConfig.DEFAULT_PING_NAMETAG_ENABLED;
+        nametagItemOrder.clear();
+        nametagItemOrder.addAll(TpsConfig.defaultNametagItemOrder());
+        nametagItemsBeforeName.clear();
+        nametagItemsBeforeName.add(TpsConfig.NAMETAG_ITEM_OPPONENT_STATS);
         autoGgEnabled = false;
         autoGgWinMessage = "gg";
         autoGgLoseMessage = "gg";
@@ -1209,6 +1411,7 @@ public class AtomicsClientScreen extends Screen {
         dualSpectateMinDistance = 6.0f;
         dualSpectateMaxDistance = 80.0f;
         friendFoeOverlayEnabled = TpsConfig.DEFAULT_FRIEND_FOE_OVERLAY_ENABLED;
+        friendFoeOverlayStyle = TpsConfig.DEFAULT_FRIEND_FOE_OVERLAY_STYLE;
         friendOverlayR = TpsConfig.DEFAULT_FRIEND_OVERLAY_R;
         friendOverlayG = TpsConfig.DEFAULT_FRIEND_OVERLAY_G;
         friendOverlayB = TpsConfig.DEFAULT_FRIEND_OVERLAY_B;
@@ -1220,6 +1423,9 @@ public class AtomicsClientScreen extends Screen {
         reachDisplayEnabled = TpsConfig.DEFAULT_REACH_DISPLAY_ENABLED;
         opponentInfoEnabled = TpsConfig.DEFAULT_OPPONENT_INFO_ENABLED;
         fullBrightEnabled = TpsConfig.DEFAULT_FULL_BRIGHT_ENABLED;
+        armorHudEnabled = TpsConfig.DEFAULT_ARMOR_HUD_ENABLED;
+        armorDurabilityWarningEnabled = TpsConfig.DEFAULT_ARMOR_DURABILITY_WARNING_ENABLED;
+        armorDurabilityWarningPercent = TpsConfig.DEFAULT_ARMOR_DURABILITY_WARNING_PERCENT;
         timeChangerEnabled = TpsConfig.DEFAULT_TIME_CHANGER_ENABLED;
         timeOfDay = TpsConfig.DEFAULT_TIME_OF_DAY;
         tntTimerEnabled = TpsConfig.DEFAULT_TNT_TIMER_ENABLED;
@@ -1278,6 +1484,14 @@ public class AtomicsClientScreen extends Screen {
         cfg.misc.shieldWarningOverlayEnabled = shieldWarningOverlayEnabled;
         cfg.misc.fireOverlayEnabled = fireOverlayEnabled;
         cfg.misc.emptyBucketOverlayEnabled = emptyBucketOverlayEnabled;
+        cfg.misc.shieldWarningOverlayR = Math.max(0, Math.min(255, shieldWarningOverlayR));
+        cfg.misc.shieldWarningOverlayG = Math.max(0, Math.min(255, shieldWarningOverlayG));
+        cfg.misc.shieldWarningOverlayB = Math.max(0, Math.min(255, shieldWarningOverlayB));
+        cfg.misc.shieldWarningOverlayAlpha = Math.max(0.0f, Math.min(1.0f, shieldWarningOverlayAlpha));
+        cfg.misc.emptyBucketOverlayR = Math.max(0, Math.min(255, emptyBucketOverlayR));
+        cfg.misc.emptyBucketOverlayG = Math.max(0, Math.min(255, emptyBucketOverlayG));
+        cfg.misc.emptyBucketOverlayB = Math.max(0, Math.min(255, emptyBucketOverlayB));
+        cfg.misc.emptyBucketOverlayAlpha = Math.max(0.0f, Math.min(1.0f, emptyBucketOverlayAlpha));
         cfg.misc.shieldDownX = shieldDownX;
         cfg.misc.shieldDownY = shieldDownY;
         cfg.misc.shieldDownZ = shieldDownZ;
@@ -1305,6 +1519,12 @@ public class AtomicsClientScreen extends Screen {
         cfg.pvp.statsNumbersTimeframe = normalizeStatsTimeframe(statsNumbersTimeframe);
         cfg.pvp.statsBarGraphTimeframe = normalizeStatsTimeframe(statsBarGraphTimeframe);
         cfg.pvp.winOddsEnabled = winOddsEnabled;
+        cfg.pvp.totemPopNametagEnabled = totemPopNametagEnabled;
+        cfg.pvp.opponentStatsNametagEnabled = opponentStatsNametagEnabled;
+        cfg.pvp.opponentStatsNametagFormat = TpsConfig.normalizeOpponentStatsNametagFormat(opponentStatsNametagFormat);
+        cfg.pvp.pingNametagEnabled = pingNametagEnabled;
+        cfg.pvp.nametagItemOrder = normalizeNametagItemOrder(nametagItemOrder);
+        cfg.pvp.nametagItemsBeforeName = normalizeNametagItemsBeforeName(nametagItemsBeforeName);
         cfg.pvp.autoGgEnabled = autoGgEnabled;
         cfg.pvp.autoGgWinMessage = autoGgWinMessage == null || autoGgWinMessage.trim().isEmpty() ? "gg" : autoGgWinMessage.trim();
         cfg.pvp.autoGgLoseMessage = autoGgLoseMessage == null || autoGgLoseMessage.trim().isEmpty() ? "gg" : autoGgLoseMessage.trim();
@@ -1328,6 +1548,7 @@ public class AtomicsClientScreen extends Screen {
         cfg.pvp.dualSpectateMinDistance = Math.max(2.0f, Math.min(30.0f, dualSpectateMinDistance));
         cfg.pvp.dualSpectateMaxDistance = Math.max(10.0f, Math.min(160.0f, dualSpectateMaxDistance));
         cfg.pvp.friendFoeOverlayEnabled = friendFoeOverlayEnabled;
+        cfg.pvp.friendFoeOverlayStyle = TpsConfig.normalizeFriendFoeStyle(friendFoeOverlayStyle);
         cfg.pvp.friendOverlayR = Math.max(0, Math.min(255, friendOverlayR));
         cfg.pvp.friendOverlayG = Math.max(0, Math.min(255, friendOverlayG));
         cfg.pvp.friendOverlayB = Math.max(0, Math.min(255, friendOverlayB));
@@ -1339,6 +1560,9 @@ public class AtomicsClientScreen extends Screen {
         cfg.combat.reachDisplayEnabled = reachDisplayEnabled;
         cfg.combat.opponentInfoEnabled = opponentInfoEnabled;
         cfg.visual.fullBrightEnabled = fullBrightEnabled;
+        cfg.visual.armorHudEnabled = armorHudEnabled;
+        cfg.visual.armorDurabilityWarningEnabled = armorDurabilityWarningEnabled;
+        cfg.visual.armorDurabilityWarningPercent = Math.max(1, Math.min(100, armorDurabilityWarningPercent));
         cfg.visual.timeChangerEnabled = timeChangerEnabled;
         cfg.visual.timeOfDay = Math.max(0, Math.min(24000, timeOfDay));
         cfg.visual.tntTimerEnabled = tntTimerEnabled;
@@ -1956,6 +2180,96 @@ public class AtomicsClientScreen extends Screen {
         return friends + foes;
     }
 
+    private List<String> enabledNametagItems() {
+        List<String> items = new ArrayList<>();
+        for (String item : normalizeNametagItemOrder(nametagItemOrder)) {
+            if (isNametagItemEnabled(item)) {
+                items.add(item);
+            }
+        }
+        return items;
+    }
+
+    private boolean isNametagItemEnabled(String item) {
+        if (TpsConfig.NAMETAG_ITEM_WIN_ODDS.equals(item)) {
+            return winOddsEnabled;
+        }
+        if (TpsConfig.NAMETAG_ITEM_TOTEM_POPS.equals(item)) {
+            return totemPopNametagEnabled;
+        }
+        if (TpsConfig.NAMETAG_ITEM_OPPONENT_STATS.equals(item)) {
+            return opponentStatsNametagEnabled;
+        }
+        if (TpsConfig.NAMETAG_ITEM_PING.equals(item)) {
+            return pingNametagEnabled;
+        }
+        return false;
+    }
+
+    private void moveNametagItem(String item, int direction) {
+        List<String> enabledItems = enabledNametagItems();
+        int enabledIndex = enabledItems.indexOf(item);
+        int targetEnabledIndex = enabledIndex + direction;
+        if (enabledIndex < 0 || targetEnabledIndex < 0 || targetEnabledIndex >= enabledItems.size()) {
+            return;
+        }
+
+        String targetItem = enabledItems.get(targetEnabledIndex);
+        int from = nametagItemOrder.indexOf(item);
+        int to = nametagItemOrder.indexOf(targetItem);
+        if (from < 0 || to < 0) {
+            return;
+        }
+        nametagItemOrder.remove(from);
+        nametagItemOrder.add(to, item);
+        List<String> normalizedOrder = normalizeNametagItemOrder(nametagItemOrder);
+        nametagItemOrder.clear();
+        nametagItemOrder.addAll(normalizedOrder);
+    }
+
+    private void toggleNametagItemSide(String item) {
+        if (!TpsConfig.isKnownNametagItem(item)) {
+            return;
+        }
+        if (nametagItemsBeforeName.contains(item)) {
+            nametagItemsBeforeName.removeIf(item::equals);
+        } else {
+            nametagItemsBeforeName.add(item);
+        }
+        List<String> normalizedBeforeName = normalizeNametagItemsBeforeName(nametagItemsBeforeName);
+        nametagItemsBeforeName.clear();
+        nametagItemsBeforeName.addAll(normalizedBeforeName);
+    }
+
+    private static List<String> normalizeNametagItemOrder(List<String> items) {
+        List<String> normalized = new ArrayList<>();
+        if (items != null) {
+            for (String item : items) {
+                if (TpsConfig.isKnownNametagItem(item) && !normalized.contains(item)) {
+                    normalized.add(item);
+                }
+            }
+        }
+        for (String item : TpsConfig.defaultNametagItemOrder()) {
+            if (!normalized.contains(item)) {
+                normalized.add(item);
+            }
+        }
+        return normalized;
+    }
+
+    private static List<String> normalizeNametagItemsBeforeName(List<String> items) {
+        List<String> normalized = new ArrayList<>();
+        if (items != null) {
+            for (String item : items) {
+                if (TpsConfig.isKnownNametagItem(item) && !normalized.contains(item)) {
+                    normalized.add(item);
+                }
+            }
+        }
+        return normalized;
+    }
+
     private static String normalizeStatsTimeframe(String value) {
         if (value == null) return "session";
         for (String id : STATS_TIMEFRAME_IDS) {
@@ -1971,6 +2285,50 @@ public class AtomicsClientScreen extends Screen {
             case "monthly" -> "Monthly";
             case "all_time" -> "All Time";
             default -> "Session";
+        };
+    }
+
+    private static String nametagItemLabel(String value) {
+        return switch (value) {
+            case TpsConfig.NAMETAG_ITEM_WIN_ODDS -> "Win Odds";
+            case TpsConfig.NAMETAG_ITEM_TOTEM_POPS -> "Totem Pops";
+            case TpsConfig.NAMETAG_ITEM_OPPONENT_STATS -> "Opponent Stats";
+            case TpsConfig.NAMETAG_ITEM_PING -> "Ping";
+            default -> "Unknown";
+        };
+    }
+
+    private static String opponentStatsNametagFormatLabel(String value) {
+        return switch (TpsConfig.normalizeOpponentStatsNametagFormat(value)) {
+            case TpsConfig.OPPONENT_STATS_NAMETAG_TIER -> "Tier Only";
+            case TpsConfig.OPPONENT_STATS_NAMETAG_MODE_TIER -> "Mode + Tier";
+            default -> "Icon + Tier";
+        };
+    }
+
+    private static String nextOpponentStatsNametagFormat(String value) {
+        return switch (TpsConfig.normalizeOpponentStatsNametagFormat(value)) {
+            case TpsConfig.OPPONENT_STATS_NAMETAG_ICON_TIER -> TpsConfig.OPPONENT_STATS_NAMETAG_TIER;
+            case TpsConfig.OPPONENT_STATS_NAMETAG_TIER -> TpsConfig.OPPONENT_STATS_NAMETAG_MODE_TIER;
+            default -> TpsConfig.OPPONENT_STATS_NAMETAG_ICON_TIER;
+        };
+    }
+
+    private static String friendFoeStyleLabel(String value) {
+        return switch (TpsConfig.normalizeFriendFoeStyle(value)) {
+            case TpsConfig.FRIEND_FOE_STYLE_OUTLINE -> "Outline";
+            case TpsConfig.FRIEND_FOE_STYLE_OUTLINE_FULL -> "Outline + Full";
+            case TpsConfig.FRIEND_FOE_STYLE_PULSE -> "Pulse";
+            default -> "Full Overlay";
+        };
+    }
+
+    private static String nextFriendFoeStyle(String value) {
+        return switch (TpsConfig.normalizeFriendFoeStyle(value)) {
+            case TpsConfig.FRIEND_FOE_STYLE_FULL -> TpsConfig.FRIEND_FOE_STYLE_OUTLINE;
+            case TpsConfig.FRIEND_FOE_STYLE_OUTLINE -> TpsConfig.FRIEND_FOE_STYLE_OUTLINE_FULL;
+            case TpsConfig.FRIEND_FOE_STYLE_OUTLINE_FULL -> TpsConfig.FRIEND_FOE_STYLE_PULSE;
+            default -> TpsConfig.FRIEND_FOE_STYLE_FULL;
         };
     }
 
@@ -2042,7 +2400,7 @@ public class AtomicsClientScreen extends Screen {
     }
 
     private enum Tab {
-        TOTEM("Totem", true), PVP("Combat", false), KEYBINDS("Keybinds", false), TOOLS("Visuals", false), STATS("Stats", false), MISC("Items", false);
+        TOTEM("Totem", true), PVP("Combat", false), KEYBINDS("Keybinds", false), TOOLS("Visuals", false), STATS("Stats", false), MISC("Items", false), SEARCH("Search", false);
         private final String label;
         private final boolean hasPreview;
         Tab(String label, boolean hasPreview) { this.label = label; this.hasPreview = hasPreview; }

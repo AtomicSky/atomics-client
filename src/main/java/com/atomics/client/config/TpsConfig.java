@@ -58,7 +58,26 @@ public class TpsConfig {
     public static final int DEFAULT_FOE_OVERLAY_G = 60;
     public static final int DEFAULT_FOE_OVERLAY_B = 60;
     public static final float DEFAULT_FOE_OVERLAY_ALPHA = 0.35f;
+    public static final String FRIEND_FOE_STYLE_FULL = "full";
+    public static final String FRIEND_FOE_STYLE_OUTLINE = "outline";
+    public static final String FRIEND_FOE_STYLE_OUTLINE_FULL = "outline_full";
+    public static final String FRIEND_FOE_STYLE_PULSE = "pulse";
+    public static final String DEFAULT_FRIEND_FOE_OVERLAY_STYLE = FRIEND_FOE_STYLE_FULL;
+    public static final String NAMETAG_ITEM_WIN_ODDS = "win_odds";
+    public static final String NAMETAG_ITEM_TOTEM_POPS = "totem_pops";
+    public static final String NAMETAG_ITEM_OPPONENT_STATS = "opponent_stats";
+    public static final String NAMETAG_ITEM_PING = "ping";
+    public static final boolean DEFAULT_PING_NAMETAG_ENABLED = false;
+    public static final boolean DEFAULT_TOTEM_POP_NAMETAG_ENABLED = false;
+    public static final boolean DEFAULT_OPPONENT_STATS_NAMETAG_ENABLED = false;
+    public static final String OPPONENT_STATS_NAMETAG_ICON_TIER = "icon_tier";
+    public static final String OPPONENT_STATS_NAMETAG_TIER = "tier";
+    public static final String OPPONENT_STATS_NAMETAG_MODE_TIER = "mode_tier";
+    public static final String DEFAULT_OPPONENT_STATS_NAMETAG_FORMAT = OPPONENT_STATS_NAMETAG_ICON_TIER;
     public static final boolean DEFAULT_FULL_BRIGHT_ENABLED = false;
+    public static final boolean DEFAULT_ARMOR_HUD_ENABLED = false;
+    public static final boolean DEFAULT_ARMOR_DURABILITY_WARNING_ENABLED = true;
+    public static final int DEFAULT_ARMOR_DURABILITY_WARNING_PERCENT = 20;
     public static final boolean DEFAULT_TIME_CHANGER_ENABLED = false;
     public static final int DEFAULT_TIME_OF_DAY = 6000;
     public static final boolean DEFAULT_TNT_TIMER_ENABLED = false;
@@ -86,6 +105,14 @@ public class TpsConfig {
     public static final float DEFAULT_SHIELD_UP_ROT_Y = 0.0f;
     public static final float DEFAULT_SHIELD_UP_ROT_Z = 0.0f;
     public static final float DEFAULT_FIRE_OVERLAY_HEIGHT = 0.0f;
+    public static final int DEFAULT_SHIELD_WARNING_OVERLAY_R = 255;
+    public static final int DEFAULT_SHIELD_WARNING_OVERLAY_G = 35;
+    public static final int DEFAULT_SHIELD_WARNING_OVERLAY_B = 35;
+    public static final float DEFAULT_SHIELD_WARNING_OVERLAY_ALPHA = 1.0f;
+    public static final int DEFAULT_EMPTY_BUCKET_OVERLAY_R = 255;
+    public static final int DEFAULT_EMPTY_BUCKET_OVERLAY_G = 40;
+    public static final int DEFAULT_EMPTY_BUCKET_OVERLAY_B = 40;
+    public static final float DEFAULT_EMPTY_BUCKET_OVERLAY_ALPHA = 1.0f;
 
     public boolean enabled = true;
 
@@ -143,6 +170,7 @@ public class TpsConfig {
         visual.timeOfDay = clampInt(visual.timeOfDay, 0, 24000);
         visual.tntTimerRange = clampInt(visual.tntTimerRange, 8, 128);
         visual.zoomMultiplier = clampFloat(visual.zoomMultiplier, 1.5f, 8.0f);
+        visual.armorDurabilityWarningPercent = clampInt(visual.armorDurabilityWarningPercent, 1, 100);
         if (macros.messages == null
                 || macros.messages.length < MIN_MACRO_SLOTS
                 || macros.messages.length > MAX_MACRO_SLOTS) {
@@ -180,6 +208,7 @@ public class TpsConfig {
         pvp.friendOverlayG = clampInt(pvp.friendOverlayG, 0, 255);
         pvp.friendOverlayB = clampInt(pvp.friendOverlayB, 0, 255);
         pvp.friendOverlayAlpha = clampFloat(pvp.friendOverlayAlpha, 0.0f, 1.0f);
+        pvp.friendFoeOverlayStyle = normalizeFriendFoeStyle(pvp.friendFoeOverlayStyle);
         pvp.foeOverlayR = clampInt(pvp.foeOverlayR, 0, 255);
         pvp.foeOverlayG = clampInt(pvp.foeOverlayG, 0, 255);
         pvp.foeOverlayB = clampInt(pvp.foeOverlayB, 0, 255);
@@ -195,6 +224,9 @@ public class TpsConfig {
         if (pvp.monthlyStatsKey == null) pvp.monthlyStatsKey = "";
         if (!isStatsTimeframe(pvp.statsNumbersTimeframe)) pvp.statsNumbersTimeframe = "session";
         if (!isStatsTimeframe(pvp.statsBarGraphTimeframe)) pvp.statsBarGraphTimeframe = "session";
+        pvp.nametagItemOrder = normalizeNametagItems(pvp.nametagItemOrder, false);
+        pvp.nametagItemsBeforeName = normalizeNametagItems(pvp.nametagItemsBeforeName, true);
+        pvp.opponentStatsNametagFormat = normalizeOpponentStatsNametagFormat(pvp.opponentStatsNametagFormat);
         if (pvp.statSessions == null) {
             pvp.statSessions = new ArrayList<>();
         } else {
@@ -268,7 +300,62 @@ public class TpsConfig {
         if (retexture.itemId == null || retexture.itemId.isBlank()) {
             retexture.itemId = DEFAULT_RETEXTURE_ITEM_ID;
         }
+        misc.shieldWarningOverlayR = clampInt(misc.shieldWarningOverlayR, 0, 255);
+        misc.shieldWarningOverlayG = clampInt(misc.shieldWarningOverlayG, 0, 255);
+        misc.shieldWarningOverlayB = clampInt(misc.shieldWarningOverlayB, 0, 255);
+        misc.shieldWarningOverlayAlpha = clampFloat(misc.shieldWarningOverlayAlpha, 0.0f, 1.0f);
+        misc.emptyBucketOverlayR = clampInt(misc.emptyBucketOverlayR, 0, 255);
+        misc.emptyBucketOverlayG = clampInt(misc.emptyBucketOverlayG, 0, 255);
+        misc.emptyBucketOverlayB = clampInt(misc.emptyBucketOverlayB, 0, 255);
+        misc.emptyBucketOverlayAlpha = clampFloat(misc.emptyBucketOverlayAlpha, 0.0f, 1.0f);
         return this;
+    }
+
+    public static String normalizeFriendFoeStyle(String value) {
+        if (FRIEND_FOE_STYLE_OUTLINE.equals(value)
+                || FRIEND_FOE_STYLE_OUTLINE_FULL.equals(value)
+                || FRIEND_FOE_STYLE_PULSE.equals(value)
+                || FRIEND_FOE_STYLE_FULL.equals(value)) {
+            return value;
+        }
+        return DEFAULT_FRIEND_FOE_OVERLAY_STYLE;
+    }
+
+    public static List<String> defaultNametagItemOrder() {
+        return new ArrayList<>(List.of(NAMETAG_ITEM_WIN_ODDS, NAMETAG_ITEM_TOTEM_POPS, NAMETAG_ITEM_OPPONENT_STATS, NAMETAG_ITEM_PING));
+    }
+
+    public static boolean isKnownNametagItem(String item) {
+        return NAMETAG_ITEM_WIN_ODDS.equals(item)
+                || NAMETAG_ITEM_TOTEM_POPS.equals(item)
+                || NAMETAG_ITEM_OPPONENT_STATS.equals(item)
+                || NAMETAG_ITEM_PING.equals(item);
+    }
+
+    private static List<String> normalizeNametagItems(List<String> items, boolean omitMissingDefaults) {
+        LinkedHashSet<String> normalized = new LinkedHashSet<>();
+        if (items != null) {
+            for (String item : items) {
+                if (isKnownNametagItem(item)) {
+                    normalized.add(item);
+                }
+            }
+        }
+        if (!omitMissingDefaults) {
+            for (String item : defaultNametagItemOrder()) {
+                normalized.add(item);
+            }
+        }
+        return new ArrayList<>(normalized);
+    }
+
+    public static String normalizeOpponentStatsNametagFormat(String value) {
+        if (OPPONENT_STATS_NAMETAG_TIER.equals(value)
+                || OPPONENT_STATS_NAMETAG_MODE_TIER.equals(value)
+                || OPPONENT_STATS_NAMETAG_ICON_TIER.equals(value)) {
+            return value;
+        }
+        return DEFAULT_OPPONENT_STATS_NAMETAG_FORMAT;
     }
 
     private static boolean isStatsTimeframe(String value) {
@@ -390,6 +477,14 @@ public class TpsConfig {
         public boolean shieldWarningOverlayEnabled = DEFAULT_SHIELD_WARNING_OVERLAY_ENABLED;
         public boolean fireOverlayEnabled = DEFAULT_MISC_FIRE_OVERLAY_ENABLED;
         public boolean emptyBucketOverlayEnabled = DEFAULT_EMPTY_BUCKET_OVERLAY_ENABLED;
+        public int shieldWarningOverlayR = DEFAULT_SHIELD_WARNING_OVERLAY_R;
+        public int shieldWarningOverlayG = DEFAULT_SHIELD_WARNING_OVERLAY_G;
+        public int shieldWarningOverlayB = DEFAULT_SHIELD_WARNING_OVERLAY_B;
+        public float shieldWarningOverlayAlpha = DEFAULT_SHIELD_WARNING_OVERLAY_ALPHA;
+        public int emptyBucketOverlayR = DEFAULT_EMPTY_BUCKET_OVERLAY_R;
+        public int emptyBucketOverlayG = DEFAULT_EMPTY_BUCKET_OVERLAY_G;
+        public int emptyBucketOverlayB = DEFAULT_EMPTY_BUCKET_OVERLAY_B;
+        public float emptyBucketOverlayAlpha = DEFAULT_EMPTY_BUCKET_OVERLAY_ALPHA;
 
         public float shieldDownX = DEFAULT_SHIELD_DOWN_X;
         public float shieldDownY = DEFAULT_SHIELD_DOWN_Y;
@@ -415,6 +510,9 @@ public class TpsConfig {
 
     public static class VisualSettings {
         public boolean fullBrightEnabled = DEFAULT_FULL_BRIGHT_ENABLED;
+        public boolean armorHudEnabled = DEFAULT_ARMOR_HUD_ENABLED;
+        public boolean armorDurabilityWarningEnabled = DEFAULT_ARMOR_DURABILITY_WARNING_ENABLED;
+        public int armorDurabilityWarningPercent = DEFAULT_ARMOR_DURABILITY_WARNING_PERCENT;
         public boolean timeChangerEnabled = DEFAULT_TIME_CHANGER_ENABLED;
         public int timeOfDay = DEFAULT_TIME_OF_DAY;
         public boolean tntTimerEnabled = DEFAULT_TNT_TIMER_ENABLED;
@@ -445,6 +543,12 @@ public class TpsConfig {
         public boolean sessionStatsEnabled = true;
         public boolean allTimeStatsEnabled = true;
         public boolean winOddsEnabled = true;
+        public boolean totemPopNametagEnabled = DEFAULT_TOTEM_POP_NAMETAG_ENABLED;
+        public boolean opponentStatsNametagEnabled = DEFAULT_OPPONENT_STATS_NAMETAG_ENABLED;
+        public String opponentStatsNametagFormat = DEFAULT_OPPONENT_STATS_NAMETAG_FORMAT;
+        public boolean pingNametagEnabled = DEFAULT_PING_NAMETAG_ENABLED;
+        public List<String> nametagItemOrder = defaultNametagItemOrder();
+        public List<String> nametagItemsBeforeName = new ArrayList<>(List.of(NAMETAG_ITEM_OPPONENT_STATS));
         public boolean autoGgEnabled = false;
         public String autoGgMessage = "gg";
         public String autoGgWinMessage = "gg";
@@ -461,6 +565,7 @@ public class TpsConfig {
         public float dualSpectateMinDistance = 6.0f;
         public float dualSpectateMaxDistance = 80.0f;
         public boolean friendFoeOverlayEnabled = DEFAULT_FRIEND_FOE_OVERLAY_ENABLED;
+        public String friendFoeOverlayStyle = DEFAULT_FRIEND_FOE_OVERLAY_STYLE;
         public List<String> friendNames = new ArrayList<>();
         public List<String> foeNames = new ArrayList<>();
         public int friendOverlayR = DEFAULT_FRIEND_OVERLAY_R;

@@ -3,13 +3,17 @@ package com.atomics.client;
 import com.atomics.client.config.TpsConfig;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.network.PlayerListEntry;
 import net.minecraft.entity.Entity;
+import net.minecraft.entity.EquipmentSlot;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.TntEntity;
 import net.minecraft.entity.effect.StatusEffectInstance;
 import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.entity.projectile.ProjectileEntity;
+import net.minecraft.item.ItemStack;
 import net.minecraft.particle.ParticleEffect;
+import net.minecraft.text.MutableText;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.math.Box;
@@ -40,6 +44,8 @@ public final class ClientFeatureManager {
     private static float targetZoomMultiplier = 1.0f;
     private static long lastZoomUpdateNanos;
     private static long lastZoomFeedbackMillis;
+    private static long lastArmorWarningMillis;
+    private static String lastArmorWarningKey = "";
     private static final Map<UUID, String> MASKED_PLAYER_NAMES = new HashMap<>();
     private static final Text[] TNT_TIMER_TEXT_CACHE = new Text[2001];
     private static final List<PreparedParticleBurst> PREPARED_PROJECTILE_TRAIL_PARTICLES = new ArrayList<>();
@@ -146,6 +152,9 @@ public final class ClientFeatureManager {
         if (cfg.combat.reachDisplayEnabled) {
             renderReachDisplay(context, client);
         }
+        if (cfg.visual.armorHudEnabled || cfg.visual.armorDurabilityWarningEnabled) {
+            renderArmorHudAndWarnings(context, client, cfg.visual);
+        }
     }
 
     public static boolean shouldMaskPlayerNames() {
@@ -169,9 +178,103 @@ public final class ClientFeatureManager {
         return maskedName;
     }
 
+    public static Text customizePlayerNametag(PlayerEntity player, Text originalDisplayName) {
+        TpsConfig cfg = liveConfig();
+        if (player == null || originalDisplayName == null || cfg == null || cfg.pvp == null) {
+            return originalDisplayName;
+        }
+
+        MutableText baseName = shouldMaskPlayerNames()
+                ? Text.literal(maskedPlayerName(player))
+                : originalDisplayName.copy();
+
+        List<NametagItem> before = new ArrayList<>();
+        List<NametagItem> after = new ArrayList<>();
+        List<String> order = cfg.pvp.nametagItemOrder == null ? TpsConfig.defaultNametagItemOrder() : cfg.pvp.nametagItemOrder;
+        for (String itemId : order) {
+            Text itemText = getNametagItemText(itemId, player, cfg);
+            if (itemText == null) {
+                continue;
+            }
+            NametagItem item = new NametagItem(itemId, itemText);
+            if (cfg.pvp.nametagItemsBeforeName != null && cfg.pvp.nametagItemsBeforeName.contains(itemId)) {
+                before.add(item);
+            } else {
+                after.add(item);
+            }
+        }
+
+        if (before.isEmpty() && after.isEmpty()) {
+            return baseName;
+        }
+
+        MutableText result = Text.empty();
+        appendNametagItems(result, before);
+        if (!before.isEmpty()) {
+            result.append(Text.literal(" "));
+        }
+        result.append(baseName);
+        if (!after.isEmpty()) {
+            result.append(Text.literal(" "));
+            appendNametagItems(result, after);
+        }
+        return result;
+    }
+
+    private static void appendNametagItems(MutableText target, List<NametagItem> items) {
+        for (int i = 0; i < items.size(); i++) {
+            if (i > 0) {
+                target.append(Text.literal(" "));
+            }
+            target.append(items.get(i).text);
+        }
+    }
+
+    private static Text getNametagItemText(String itemId, PlayerEntity player, TpsConfig cfg) {
+        if (TpsConfig.NAMETAG_ITEM_WIN_ODDS.equals(itemId)) {
+            return PvpStatsManager.getWinOddsNameSuffix(player);
+        }
+        if (TpsConfig.NAMETAG_ITEM_TOTEM_POPS.equals(itemId)) {
+            return PvpStatsManager.getTotemPopNameSuffix(player);
+        }
+        if (TpsConfig.NAMETAG_ITEM_OPPONENT_STATS.equals(itemId)) {
+            return TierWeightManager.getNameSuffix(player);
+        }
+        if (TpsConfig.NAMETAG_ITEM_PING.equals(itemId)) {
+            return getPingNametagText(player, cfg);
+        }
+        return null;
+    }
+
+    private static Text getPingNametagText(PlayerEntity player, TpsConfig cfg) {
+        if (cfg == null || cfg.pvp == null || !cfg.pvp.pingNametagEnabled || player == null) {
+            return null;
+        }
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client == null || client.getNetworkHandler() == null) {
+            return null;
+        }
+        PlayerListEntry entry = client.getNetworkHandler().getPlayerListEntry(player.getUuid());
+        if (entry == null || entry.getLatency() < 0) {
+            return null;
+        }
+        int ping = entry.getLatency();
+        Formatting color = ping <= 75 ? Formatting.GREEN : ping <= 150 ? Formatting.YELLOW : ping <= 250 ? Formatting.GOLD : Formatting.RED;
+        return Text.literal(ping + "ms").formatted(color);
+    }
+
     public static boolean isZoomActive() {
         updateZoom(liveConfig());
         return currentZoomMultiplier > 1.01f || targetZoomMultiplier > 1.01f;
+    }
+
+    private record NametagItem(String id, Text text) {
+    }
+
+    private record ArmorPiece(ItemStack stack, String slotName, int remaining, int maxDamage, int percent) {
+        boolean hasDurability() {
+            return stack != null && !stack.isEmpty() && maxDamage > 0;
+        }
     }
 
     public static float getZoomFovMultiplier() {
@@ -244,6 +347,107 @@ public final class ClientFeatureManager {
         context.getMatrices().scale(scale, scale);
         context.drawTextWithShadow(client.textRenderer, lastReachText, Math.round(x / scale), Math.round(y / scale), color);
         context.getMatrices().popMatrix();
+    }
+
+    private static void renderArmorHudAndWarnings(DrawContext context, MinecraftClient client, TpsConfig.VisualSettings visual) {
+        ArmorPiece[] armor = armorPieces(client.player);
+        if (visual.armorHudEnabled) {
+            renderArmorHud(context, client, armor, visual.armorDurabilityWarningPercent);
+        }
+        if (visual.armorDurabilityWarningEnabled) {
+            warnLowArmorDurability(client, armor, visual.armorDurabilityWarningPercent);
+        }
+    }
+
+    private static void renderArmorHud(DrawContext context, MinecraftClient client, ArmorPiece[] armor, int warningPercent) {
+        int visible = 0;
+        for (ArmorPiece piece : armor) {
+            if (piece != null && piece.hasDurability()) {
+                visible++;
+            }
+        }
+        if (visible <= 0) {
+            return;
+        }
+
+        int slotWidth = 28;
+        int totalWidth = visible * slotWidth;
+        int x = client.getWindow().getScaledWidth() / 2 - totalWidth / 2;
+        int y = client.getWindow().getScaledHeight() - 74;
+        for (ArmorPiece piece : armor) {
+            if (piece == null || !piece.hasDurability()) {
+                continue;
+            }
+            int itemX = x + 6;
+            context.drawItem(piece.stack(), itemX, y);
+            context.drawStackOverlay(client.textRenderer, piece.stack(), itemX, y);
+
+            String durability = String.valueOf(piece.remaining());
+            int color = armorDurabilityColor(piece.percent(), warningPercent);
+            float scale = 0.68f;
+            int textWidth = client.textRenderer.getWidth(durability);
+            int textX = Math.round((x + slotWidth / 2.0f - textWidth * scale / 2.0f) / scale);
+            int textY = Math.round((y + 18) / scale);
+            context.getMatrices().pushMatrix();
+            context.getMatrices().scale(scale, scale);
+            context.drawTextWithShadow(client.textRenderer, durability, textX, textY, color);
+            context.getMatrices().popMatrix();
+            x += slotWidth;
+        }
+    }
+
+    private static void warnLowArmorDurability(MinecraftClient client, ArmorPiece[] armor, int warningPercent) {
+        ArmorPiece lowest = null;
+        for (ArmorPiece piece : armor) {
+            if (piece == null || !piece.hasDurability() || piece.percent() > warningPercent) {
+                continue;
+            }
+            if (lowest == null || piece.percent() < lowest.percent()) {
+                lowest = piece;
+            }
+        }
+        if (lowest == null || client.player == null) {
+            lastArmorWarningKey = "";
+            return;
+        }
+
+        long now = System.currentTimeMillis();
+        String key = lowest.slotName() + lowest.remaining();
+        if (!key.equals(lastArmorWarningKey) || now - lastArmorWarningMillis > 2500L) {
+            client.player.sendMessage(Text.literal("Low armor durability: " + lowest.slotName() + " " + lowest.remaining() + "/" + lowest.maxDamage())
+                    .formatted(Formatting.RED, Formatting.BOLD), true);
+            lastArmorWarningKey = key;
+            lastArmorWarningMillis = now;
+        }
+    }
+
+    private static ArmorPiece[] armorPieces(PlayerEntity player) {
+        return new ArmorPiece[] {
+                armorPiece(player, EquipmentSlot.HEAD, "Helmet"),
+                armorPiece(player, EquipmentSlot.CHEST, "Chestplate"),
+                armorPiece(player, EquipmentSlot.LEGS, "Leggings"),
+                armorPiece(player, EquipmentSlot.FEET, "Boots")
+        };
+    }
+
+    private static ArmorPiece armorPiece(PlayerEntity player, EquipmentSlot slot, String slotName) {
+        if (player == null) {
+            return new ArmorPiece(ItemStack.EMPTY, slotName, 0, 0, 100);
+        }
+        ItemStack stack = player.getEquippedStack(slot);
+        if (stack == null || stack.isEmpty() || !stack.isDamageable()) {
+            return new ArmorPiece(ItemStack.EMPTY, slotName, 0, 0, 100);
+        }
+        int maxDamage = Math.max(1, stack.getMaxDamage());
+        int remaining = Math.max(0, maxDamage - stack.getDamage());
+        int percent = Math.round(remaining * 100.0f / maxDamage);
+        return new ArmorPiece(stack, slotName, remaining, maxDamage, percent);
+    }
+
+    private static int armorDurabilityColor(int percent, int warningPercent) {
+        if (percent <= warningPercent) return 0xFFFF5555;
+        if (percent <= Math.max(warningPercent + 15, 40)) return 0xFFFFAA00;
+        return 0xFF55FF55;
     }
 
     public static boolean shouldShowTntTimer(TntEntity tnt) {

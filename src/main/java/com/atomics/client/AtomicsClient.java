@@ -2,6 +2,7 @@ package com.atomics.client;
 
 import com.atomics.client.config.TpsConfig;
 import com.atomics.client.gui.AtomicsClientScreen;
+import com.atomics.client.render.PlayerOverlayColorContext;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
@@ -51,8 +52,6 @@ public class AtomicsClient implements ClientModInitializer {
     private static KeyBinding toggleStreamerModeKey;
     private static KeyBinding cycleFriendFoeKey;
     private static final List<KeyBinding> macroKeys = new ArrayList<>();
-    private static final int EMPTY_BUCKET_OVERLAY_COLOR = 0xFFFF2828;
-    private static final int SHIELD_WARNING_OVERLAY_COLOR = 0xFFFF2323;
     private static String cachedReplacementItemId;
     private static Item cachedReplacementItem;
     private static long lastLocalShieldDisabledMillis;
@@ -63,6 +62,7 @@ public class AtomicsClient implements ClientModInitializer {
     private static boolean friendFoeCacheInitialized;
     private static int friendFoeCacheFingerprint;
     private static boolean cachedFriendFoeOverlayEnabled;
+    private static int cachedFriendFoeOverlayStyle = PlayerOverlayColorContext.STYLE_FULL;
     private static int cachedFriendOverlayColor = -1;
     private static int cachedFoeOverlayColor = -1;
 
@@ -493,9 +493,10 @@ public class AtomicsClient implements ClientModInitializer {
             return -1;
         }
 
-        // Bucket overlay is a real item color tint, not enchant glint.
-        // Full alpha means texture transparency is still preserved by the item texture itself.
-        return EMPTY_BUCKET_OVERLAY_COLOR;
+        TpsConfig.MiscSettings misc = CONFIG == null ? null : CONFIG.misc;
+        return misc == null
+                ? -1
+                : colorWithAlpha(misc.emptyBucketOverlayR, misc.emptyBucketOverlayG, misc.emptyBucketOverlayB, misc.emptyBucketOverlayAlpha);
     }
 
     public static int getLiveShieldWarningOverlayColor() {
@@ -503,7 +504,10 @@ public class AtomicsClient implements ClientModInitializer {
             return -1;
         }
 
-        return SHIELD_WARNING_OVERLAY_COLOR;
+        TpsConfig.MiscSettings misc = CONFIG == null ? null : CONFIG.misc;
+        return misc == null
+                ? -1
+                : colorWithAlpha(misc.shieldWarningOverlayR, misc.shieldWarningOverlayG, misc.shieldWarningOverlayB, misc.shieldWarningOverlayAlpha);
     }
 
     public static void recordLocalShieldDisabled() {
@@ -578,6 +582,17 @@ public class AtomicsClient implements ClientModInitializer {
         return -1;
     }
 
+    public static int getPlayerFriendFoeOverlayStyle(PlayerEntity player) {
+        return getPlayerFriendFoeOverlayColor(player) == -1
+                ? PlayerOverlayColorContext.STYLE_FULL
+                : cachedFriendFoeOverlayStyle;
+    }
+
+    public static boolean usesFriendFoeOutline(int style) {
+        return style == PlayerOverlayColorContext.STYLE_OUTLINE
+                || style == PlayerOverlayColorContext.STYLE_OUTLINE_FULL;
+    }
+
     public static boolean shouldBlockFriendAttack(PlayerEntity target) {
         syncFriendFoeCache();
         return target != null
@@ -643,6 +658,7 @@ public class AtomicsClient implements ClientModInitializer {
         friendFoeCacheInitialized = true;
         friendFoeCacheFingerprint = fingerprint;
         cachedFriendFoeOverlayEnabled = enabled;
+        cachedFriendFoeOverlayStyle = PlayerOverlayColorContext.STYLE_FULL;
         cachedFriendNames.clear();
         cachedFoeNames.clear();
         cachedFriendOverlayColor = -1;
@@ -653,6 +669,7 @@ public class AtomicsClient implements ClientModInitializer {
 
         addNormalizedNames(pvp.friendNames, cachedFriendNames);
         addNormalizedNames(pvp.foeNames, cachedFoeNames);
+        cachedFriendFoeOverlayStyle = friendFoeStyleId(pvp.friendFoeOverlayStyle);
         cachedFriendOverlayColor = colorWithAlpha(pvp.friendOverlayR, pvp.friendOverlayG, pvp.friendOverlayB, pvp.friendOverlayAlpha);
         cachedFoeOverlayColor = colorWithAlpha(pvp.foeOverlayR, pvp.foeOverlayG, pvp.foeOverlayB, pvp.foeOverlayAlpha);
     }
@@ -666,6 +683,7 @@ public class AtomicsClient implements ClientModInitializer {
         result = 31 * result + pvp.friendOverlayG;
         result = 31 * result + pvp.friendOverlayB;
         result = 31 * result + Float.floatToIntBits(pvp.friendOverlayAlpha);
+        result = 31 * result + (pvp.friendFoeOverlayStyle == null ? 0 : pvp.friendFoeOverlayStyle.hashCode());
         result = 31 * result + pvp.foeOverlayR;
         result = 31 * result + pvp.foeOverlayG;
         result = 31 * result + pvp.foeOverlayB;
@@ -673,6 +691,15 @@ public class AtomicsClient implements ClientModInitializer {
         result = 31 * result + listFingerprint(pvp.friendNames);
         result = 31 * result + listFingerprint(pvp.foeNames);
         return result;
+    }
+
+    private static int friendFoeStyleId(String style) {
+        return switch (TpsConfig.normalizeFriendFoeStyle(style)) {
+            case TpsConfig.FRIEND_FOE_STYLE_OUTLINE -> PlayerOverlayColorContext.STYLE_OUTLINE;
+            case TpsConfig.FRIEND_FOE_STYLE_OUTLINE_FULL -> PlayerOverlayColorContext.STYLE_OUTLINE_FULL;
+            case TpsConfig.FRIEND_FOE_STYLE_PULSE -> PlayerOverlayColorContext.STYLE_PULSE;
+            default -> PlayerOverlayColorContext.STYLE_FULL;
+        };
     }
 
     private static int listFingerprint(List<String> names) {
