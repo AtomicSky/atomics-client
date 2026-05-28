@@ -76,8 +76,9 @@ public class TpsConfig {
     public static final String DEFAULT_OPPONENT_STATS_NAMETAG_FORMAT = OPPONENT_STATS_NAMETAG_ICON_TIER;
     public static final boolean DEFAULT_FULL_BRIGHT_ENABLED = false;
     public static final boolean DEFAULT_ARMOR_HUD_ENABLED = true;
+    public static final boolean DEFAULT_ARMOR_HUD_AUTO_POSITION = false;
     public static final boolean DEFAULT_ARMOR_DURABILITY_WARNING_ENABLED = true;
-    public static final int DEFAULT_ARMOR_DURABILITY_WARNING_PERCENT = 20;
+    public static final int DEFAULT_ARMOR_DURABILITY_WARNING_PERCENT = 10;
     public static final int DEFAULT_ARMOR_HUD_X = -1;
     public static final int DEFAULT_ARMOR_HUD_Y = -1;
     public static final boolean DEFAULT_ARMOR_HUD_VERTICAL = false;
@@ -179,7 +180,7 @@ public class TpsConfig {
         visual.timeOfDay = clampInt(visual.timeOfDay, 0, 24000);
         visual.tntTimerRange = clampInt(visual.tntTimerRange, 8, 128);
         visual.zoomMultiplier = clampFloat(visual.zoomMultiplier, 1.5f, 8.0f);
-        visual.armorDurabilityWarningPercent = clampInt(visual.armorDurabilityWarningPercent, 1, 100);
+        visual.armorDurabilityWarningPercent = DEFAULT_ARMOR_DURABILITY_WARNING_PERCENT;
         visual.armorHudX = clampInt(visual.armorHudX, -1, 10000);
         visual.armorHudY = clampInt(visual.armorHudY, -1, 10000);
         visual.armorHudSpacing = clampInt(visual.armorHudSpacing, 20, 64);
@@ -528,6 +529,7 @@ public class TpsConfig {
     public static class VisualSettings {
         public boolean fullBrightEnabled = DEFAULT_FULL_BRIGHT_ENABLED;
         public boolean armorHudEnabled = DEFAULT_ARMOR_HUD_ENABLED;
+        public boolean armorHudAutoPosition = DEFAULT_ARMOR_HUD_AUTO_POSITION;
         public boolean armorDurabilityWarningEnabled = DEFAULT_ARMOR_DURABILITY_WARNING_ENABLED;
         public int armorDurabilityWarningPercent = DEFAULT_ARMOR_DURABILITY_WARNING_PERCENT;
         public int armorHudX = DEFAULT_ARMOR_HUD_X;

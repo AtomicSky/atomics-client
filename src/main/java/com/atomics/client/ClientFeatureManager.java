@@ -34,6 +34,7 @@ public final class ClientFeatureManager {
     private static final float ZOOM_MIN = 1.5f;
     private static final float ZOOM_MAX = 8.0f;
     private static final float ZOOM_SCROLL_STEP = 0.25f;
+    private static final int ARMOR_HUD_EMPTY_OFFHAND_SHIFT = 28;
     private static final Identifier HOTBAR_SPRITE_TEXTURE = Identifier.ofVanilla("textures/gui/sprites/hud/hotbar.png");
 
     private static long lastReachMillis;
@@ -362,7 +363,7 @@ public final class ClientFeatureManager {
             renderArmorHud(context, client, armor, visual);
         }
         if (visual.armorDurabilityWarningEnabled) {
-            warnLowArmorDurability(client, armor, visual.armorDurabilityWarningPercent);
+            warnLowArmorDurability(client, armor, TpsConfig.DEFAULT_ARMOR_DURABILITY_WARNING_PERCENT);
         }
     }
 
@@ -377,25 +378,29 @@ public final class ClientFeatureManager {
             return;
         }
 
-        int spacing = Math.max(20, Math.min(64, visual.armorHudSpacing));
+        boolean autoPosition = visual.armorHudAutoPosition;
+        boolean vertical = !autoPosition && visual.armorHudVertical;
+        int spacing = autoPosition ? TpsConfig.DEFAULT_ARMOR_HUD_SPACING : Math.max(20, Math.min(64, visual.armorHudSpacing));
         int slotSize = visual.armorHudHotbarBorder ? 22 : 16;
         int itemOffset = visual.armorHudHotbarBorder ? 3 : 0;
         int itemHeight = TpsConfig.ARMOR_HUD_DURABILITY_BAR.equals(visual.armorHudDurabilityMode) ? 16 : 28;
-        int hudWidth = visual.armorHudVertical ? slotSize : slotSize + (visible - 1) * spacing;
-        int hudHeight = visual.armorHudVertical ? Math.max(slotSize, itemHeight) + (visible - 1) * spacing : Math.max(slotSize, itemHeight);
+        int hudWidth = vertical ? slotSize : slotSize + (visible - 1) * spacing;
+        int hudHeight = vertical ? Math.max(slotSize, itemHeight) + (visible - 1) * spacing : Math.max(slotSize, itemHeight);
         int x = visual.armorHudX;
         int y = visual.armorHudY;
-        if (x < 0 || y < 0) {
+        if (autoPosition || x < 0 || y < 0) {
             x = client.getWindow().getScaledWidth() / 2 - 127 - hudWidth;
             y = client.getWindow().getScaledHeight() - 22;
-            if (visual.armorHudVertical) {
+            if (vertical) {
                 y = client.getWindow().getScaledHeight() / 2 - hudHeight / 2;
+            } else if (autoPosition && client.player != null && client.player.getOffHandStack().isEmpty()) {
+                x += ARMOR_HUD_EMPTY_OFFHAND_SHIFT;
             }
         }
         x = Math.max(0, Math.min(client.getWindow().getScaledWidth() - hudWidth, x));
         y = Math.max(0, Math.min(client.getWindow().getScaledHeight() - hudHeight, y));
 
-        int warningPercent = visual.armorDurabilityWarningPercent;
+        int warningPercent = TpsConfig.DEFAULT_ARMOR_DURABILITY_WARNING_PERCENT;
         for (ArmorPiece piece : armor) {
             if (piece == null || !piece.isPresent()) {
                 continue;
@@ -420,7 +425,7 @@ public final class ClientFeatureManager {
                 context.drawTextWithShadow(client.textRenderer, durability, textX, textY, color);
                 context.getMatrices().popMatrix();
             }
-            if (visual.armorHudVertical) {
+            if (vertical) {
                 y += spacing;
             } else {
                 x += spacing;
