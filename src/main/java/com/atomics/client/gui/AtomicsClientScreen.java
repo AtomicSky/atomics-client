@@ -193,6 +193,7 @@ public class AtomicsClientScreen extends Screen {
     private int leftWidth;
     private int previewX;
     private int previewWidth;
+    private int statsDashboardY = -1;
 
     public AtomicsClientScreen(Screen parent) {
         super(Text.literal("Atomics Client"));
@@ -203,6 +204,7 @@ public class AtomicsClientScreen extends Screen {
     protected void init() {
         initializing = true;
         labels.clear();
+        statsDashboardY = -1;
         if (!stateLoaded) loadStateFromConfig();
 
         contentTop = TOP_BAR_HEIGHT + 8;
@@ -324,30 +326,42 @@ public class AtomicsClientScreen extends Screen {
         int controlWidth = leftWidth - RESET_WIDTH - 6;
         int startY = y;
 
-        if (shouldShowFeature("totem.main", "Main", "general", "mod enabled", "auto preview")) {
-            y = addFeatureSection(y, "totem.main", "Main");
-            if (!isFeatureCollapsed("totem.main")) {
+        if (shouldShowFeature("totem.general", "General", "mod enabled", "auto preview")) {
+            y = addFeatureSection(y, "totem.general", "General");
+            if (!isFeatureCollapsed("totem.general")) {
                 addToggle(leftX, y, controlWidth, "Mod Enabled", enabled, true, () -> enabled, value -> enabled = value, false); y += ROW_HEIGHT;
                 addToggle(leftX, y, controlWidth, "Auto Preview", autoPreview, false, () -> autoPreview, value -> autoPreview = value, false); y += ROW_HEIGHT;
             }
             y += 10;
         }
 
-        if (shouldShowFeature("totem.sizes", "Sizes", "pop overlay", "overlay scale", "duration", "held scale", "dropped scale")) {
-            y = addFeatureSection(y, "totem.sizes", "Sizes");
-            if (!isFeatureCollapsed("totem.sizes")) {
-                addToggle(leftX, y, controlWidth, "Pop Overlay Size", popScaleEnabled, false, () -> popScaleEnabled, value -> popScaleEnabled = value, true); y += ROW_HEIGHT;
+        if (shouldShowFeature("totem.pop_overlay", "Pop Overlay Size", "overlay scale", "duration")) {
+            y = addFeatureSection(y, "totem.pop_overlay", "Pop Overlay Size");
+            if (!isFeatureCollapsed("totem.pop_overlay")) {
+                addToggle(leftX, y, controlWidth, "Enable Pop Overlay Size", popScaleEnabled, false, () -> popScaleEnabled, value -> popScaleEnabled = value, true); y += ROW_HEIGHT;
                 if (popScaleEnabled) {
                     addDoubleSlider(leftX, y, controlWidth, "Overlay Scale", popScale, 0.01, 3.0, 0.01, TpsConfig.DEFAULT_POP_SCALE, value -> popScale = (float) value, value -> formatDecimal(value, 2) + "x"); y += ROW_HEIGHT;
                     addIntSlider(leftX, y, controlWidth, "Overlay Duration", animationTicks, 5, 120, 1, TpsConfig.DEFAULT_POP_ANIMATION_TICKS, value -> animationTicks = value); y += ROW_HEIGHT;
                 }
+            }
+            y += 10;
+        }
 
-                addToggle(leftX, y, controlWidth, "Held Totem Size", handScaleEnabled, false, () -> handScaleEnabled, value -> handScaleEnabled = value, true); y += ROW_HEIGHT;
+        if (shouldShowFeature("totem.held_size", "Held Totem Size", "held scale")) {
+            y = addFeatureSection(y, "totem.held_size", "Held Totem Size");
+            if (!isFeatureCollapsed("totem.held_size")) {
+                addToggle(leftX, y, controlWidth, "Enable Held Totem Size", handScaleEnabled, false, () -> handScaleEnabled, value -> handScaleEnabled = value, true); y += ROW_HEIGHT;
                 if (handScaleEnabled) {
                     addDoubleSlider(leftX, y, controlWidth, "Held Scale", handScale, 0.01, 3.0, 0.01, TpsConfig.DEFAULT_HAND_SCALE, value -> handScale = (float) value, value -> formatDecimal(value, 2) + "x"); y += ROW_HEIGHT;
                 }
+            }
+            y += 10;
+        }
 
-                addToggle(leftX, y, controlWidth, "Dropped Totem Size", droppedScaleEnabled, false, () -> droppedScaleEnabled, value -> droppedScaleEnabled = value, true); y += ROW_HEIGHT;
+        if (shouldShowFeature("totem.dropped_size", "Dropped Totem Size", "dropped scale")) {
+            y = addFeatureSection(y, "totem.dropped_size", "Dropped Totem Size");
+            if (!isFeatureCollapsed("totem.dropped_size")) {
+                addToggle(leftX, y, controlWidth, "Enable Dropped Totem Size", droppedScaleEnabled, false, () -> droppedScaleEnabled, value -> droppedScaleEnabled = value, true); y += ROW_HEIGHT;
                 if (droppedScaleEnabled) {
                     addDoubleSlider(leftX, y, controlWidth, "Dropped Scale", droppedScale, 0.01, 3.0, 0.01, TpsConfig.DEFAULT_DROPPED_SCALE, value -> droppedScale = (float) value, value -> formatDecimal(value, 2) + "x"); y += ROW_HEIGHT;
                 }
@@ -355,15 +369,21 @@ public class AtomicsClientScreen extends Screen {
             y += 10;
         }
 
-        if (shouldShowFeature("totem.effects", "Effects", "particles", "totem particles", "particle list", "sounds", "sound list")) {
-            y = addFeatureSection(y, "totem.effects", "Effects");
-            if (!isFeatureCollapsed("totem.effects")) {
-                addToggle(leftX, y, controlWidth, "Particles", particlesEnabled, true, () -> particlesEnabled, value -> particlesEnabled = value, true); y += ROW_HEIGHT;
+        if (shouldShowFeature("totem.particles", "Particles", "totem particles", "particle list")) {
+            y = addFeatureSection(y, "totem.particles", "Particles");
+            if (!isFeatureCollapsed("totem.particles")) {
+                addToggle(leftX, y, controlWidth, "Enable Particles", particlesEnabled, true, () -> particlesEnabled, value -> particlesEnabled = value, true); y += ROW_HEIGHT;
                 if (particlesEnabled) {
                     addWideButton(leftX, y, controlWidth, "Edit Particle List (" + getParticleCount() + ")", b -> this.client.setScreen(new ParticleListScreen(this))); y += ROW_HEIGHT;
                 }
+            }
+            y += 10;
+        }
 
-                addToggle(leftX, y, controlWidth, "Sounds", soundsEnabled, true, () -> soundsEnabled, value -> soundsEnabled = value, true); y += ROW_HEIGHT;
+        if (shouldShowFeature("totem.sounds", "Sounds", "totem sounds", "sound list")) {
+            y = addFeatureSection(y, "totem.sounds", "Sounds");
+            if (!isFeatureCollapsed("totem.sounds")) {
+                addToggle(leftX, y, controlWidth, "Enable Sounds", soundsEnabled, true, () -> soundsEnabled, value -> soundsEnabled = value, true); y += ROW_HEIGHT;
                 if (soundsEnabled) {
                     addWideButton(leftX, y, controlWidth, "Edit Sound List (" + getSoundCount() + ")", b -> this.client.setScreen(new SoundListScreen(this))); y += ROW_HEIGHT;
                 }
@@ -371,15 +391,21 @@ public class AtomicsClientScreen extends Screen {
             y += 10;
         }
 
-        if (shouldShowFeature("totem.appearance", "Appearance", "retexture", "replacement item", "color overlay", "hue", "opacity")) {
-            y = addFeatureSection(y, "totem.appearance", "Appearance");
-            if (!isFeatureCollapsed("totem.appearance")) {
-                addToggle(leftX, y, controlWidth, "Retexture", retextureEnabled, false, () -> retextureEnabled, value -> retextureEnabled = value, true); y += ROW_HEIGHT;
+        if (shouldShowFeature("totem.retexture", "Retexture", "replacement item")) {
+            y = addFeatureSection(y, "totem.retexture", "Retexture");
+            if (!isFeatureCollapsed("totem.retexture")) {
+                addToggle(leftX, y, controlWidth, "Enable Retexture", retextureEnabled, false, () -> retextureEnabled, value -> retextureEnabled = value, true); y += ROW_HEIGHT;
                 if (retextureEnabled) {
                     addTextField(leftX, y, controlWidth, "Replacement Item ID", replacementItemId, TpsConfig.DEFAULT_RETEXTURE_ITEM_ID, value -> replacementItemId = value); y += ROW_HEIGHT;
                 }
+            }
+            y += 10;
+        }
 
-                addToggle(leftX, y, controlWidth, "Texture Color Overlay", totemOverlayEnabled, TpsConfig.DEFAULT_TOTEM_COLOR_OVERLAY_ENABLED, () -> totemOverlayEnabled, value -> totemOverlayEnabled = value, true); y += ROW_HEIGHT;
+        if (shouldShowFeature("totem.color_overlay", "Totem Texture Color Overlay", "hue", "opacity")) {
+            y = addFeatureSection(y, "totem.color_overlay", "Totem Texture Color Overlay");
+            if (!isFeatureCollapsed("totem.color_overlay")) {
+                addToggle(leftX, y, controlWidth, "Enable Totem Color Overlay", totemOverlayEnabled, TpsConfig.DEFAULT_TOTEM_COLOR_OVERLAY_ENABLED, () -> totemOverlayEnabled, value -> totemOverlayEnabled = value, true); y += ROW_HEIGHT;
                 if (totemOverlayEnabled) {
                     addDoubleSlider(leftX, y, controlWidth, "Hue Adjustment", totemOverlayHue, -180.0, 180.0, 1.0, TpsConfig.DEFAULT_TOTEM_OVERLAY_HUE, value -> totemOverlayHue = (float) value, value -> formatDegrees(value)); y += ROW_HEIGHT;
                     addDoubleSlider(leftX, y, controlWidth, "Overlay Opacity", totemOverlayAlpha, 0.0, 1.0, 0.025, TpsConfig.DEFAULT_TOTEM_OVERLAY_ALPHA, value -> totemOverlayAlpha = (float) value, value -> formatPercent(value)); y += ROW_HEIGHT;
@@ -399,10 +425,10 @@ public class AtomicsClientScreen extends Screen {
         int controlWidth = leftWidth - RESET_WIDTH - 6;
         int startY = y;
 
-        if (shouldShowFeature("items.shield", "Shield", "shield down", "shield up", "blocking", "shield warning", "shield delay", "disabled shield", "red shield")) {
-            y = addFeatureSection(y, "items.shield", "Shield");
-            if (!isFeatureCollapsed("items.shield")) {
-                addToggle(leftX, y, controlWidth, "Down Position", shieldDownEnabled, TpsConfig.DEFAULT_MISC_SHIELD_DOWN_ENABLED, () -> shieldDownEnabled, value -> shieldDownEnabled = value, true); y += ROW_HEIGHT;
+        if (shouldShowFeature("misc.shield_down", "Shield Position - Down", "shield down", "hand position")) {
+            y = addFeatureSection(y, "misc.shield_down", "Shield Position - Down");
+            if (!isFeatureCollapsed("misc.shield_down")) {
+                addToggle(leftX, y, controlWidth, "Enable Shield Down Adjustments", shieldDownEnabled, TpsConfig.DEFAULT_MISC_SHIELD_DOWN_ENABLED, () -> shieldDownEnabled, value -> shieldDownEnabled = value, true); y += ROW_HEIGHT;
                 if (shieldDownEnabled) {
                     addDoubleSlider(leftX, y, controlWidth, "Shield Down X", shieldDownX, -2.0, 2.0, 0.025, TpsConfig.DEFAULT_SHIELD_DOWN_X, value -> shieldDownX = (float) value, value -> formatSigned(value)); y += ROW_HEIGHT;
                     addDoubleSlider(leftX, y, controlWidth, "Shield Down Y", shieldDownY, -2.0, 2.0, 0.025, TpsConfig.DEFAULT_SHIELD_DOWN_Y, value -> shieldDownY = (float) value, value -> formatSigned(value)); y += ROW_HEIGHT;
@@ -411,8 +437,14 @@ public class AtomicsClientScreen extends Screen {
                     addDoubleSlider(leftX, y, controlWidth, "Shield Down Yaw", shieldDownRotY, -180.0, 180.0, 1.0, TpsConfig.DEFAULT_SHIELD_DOWN_ROT_Y, value -> shieldDownRotY = (float) value, value -> formatDegrees(value)); y += ROW_HEIGHT;
                     addDoubleSlider(leftX, y, controlWidth, "Shield Down Roll", shieldDownRotZ, -180.0, 180.0, 1.0, TpsConfig.DEFAULT_SHIELD_DOWN_ROT_Z, value -> shieldDownRotZ = (float) value, value -> formatDegrees(value)); y += ROW_HEIGHT;
                 }
+            }
+            y += 10;
+        }
 
-                addToggle(leftX, y, controlWidth, "Blocking Position", shieldUpEnabled, TpsConfig.DEFAULT_MISC_SHIELD_UP_ENABLED, () -> shieldUpEnabled, value -> shieldUpEnabled = value, true); y += ROW_HEIGHT;
+        if (shouldShowFeature("misc.shield_up", "Shield Position - Up / Blocking", "shield up", "blocking")) {
+            y = addFeatureSection(y, "misc.shield_up", "Shield Position - Up / Blocking");
+            if (!isFeatureCollapsed("misc.shield_up")) {
+                addToggle(leftX, y, controlWidth, "Enable Shield Up Adjustments", shieldUpEnabled, TpsConfig.DEFAULT_MISC_SHIELD_UP_ENABLED, () -> shieldUpEnabled, value -> shieldUpEnabled = value, true); y += ROW_HEIGHT;
                 if (shieldUpEnabled) {
                     addDoubleSlider(leftX, y, controlWidth, "Shield Up X", shieldUpX, -2.0, 2.0, 0.025, TpsConfig.DEFAULT_SHIELD_UP_X, value -> shieldUpX = (float) value, value -> formatSigned(value)); y += ROW_HEIGHT;
                     addDoubleSlider(leftX, y, controlWidth, "Shield Up Y", shieldUpY, -2.0, 2.0, 0.025, TpsConfig.DEFAULT_SHIELD_UP_Y, value -> shieldUpY = (float) value, value -> formatSigned(value)); y += ROW_HEIGHT;
@@ -421,27 +453,14 @@ public class AtomicsClientScreen extends Screen {
                     addDoubleSlider(leftX, y, controlWidth, "Shield Up Yaw", shieldUpRotY, -180.0, 180.0, 1.0, TpsConfig.DEFAULT_SHIELD_UP_ROT_Y, value -> shieldUpRotY = (float) value, value -> formatDegrees(value)); y += ROW_HEIGHT;
                     addDoubleSlider(leftX, y, controlWidth, "Shield Up Roll", shieldUpRotZ, -180.0, 180.0, 1.0, TpsConfig.DEFAULT_SHIELD_UP_ROT_Z, value -> shieldUpRotZ = (float) value, value -> formatDegrees(value)); y += ROW_HEIGHT;
                 }
-
-                addToggle(leftX, y, controlWidth, "Warning Overlay", shieldWarningOverlayEnabled, TpsConfig.DEFAULT_SHIELD_WARNING_OVERLAY_ENABLED, () -> shieldWarningOverlayEnabled, value -> shieldWarningOverlayEnabled = value, true); y += ROW_HEIGHT;
-                if (shieldWarningOverlayEnabled) {
-                    addIntSlider(leftX, y, controlWidth, "Warning Red", shieldWarningOverlayR, 0, 255, 1, TpsConfig.DEFAULT_SHIELD_WARNING_OVERLAY_R, value -> shieldWarningOverlayR = value); y += ROW_HEIGHT;
-                    addIntSlider(leftX, y, controlWidth, "Warning Green", shieldWarningOverlayG, 0, 255, 1, TpsConfig.DEFAULT_SHIELD_WARNING_OVERLAY_G, value -> shieldWarningOverlayG = value); y += ROW_HEIGHT;
-                    addIntSlider(leftX, y, controlWidth, "Warning Blue", shieldWarningOverlayB, 0, 255, 1, TpsConfig.DEFAULT_SHIELD_WARNING_OVERLAY_B, value -> shieldWarningOverlayB = value); y += ROW_HEIGHT;
-                    addDoubleSlider(leftX, y, controlWidth, "Warning Opacity", shieldWarningOverlayAlpha, 0.0, 1.0, 0.025, TpsConfig.DEFAULT_SHIELD_WARNING_OVERLAY_ALPHA, value -> shieldWarningOverlayAlpha = (float) value, value -> formatPercent(value)); y += ROW_HEIGHT;
-                }
             }
             y += 10;
         }
 
-        if (shouldShowFeature("items.overlays", "Item Overlays", "fire overlay", "fire height", "low fire", "bucket", "empty bucket")) {
-            y = addFeatureSection(y, "items.overlays", "Item Overlays");
-            if (!isFeatureCollapsed("items.overlays")) {
-                addToggle(leftX, y, controlWidth, "Fire Overlay Height", fireOverlayEnabled, TpsConfig.DEFAULT_MISC_FIRE_OVERLAY_ENABLED, () -> fireOverlayEnabled, value -> fireOverlayEnabled = value, true); y += ROW_HEIGHT;
-                if (fireOverlayEnabled) {
-                    addDoubleSlider(leftX, y, controlWidth, "Fire Overlay Height", fireOverlayHeight, -1.0, 1.0, 0.025, TpsConfig.DEFAULT_FIRE_OVERLAY_HEIGHT, value -> fireOverlayHeight = (float) value, value -> formatSigned(value)); y += ROW_HEIGHT;
-                }
-
-                addToggle(leftX, y, controlWidth, "Empty Bucket Overlay", emptyBucketOverlayEnabled, TpsConfig.DEFAULT_EMPTY_BUCKET_OVERLAY_ENABLED, () -> emptyBucketOverlayEnabled, value -> emptyBucketOverlayEnabled = value, true); y += ROW_HEIGHT;
+        if (shouldShowFeature("misc.empty_bucket", "Empty Bucket Overlay", "bucket", "empty bucket")) {
+            y = addFeatureSection(y, "misc.empty_bucket", "Empty Bucket Overlay");
+            if (!isFeatureCollapsed("misc.empty_bucket")) {
+                addToggle(leftX, y, controlWidth, "Enable Empty Bucket Overlay", emptyBucketOverlayEnabled, TpsConfig.DEFAULT_EMPTY_BUCKET_OVERLAY_ENABLED, () -> emptyBucketOverlayEnabled, value -> emptyBucketOverlayEnabled = value, true); y += ROW_HEIGHT;
                 if (emptyBucketOverlayEnabled) {
                     addIntSlider(leftX, y, controlWidth, "Bucket Red", emptyBucketOverlayR, 0, 255, 1, TpsConfig.DEFAULT_EMPTY_BUCKET_OVERLAY_R, value -> emptyBucketOverlayR = value); y += ROW_HEIGHT;
                     addIntSlider(leftX, y, controlWidth, "Bucket Green", emptyBucketOverlayG, 0, 255, 1, TpsConfig.DEFAULT_EMPTY_BUCKET_OVERLAY_G, value -> emptyBucketOverlayG = value); y += ROW_HEIGHT;
@@ -462,13 +481,295 @@ public class AtomicsClientScreen extends Screen {
 
     private int buildToolsSettings(int y) {
         int controlWidth = leftWidth - RESET_WIDTH - 6;
+        if (shouldShowFeature("tools.full_bright", "Full Bright", "night vision", "brightness")) {
+            y = addFeatureSection(y, "tools.full_bright", "Full Bright");
+            if (!isFeatureCollapsed("tools.full_bright")) {
+                addToggle(leftX, y, controlWidth, "Enable Full Bright", fullBrightEnabled, TpsConfig.DEFAULT_FULL_BRIGHT_ENABLED, () -> fullBrightEnabled, value -> fullBrightEnabled = value, false); y += ROW_HEIGHT;
+            }
+            y += 10;
+        }
+
+        if (shouldShowFeature("tools.time_changer", "Time Changer", "day", "night", "sunset")) {
+            y = addFeatureSection(y, "tools.time_changer", "Time Changer");
+            if (!isFeatureCollapsed("tools.time_changer")) {
+                addToggle(leftX, y, controlWidth, "Enable Time Changer", timeChangerEnabled, TpsConfig.DEFAULT_TIME_CHANGER_ENABLED, () -> timeChangerEnabled, value -> timeChangerEnabled = value, true); y += ROW_HEIGHT;
+                if (timeChangerEnabled) {
+                    addIntSlider(leftX, y, controlWidth, "Time Of Day", timeOfDay, 0, 24000, 100, TpsConfig.DEFAULT_TIME_OF_DAY, value -> timeOfDay = value); y += ROW_HEIGHT;
+                }
+            }
+            y += 10;
+        }
+
+        if (shouldShowFeature("misc.fire_overlay", "Fire Overlay", "fire height", "low fire")) {
+            y = addFeatureSection(y, "misc.fire_overlay", "Fire Overlay");
+            if (!isFeatureCollapsed("misc.fire_overlay")) {
+                addToggle(leftX, y, controlWidth, "Enable Fire Overlay Height", fireOverlayEnabled, TpsConfig.DEFAULT_MISC_FIRE_OVERLAY_ENABLED, () -> fireOverlayEnabled, value -> fireOverlayEnabled = value, true); y += ROW_HEIGHT;
+                if (fireOverlayEnabled) {
+                    addDoubleSlider(leftX, y, controlWidth, "Fire Overlay Height", fireOverlayHeight, -1.0, 1.0, 0.025, TpsConfig.DEFAULT_FIRE_OVERLAY_HEIGHT, value -> fireOverlayHeight = (float) value, value -> formatSigned(value)); y += ROW_HEIGHT;
+                }
+            }
+            y += 10;
+        }
+
+        if (shouldShowFeature("tools.streamer_mode", "Streamer Mode", "hide names", "privacy")) {
+            y = addFeatureSection(y, "tools.streamer_mode", "Streamer Mode");
+            if (!isFeatureCollapsed("tools.streamer_mode")) {
+                addToggle(leftX, y, controlWidth, "Enable Streamer Mode", streamerModeEnabled, TpsConfig.DEFAULT_STREAMER_MODE_ENABLED, () -> streamerModeEnabled, value -> streamerModeEnabled = value, false); y += ROW_HEIGHT;
+            }
+            y += 10;
+        }
+
+        if (shouldShowFeature("tools.zoom", "Zoom", "fov", "optifine")) {
+            y = addFeatureSection(y, "tools.zoom", "Zoom");
+            if (!isFeatureCollapsed("tools.zoom")) {
+                addToggle(leftX, y, controlWidth, "Enable Zoom", zoomEnabled, TpsConfig.DEFAULT_ZOOM_ENABLED, () -> zoomEnabled, value -> zoomEnabled = value, true); y += ROW_HEIGHT;
+                if (zoomEnabled) {
+                    addDoubleSlider(leftX, y, controlWidth, "Zoom Strength", zoomMultiplier, 1.5, 8.0, 0.1, TpsConfig.DEFAULT_ZOOM_MULTIPLIER, value -> zoomMultiplier = (float) value, value -> formatDecimal(value, 1) + "x"); y += ROW_HEIGHT;
+                }
+            }
+            y += 10;
+        }
+
+        if (selectedTab != Tab.SEARCH && !normalizeSearch(settingsSearch).isEmpty() && y == contentTop - scrollOffset) {
+            labels.add(new DrawLabel("No settings matched the search.", leftX + 8, y + 8, 0xCCCCCC));
+            y += 34;
+        }
+
+        return y;
+    }
+
+    private int buildKeybindSettings(int y) {
+        int controlWidth = leftWidth - RESET_WIDTH - 6;
         int startY = y;
 
-        if (shouldShowFeature("visuals.view_hud", "View & HUD", "full bright", "night vision", "brightness", "armor", "durability", "dura", "warning", "low armor", "zoom", "fov", "optifine")) {
-            y = addFeatureSection(y, "visuals.view_hud", "View & HUD");
-            if (!isFeatureCollapsed("visuals.view_hud")) {
-                addToggle(leftX, y, controlWidth, "Full Bright", fullBrightEnabled, TpsConfig.DEFAULT_FULL_BRIGHT_ENABLED, () -> fullBrightEnabled, value -> fullBrightEnabled = value, false); y += ROW_HEIGHT;
-                addToggle(leftX, y, controlWidth, "Armor Durability HUD", armorHudEnabled, TpsConfig.DEFAULT_ARMOR_HUD_ENABLED, () -> armorHudEnabled, value -> armorHudEnabled = value, true); y += ROW_HEIGHT;
+        if (shouldShowFeature("tools.chat_macros", "Chat Macros", "messages", "commands", "macros")) {
+            y = addFeatureSection(y, "tools.chat_macros", "Chat Macros");
+            if (!isFeatureCollapsed("tools.chat_macros")) {
+                addToggle(leftX, y, controlWidth, "Enable Chat Macros", chatMacrosEnabled, false, () -> chatMacrosEnabled, value -> chatMacrosEnabled = value, true); y += ROW_HEIGHT;
+                if (chatMacrosEnabled) {
+                    addMacroListButtons(leftX, y, controlWidth); y += ROW_HEIGHT;
+                    for (int i = 0; i < macroMessages.size(); i++) {
+                        final int index = i;
+                        addTextField(leftX, y, controlWidth, "Macro " + (index + 1), macroMessages.get(index), "", value -> setMacroMessage(index, value)); y += ROW_HEIGHT;
+                    }
+                }
+            }
+            y += 10;
+        }
+
+        if (shouldShowFeature("keybinds.general", "General", "controls", "open menu", "zoom", "reset totem")) {
+            y = addFeatureSection(y, "keybinds.general", "General");
+            if (!isFeatureCollapsed("keybinds.general")) {
+                addKeybindButton(leftX, y, controlWidth, "Open Menu", AtomicsClient.getOpenStudioKeyBinding()); y += ROW_HEIGHT;
+                addKeybindButton(leftX, y, controlWidth, "Reset Totem Counter", AtomicsClient.getResetTotemCounterKeyBinding()); y += ROW_HEIGHT;
+                addKeybindButton(leftX, y, controlWidth, "Zoom", AtomicsClient.getZoomKeyBinding()); y += ROW_HEIGHT;
+            }
+            y += 10;
+        }
+
+        if (shouldShowFeature("keybinds.module_toggles", "Module Toggles", "auto gg", "duel spectate", "full bright", "time changer", "projectile trail", "streamer mode", "friend", "foe")) {
+            y = addFeatureSection(y, "keybinds.module_toggles", "Module Toggles");
+            if (!isFeatureCollapsed("keybinds.module_toggles")) {
+                addKeybindButton(leftX, y, controlWidth, "Auto GG", AtomicsClient.getToggleAutoGgKeyBinding()); y += ROW_HEIGHT;
+                addKeybindButton(leftX, y, controlWidth, "Dual Spectate Camera", AtomicsClient.getToggleDualSpectateKeyBinding()); y += ROW_HEIGHT;
+                addKeybindButton(leftX, y, controlWidth, "Full Bright", AtomicsClient.getToggleFullBrightKeyBinding()); y += ROW_HEIGHT;
+                addKeybindButton(leftX, y, controlWidth, "Time Changer", AtomicsClient.getToggleTimeChangerKeyBinding()); y += ROW_HEIGHT;
+                addKeybindButton(leftX, y, controlWidth, "Projectile Trail", AtomicsClient.getToggleProjectileTrailKeyBinding()); y += ROW_HEIGHT;
+                addKeybindButton(leftX, y, controlWidth, "Streamer Mode", AtomicsClient.getToggleStreamerModeKeyBinding()); y += ROW_HEIGHT;
+                addKeybindButton(leftX, y, controlWidth, "Cycle Friend/Foe Target", AtomicsClient.getCycleFriendFoeKeyBinding()); y += ROW_HEIGHT;
+            }
+            y += 10;
+        }
+
+        if (shouldShowFeature("keybinds.chat_macros", "Chat Macros", "macros", "messages", "commands")) {
+            y = addFeatureSection(y, "keybinds.chat_macros", "Chat Macros");
+            if (!isFeatureCollapsed("keybinds.chat_macros")) {
+                for (int i = 0; i < macroMessages.size(); i++) {
+                    addKeybindButton(leftX, y, controlWidth, "Macro " + (i + 1), AtomicsClient.getMacroKeyBinding(i)); y += ROW_HEIGHT;
+                }
+            }
+            y += 10;
+        }
+
+        if (selectedTab != Tab.SEARCH && !normalizeSearch(settingsSearch).isEmpty() && y == startY) {
+            labels.add(new DrawLabel("No settings matched the search.", leftX + 8, y + 8, 0xCCCCCC));
+            y += 34;
+        }
+
+        return y;
+    }
+
+    private int buildPvpSettings(int y) {
+        int controlWidth = leftWidth - RESET_WIDTH - 6;
+        int startY = y;
+
+        if (shouldShowFeature("pvp.reach", "Reach Display", "distance", "hit")) {
+            y = addFeatureSection(y, "pvp.reach", "Reach Display");
+            if (!isFeatureCollapsed("pvp.reach")) {
+                addToggle(leftX, y, controlWidth, "Show Reach On Hit", reachDisplayEnabled, TpsConfig.DEFAULT_REACH_DISPLAY_ENABLED, () -> reachDisplayEnabled, value -> reachDisplayEnabled = value, false); y += ROW_HEIGHT;
+                labels.add(new DrawLabel("Shows your distance to the target for a moment after a confirmed hit.", leftX + 8, y + 4, 0xAAAAAA));
+                y += 22;
+            }
+            y += 10;
+        }
+
+        if (shouldShowFeature("misc.shield_warning_overlay", "Shield Warning Overlay", "shield warning", "shield delay", "disabled shield", "red shield")) {
+            y = addFeatureSection(y, "misc.shield_warning_overlay", "Shield Warning Overlay");
+            if (!isFeatureCollapsed("misc.shield_warning_overlay")) {
+                addToggle(leftX, y, controlWidth, "Enable Shield Warning Overlay", shieldWarningOverlayEnabled, TpsConfig.DEFAULT_SHIELD_WARNING_OVERLAY_ENABLED, () -> shieldWarningOverlayEnabled, value -> shieldWarningOverlayEnabled = value, true); y += ROW_HEIGHT;
+                if (shieldWarningOverlayEnabled) {
+                    addIntSlider(leftX, y, controlWidth, "Warning Red", shieldWarningOverlayR, 0, 255, 1, TpsConfig.DEFAULT_SHIELD_WARNING_OVERLAY_R, value -> shieldWarningOverlayR = value); y += ROW_HEIGHT;
+                    addIntSlider(leftX, y, controlWidth, "Warning Green", shieldWarningOverlayG, 0, 255, 1, TpsConfig.DEFAULT_SHIELD_WARNING_OVERLAY_G, value -> shieldWarningOverlayG = value); y += ROW_HEIGHT;
+                    addIntSlider(leftX, y, controlWidth, "Warning Blue", shieldWarningOverlayB, 0, 255, 1, TpsConfig.DEFAULT_SHIELD_WARNING_OVERLAY_B, value -> shieldWarningOverlayB = value); y += ROW_HEIGHT;
+                    addDoubleSlider(leftX, y, controlWidth, "Warning Opacity", shieldWarningOverlayAlpha, 0.0, 1.0, 0.025, TpsConfig.DEFAULT_SHIELD_WARNING_OVERLAY_ALPHA, value -> shieldWarningOverlayAlpha = (float) value, value -> formatPercent(value)); y += ROW_HEIGHT;
+                }
+            }
+            y += 10;
+        }
+
+        if (shouldShowFeature("pvp.friend_foe_overlay", "Friend/Foe Overlay", "friends", "foes", "highlight", "green", "red")) {
+            y = addFeatureSection(y, "pvp.friend_foe_overlay", "Friend/Foe Overlay");
+            if (!isFeatureCollapsed("pvp.friend_foe_overlay")) {
+                addToggle(leftX, y, controlWidth, "Enable Friend/Foe Overlay", friendFoeOverlayEnabled, TpsConfig.DEFAULT_FRIEND_FOE_OVERLAY_ENABLED, () -> friendFoeOverlayEnabled, value -> friendFoeOverlayEnabled = value, true); y += ROW_HEIGHT;
+                if (friendFoeOverlayEnabled) {
+                    addWideButton(leftX, y, controlWidth, "Edit Player List (" + getFriendFoeCount() + ")", b -> this.client.setScreen(new FriendFoeListScreen(this))); y += ROW_HEIGHT;
+                    addWideButton(leftX, y, controlWidth, "Render Style: " + friendFoeStyleLabel(friendFoeOverlayStyle), b -> {
+                        friendFoeOverlayStyle = nextFriendFoeStyle(friendFoeOverlayStyle);
+                        changed();
+                        clearAndInit();
+                    }); y += ROW_HEIGHT;
+                    addIntSlider(leftX, y, controlWidth, "Friend Red", friendOverlayR, 0, 255, 1, TpsConfig.DEFAULT_FRIEND_OVERLAY_R, value -> friendOverlayR = value); y += ROW_HEIGHT;
+                    addIntSlider(leftX, y, controlWidth, "Friend Green", friendOverlayG, 0, 255, 1, TpsConfig.DEFAULT_FRIEND_OVERLAY_G, value -> friendOverlayG = value); y += ROW_HEIGHT;
+                    addIntSlider(leftX, y, controlWidth, "Friend Blue", friendOverlayB, 0, 255, 1, TpsConfig.DEFAULT_FRIEND_OVERLAY_B, value -> friendOverlayB = value); y += ROW_HEIGHT;
+                    addDoubleSlider(leftX, y, controlWidth, "Friend Opacity", friendOverlayAlpha, 0.0, 1.0, 0.025, TpsConfig.DEFAULT_FRIEND_OVERLAY_ALPHA, value -> friendOverlayAlpha = (float) value, value -> formatPercent(value)); y += ROW_HEIGHT;
+                    addIntSlider(leftX, y, controlWidth, "Foe Red", foeOverlayR, 0, 255, 1, TpsConfig.DEFAULT_FOE_OVERLAY_R, value -> foeOverlayR = value); y += ROW_HEIGHT;
+                    addIntSlider(leftX, y, controlWidth, "Foe Green", foeOverlayG, 0, 255, 1, TpsConfig.DEFAULT_FOE_OVERLAY_G, value -> foeOverlayG = value); y += ROW_HEIGHT;
+                    addIntSlider(leftX, y, controlWidth, "Foe Blue", foeOverlayB, 0, 255, 1, TpsConfig.DEFAULT_FOE_OVERLAY_B, value -> foeOverlayB = value); y += ROW_HEIGHT;
+                    addDoubleSlider(leftX, y, controlWidth, "Foe Opacity", foeOverlayAlpha, 0.0, 1.0, 0.025, TpsConfig.DEFAULT_FOE_OVERLAY_ALPHA, value -> foeOverlayAlpha = (float) value, value -> formatPercent(value)); y += ROW_HEIGHT;
+                    labels.add(new DrawLabel("Styles: full tint, outline, outline + tint, or pulsing tint.", leftX + 8, y + 4, 0xAAAAAA));
+                    y += 14;
+                    labels.add(new DrawLabel("Use the keybind to cycle a looked-at player through Friend, Foe, and Neutral.", leftX + 8, y + 4, 0xAAAAAA));
+                    y += 22;
+                }
+            }
+            y += 10;
+        }
+
+        if (shouldShowFeature("tools.tnt_timer", "TNT Timer", "fuse", "explosion")) {
+            y = addFeatureSection(y, "tools.tnt_timer", "TNT Timer");
+            if (!isFeatureCollapsed("tools.tnt_timer")) {
+                addToggle(leftX, y, controlWidth, "Enable TNT Timer", tntTimerEnabled, TpsConfig.DEFAULT_TNT_TIMER_ENABLED, () -> tntTimerEnabled, value -> tntTimerEnabled = value, true); y += ROW_HEIGHT;
+                if (tntTimerEnabled) {
+                    addIntSlider(leftX, y, controlWidth, "Timer Range", tntTimerRange, 8, 128, 1, TpsConfig.DEFAULT_TNT_TIMER_RANGE, value -> tntTimerRange = value); y += ROW_HEIGHT;
+                }
+            }
+            y += 10;
+        }
+
+        if (shouldShowFeature("tools.projectile_trail", "Projectile Trail", "arrows", "pearls", "snowballs")) {
+            y = addFeatureSection(y, "tools.projectile_trail", "Projectile Trail");
+            if (!isFeatureCollapsed("tools.projectile_trail")) {
+                addToggle(leftX, y, controlWidth, "Enable Projectile Trail", projectileTrailEnabled, TpsConfig.DEFAULT_PROJECTILE_TRAIL_ENABLED, () -> projectileTrailEnabled, value -> projectileTrailEnabled = value, true); y += ROW_HEIGHT;
+                if (projectileTrailEnabled) {
+                    addTextField(leftX, y, controlWidth, "Trail Particle", projectileTrailParticleId, TpsConfig.DEFAULT_PROJECTILE_TRAIL_PARTICLE_ID, value -> projectileTrailParticleId = value); y += ROW_HEIGHT;
+                    addIntSlider(leftX, y, controlWidth, "Particles Per Tick", projectileTrailParticleCount, 0, 20, 1, TpsConfig.DEFAULT_PROJECTILE_TRAIL_PARTICLE_COUNT, value -> projectileTrailParticleCount = value); y += ROW_HEIGHT;
+                    addDoubleSlider(leftX, y, controlWidth, "Trail Spread", projectileTrailSpread, 0.0, 1.5, 0.01, TpsConfig.DEFAULT_PROJECTILE_TRAIL_SPREAD, value -> projectileTrailSpread = value, value -> formatDecimal(value, 2)); y += ROW_HEIGHT;
+                    addDoubleSlider(leftX, y, controlWidth, "Trail Speed", projectileTrailSpeed, 0.0, 1.0, 0.01, TpsConfig.DEFAULT_PROJECTILE_TRAIL_SPEED, value -> projectileTrailSpeed = value, value -> formatDecimal(value, 2)); y += ROW_HEIGHT;
+                }
+            }
+            y += 10;
+        }
+
+        if (shouldShowFeature("pvp.match_end", "Match End", "auto gg", "win message", "lose message")) {
+            y = addFeatureSection(y, "pvp.match_end", "Match End");
+            if (!isFeatureCollapsed("pvp.match_end")) {
+                addToggle(leftX, y, controlWidth, "Auto GG", autoGgEnabled, false, () -> autoGgEnabled, value -> autoGgEnabled = value, true); y += ROW_HEIGHT;
+                if (autoGgEnabled) {
+                    addTextField(leftX, y, controlWidth, "Win Message", autoGgWinMessage, "gg", value -> autoGgWinMessage = value); y += ROW_HEIGHT;
+                    addTextField(leftX, y, controlWidth, "Lose Message", autoGgLoseMessage, "gg", value -> autoGgLoseMessage = value); y += ROW_HEIGHT;
+                    labels.add(new DrawLabel("Sends once after detected CatPVP, Minemen, or MCPVP match results.", leftX + 8, y + 4, 0xAAAAAA));
+                    y += 22;
+                }
+            }
+            y += 10;
+        }
+
+        if (shouldShowFeature("pvp.dual_spectate", "Dual Spectate Camera", "fight camera", "autofill", "third person")) {
+            y = addFeatureSection(y, "pvp.dual_spectate", "Dual Spectate Camera");
+            if (!isFeatureCollapsed("pvp.dual_spectate")) {
+                addToggle(leftX, y, controlWidth, "Enable Dual Spectate Camera", dualSpectateEnabled, false, () -> dualSpectateEnabled, value -> dualSpectateEnabled = value, true); y += ROW_HEIGHT;
+                if (dualSpectateEnabled) {
+                    addToggle(leftX, y, controlWidth, "Auto Fill Nearest Pair", dualSpectateAutoFill, false, () -> dualSpectateAutoFill, value -> dualSpectateAutoFill = value, true); y += ROW_HEIGHT;
+                    addTextField(leftX, y, controlWidth, "Player One", dualSpectatePlayerOne, "Username", value -> dualSpectatePlayerOne = value); y += ROW_HEIGHT;
+                    addTextField(leftX, y, controlWidth, "Player Two", dualSpectatePlayerTwo, "Username", value -> dualSpectatePlayerTwo = value); y += ROW_HEIGHT;
+                    addWideButton(leftX, y, controlWidth, "Autofill Nearest Pair", b -> autofillDualSpectatePlayers()); y += ROW_HEIGHT;
+                    addToggle(leftX, y, controlWidth, "Force Third Person", dualSpectateForceThirdPerson, true, () -> dualSpectateForceThirdPerson, value -> dualSpectateForceThirdPerson = value, false); y += ROW_HEIGHT;
+                    addDoubleSlider(leftX, y, controlWidth, "Frame Padding", dualSpectatePadding, 1.0, 2.5, 0.05, 1.35, value -> dualSpectatePadding = (float) value, value -> formatDecimal(value, 2) + "x"); y += ROW_HEIGHT;
+                    addDoubleSlider(leftX, y, controlWidth, "Min Distance", dualSpectateMinDistance, 2.0, 30.0, 0.5, 6.0, value -> dualSpectateMinDistance = (float) value, value -> formatDecimal(value, 1)); y += ROW_HEIGHT;
+                    addDoubleSlider(leftX, y, controlWidth, "Max Distance", dualSpectateMaxDistance, 10.0, 160.0, 1.0, 80.0, value -> dualSpectateMaxDistance = (float) value, value -> formatDecimal(value, 0)); y += ROW_HEIGHT;
+                    labels.add(new DrawLabel("Frames both players from a smooth side-on fight camera.", leftX + 8, y + 4, 0xAAAAAA));
+                    y += 22;
+                }
+            }
+            y += 10;
+        }
+
+        if (selectedTab != Tab.SEARCH && !normalizeSearch(settingsSearch).isEmpty() && y == startY) {
+            labels.add(new DrawLabel("No settings matched the search.", leftX + 8, y + 8, 0xCCCCCC));
+            y += 34;
+        }
+
+        return y;
+    }
+
+    private int buildSearchSettings(int y) {
+        int startY = y;
+        y = buildTotemSettings(y);
+        y = buildPvpSettings(y);
+        y = buildStatsDashboard(y);
+        y = buildToolsSettings(y);
+        y = buildMiscSettings(y);
+        y = buildKeybindSettings(y);
+
+        if (!normalizeSearch(settingsSearch).isEmpty() && y == startY) {
+            labels.add(new DrawLabel("No modules matched the search.", leftX + 8, y + 8, 0xCCCCCC));
+            y += 34;
+        }
+        return y;
+    }
+
+    private int buildStatsDashboard(int y) {
+        int controlWidth = leftWidth - RESET_WIDTH - 6;
+        int startY = y;
+
+        if (shouldShowFeature("pvp.session_stats", "Session Stats", "stats", "session")) {
+            y = addFeatureSection(y, "pvp.session_stats", "Session Stats");
+            if (!isFeatureCollapsed("pvp.session_stats")) {
+                addToggle(leftX, y, controlWidth, "Enable Session Stats", sessionStatsEnabled, true, () -> sessionStatsEnabled, value -> sessionStatsEnabled = value, true); y += ROW_HEIGHT;
+                if (sessionStatsEnabled) {
+                    labels.add(new DrawLabel("Tracked in the dashboard below.", leftX + 8, y + 4, 0xAAAAAA));
+                    y += 22;
+                }
+            }
+            y += 10;
+        }
+
+        if (shouldShowFeature("pvp.all_time_stats", "All Time Stats", "stats", "all time")) {
+            y = addFeatureSection(y, "pvp.all_time_stats", "All Time Stats");
+            if (!isFeatureCollapsed("pvp.all_time_stats")) {
+                addToggle(leftX, y, controlWidth, "Enable All Time Stats", allTimeStatsEnabled, true, () -> allTimeStatsEnabled, value -> allTimeStatsEnabled = value, true); y += ROW_HEIGHT;
+                if (allTimeStatsEnabled) {
+                    labels.add(new DrawLabel("Tracked in the dashboard below and saved to config/atomics_client.json.", leftX + 8, y + 4, 0xAAAAAA));
+                    y += 22;
+                }
+            }
+            y += 10;
+        }
+
+        if (shouldShowFeature("tools.armor_hud", "Armor HUD", "armor", "durability", "dura", "warning", "low armor")) {
+            y = addFeatureSection(y, "tools.armor_hud", "Armor HUD");
+            if (!isFeatureCollapsed("tools.armor_hud")) {
+                addToggle(leftX, y, controlWidth, "Show Armor Durability HUD", armorHudEnabled, TpsConfig.DEFAULT_ARMOR_HUD_ENABLED, () -> armorHudEnabled, value -> armorHudEnabled = value, true); y += ROW_HEIGHT;
                 addToggle(leftX, y, controlWidth, "Warn On Low Armor", armorDurabilityWarningEnabled, TpsConfig.DEFAULT_ARMOR_DURABILITY_WARNING_ENABLED, () -> armorDurabilityWarningEnabled, value -> armorDurabilityWarningEnabled = value, true); y += ROW_HEIGHT;
                 if (armorHudEnabled || armorDurabilityWarningEnabled) {
                     armorDurabilityWarningPercent = TpsConfig.DEFAULT_ARMOR_DURABILITY_WARNING_PERCENT;
@@ -493,191 +794,87 @@ public class AtomicsClientScreen extends Screen {
                         }
                     }
                 }
-
-                addToggle(leftX, y, controlWidth, "Zoom", zoomEnabled, TpsConfig.DEFAULT_ZOOM_ENABLED, () -> zoomEnabled, value -> zoomEnabled = value, true); y += ROW_HEIGHT;
-                if (zoomEnabled) {
-                    addDoubleSlider(leftX, y, controlWidth, "Zoom Strength", zoomMultiplier, 1.5, 8.0, 0.1, TpsConfig.DEFAULT_ZOOM_MULTIPLIER, value -> zoomMultiplier = (float) value, value -> formatDecimal(value, 1) + "x"); y += ROW_HEIGHT;
-                }
             }
             y += 10;
         }
 
-        if (shouldShowFeature("visuals.world_cues", "World Cues", "time changer", "day", "night", "sunset", "tnt timer", "fuse", "explosion", "projectile trail", "arrows", "pearls", "snowballs")) {
-            y = addFeatureSection(y, "visuals.world_cues", "World Cues");
-            if (!isFeatureCollapsed("visuals.world_cues")) {
-                addToggle(leftX, y, controlWidth, "Time Changer", timeChangerEnabled, TpsConfig.DEFAULT_TIME_CHANGER_ENABLED, () -> timeChangerEnabled, value -> timeChangerEnabled = value, true); y += ROW_HEIGHT;
-                if (timeChangerEnabled) {
-                    addIntSlider(leftX, y, controlWidth, "Time Of Day", timeOfDay, 0, 24000, 100, TpsConfig.DEFAULT_TIME_OF_DAY, value -> timeOfDay = value); y += ROW_HEIGHT;
-                }
-
-                addToggle(leftX, y, controlWidth, "TNT Timer", tntTimerEnabled, TpsConfig.DEFAULT_TNT_TIMER_ENABLED, () -> tntTimerEnabled, value -> tntTimerEnabled = value, true); y += ROW_HEIGHT;
-                if (tntTimerEnabled) {
-                    addIntSlider(leftX, y, controlWidth, "Timer Range", tntTimerRange, 8, 128, 1, TpsConfig.DEFAULT_TNT_TIMER_RANGE, value -> tntTimerRange = value); y += ROW_HEIGHT;
-                }
-
-                addToggle(leftX, y, controlWidth, "Projectile Trail", projectileTrailEnabled, TpsConfig.DEFAULT_PROJECTILE_TRAIL_ENABLED, () -> projectileTrailEnabled, value -> projectileTrailEnabled = value, true); y += ROW_HEIGHT;
-                if (projectileTrailEnabled) {
-                    addTextField(leftX, y, controlWidth, "Trail Particle", projectileTrailParticleId, TpsConfig.DEFAULT_PROJECTILE_TRAIL_PARTICLE_ID, value -> projectileTrailParticleId = value); y += ROW_HEIGHT;
-                    addIntSlider(leftX, y, controlWidth, "Particles Per Tick", projectileTrailParticleCount, 0, 20, 1, TpsConfig.DEFAULT_PROJECTILE_TRAIL_PARTICLE_COUNT, value -> projectileTrailParticleCount = value); y += ROW_HEIGHT;
-                    addDoubleSlider(leftX, y, controlWidth, "Trail Spread", projectileTrailSpread, 0.0, 1.5, 0.01, TpsConfig.DEFAULT_PROJECTILE_TRAIL_SPREAD, value -> projectileTrailSpread = value, value -> formatDecimal(value, 2)); y += ROW_HEIGHT;
-                    addDoubleSlider(leftX, y, controlWidth, "Trail Speed", projectileTrailSpeed, 0.0, 1.0, 0.01, TpsConfig.DEFAULT_PROJECTILE_TRAIL_SPEED, value -> projectileTrailSpeed = value, value -> formatDecimal(value, 2)); y += ROW_HEIGHT;
-                }
+        if (shouldShowFeature("pvp.opponent_odds", "Opponent Odds", "win odds", "nametags")) {
+            y = addFeatureSection(y, "pvp.opponent_odds", "Opponent Odds");
+            if (!isFeatureCollapsed("pvp.opponent_odds")) {
+                addToggle(leftX, y, controlWidth, "Show Win Odds On Nametags", winOddsEnabled, true, () -> winOddsEnabled, value -> winOddsEnabled = value, false); y += ROW_HEIGHT;
+                labels.add(new DrawLabel("Displays only the win percentage. HP and pop counts stay separate.", leftX + 8, y + 4, 0xAAAAAA));
+                y += 22;
             }
             y += 10;
         }
 
-        if (shouldShowFeature("visuals.chat_privacy", "Chat & Privacy", "chat macros", "messages", "commands", "keybinds", "streamer mode", "hide names", "privacy")) {
-            y = addFeatureSection(y, "visuals.chat_privacy", "Chat & Privacy");
-            if (!isFeatureCollapsed("visuals.chat_privacy")) {
-                addToggle(leftX, y, controlWidth, "Chat Macros", chatMacrosEnabled, false, () -> chatMacrosEnabled, value -> chatMacrosEnabled = value, true); y += ROW_HEIGHT;
-                if (chatMacrosEnabled) {
-                    addMacroListButtons(leftX, y, controlWidth); y += ROW_HEIGHT;
-                    for (int i = 0; i < macroMessages.size(); i++) {
-                        final int index = i;
-                        addTextField(leftX, y, controlWidth, "Macro " + (index + 1), macroMessages.get(index), "", value -> setMacroMessage(index, value)); y += ROW_HEIGHT;
-                    }
-                }
-
-                addToggle(leftX, y, controlWidth, "Streamer Mode", streamerModeEnabled, TpsConfig.DEFAULT_STREAMER_MODE_ENABLED, () -> streamerModeEnabled, value -> streamerModeEnabled = value, false); y += ROW_HEIGHT;
+        if (shouldShowFeature("pvp.totem_pop_counter", "Totem Pop Counter", "totem pops", "pop count", "nametags")) {
+            y = addFeatureSection(y, "pvp.totem_pop_counter", "Totem Pop Counter");
+            if (!isFeatureCollapsed("pvp.totem_pop_counter")) {
+                addToggle(leftX, y, controlWidth, "Show Totem Pops On Nametags", totemPopNametagEnabled, TpsConfig.DEFAULT_TOTEM_POP_NAMETAG_ENABLED, () -> totemPopNametagEnabled, value -> totemPopNametagEnabled = value, true); y += ROW_HEIGHT;
+                labels.add(new DrawLabel("Tracks opponent pops as its own movable nametag item.", leftX + 8, y + 4, 0xAAAAAA));
+                y += 22;
             }
             y += 10;
         }
 
-        if (selectedTab != Tab.SEARCH && !normalizeSearch(settingsSearch).isEmpty() && y == startY) {
-            labels.add(new DrawLabel("No settings matched the search.", leftX + 8, y + 8, 0xCCCCCC));
-            y += 34;
-        }
-
-        return y;
-    }
-
-    private int buildKeybindSettings(int y) {
-        int controlWidth = leftWidth - RESET_WIDTH - 6;
-        int startY = y;
-
-        if (shouldShowFeature("controls.base", "Menu & Utility", "controls", "open menu", "zoom", "reset totem")) {
-            y = addFeatureSection(y, "controls.base", "Menu & Utility");
-            if (!isFeatureCollapsed("controls.base")) {
-                addKeybindButton(leftX, y, controlWidth, "Open Menu", AtomicsClient.getOpenStudioKeyBinding()); y += ROW_HEIGHT;
-                addKeybindButton(leftX, y, controlWidth, "Reset Totem Counter", AtomicsClient.getResetTotemCounterKeyBinding()); y += ROW_HEIGHT;
-                addKeybindButton(leftX, y, controlWidth, "Zoom", AtomicsClient.getZoomKeyBinding()); y += ROW_HEIGHT;
+        if (shouldShowFeature("pvp.ping_nametags", "Ping Nametags", "ping", "latency", "ms")) {
+            y = addFeatureSection(y, "pvp.ping_nametags", "Ping Nametags");
+            if (!isFeatureCollapsed("pvp.ping_nametags")) {
+                addToggle(leftX, y, controlWidth, "Show Ping On Nametags", pingNametagEnabled, TpsConfig.DEFAULT_PING_NAMETAG_ENABLED, () -> pingNametagEnabled, value -> pingNametagEnabled = value, true); y += ROW_HEIGHT;
+                labels.add(new DrawLabel("Displays each player's tab-list ping beside their nametag.", leftX + 8, y + 4, 0xAAAAAA));
+                y += 22;
             }
             y += 10;
         }
 
-        if (shouldShowFeature("controls.feature_toggles", "Feature Toggles", "auto gg", "duel spectate", "full bright", "time changer", "projectile trail", "streamer mode", "friend", "foe")) {
-            y = addFeatureSection(y, "controls.feature_toggles", "Feature Toggles");
-            if (!isFeatureCollapsed("controls.feature_toggles")) {
-                addKeybindButton(leftX, y, controlWidth, "Auto GG", AtomicsClient.getToggleAutoGgKeyBinding()); y += ROW_HEIGHT;
-                addKeybindButton(leftX, y, controlWidth, "Dual Spectate Camera", AtomicsClient.getToggleDualSpectateKeyBinding()); y += ROW_HEIGHT;
-                addKeybindButton(leftX, y, controlWidth, "Full Bright", AtomicsClient.getToggleFullBrightKeyBinding()); y += ROW_HEIGHT;
-                addKeybindButton(leftX, y, controlWidth, "Time Changer", AtomicsClient.getToggleTimeChangerKeyBinding()); y += ROW_HEIGHT;
-                addKeybindButton(leftX, y, controlWidth, "Projectile Trail", AtomicsClient.getToggleProjectileTrailKeyBinding()); y += ROW_HEIGHT;
-                addKeybindButton(leftX, y, controlWidth, "Streamer Mode", AtomicsClient.getToggleStreamerModeKeyBinding()); y += ROW_HEIGHT;
-                addKeybindButton(leftX, y, controlWidth, "Cycle Friend/Foe Target", AtomicsClient.getCycleFriendFoeKeyBinding()); y += ROW_HEIGHT;
-            }
-            y += 10;
-        }
-
-        if (shouldShowFeature("controls.chat_macros", "Chat Macros", "macros", "messages", "commands")) {
-            y = addFeatureSection(y, "controls.chat_macros", "Chat Macros");
-            if (!isFeatureCollapsed("controls.chat_macros")) {
-                for (int i = 0; i < macroMessages.size(); i++) {
-                    addKeybindButton(leftX, y, controlWidth, "Macro " + (i + 1), AtomicsClient.getMacroKeyBinding(i)); y += ROW_HEIGHT;
-                }
-            }
-            y += 10;
-        }
-
-        if (selectedTab != Tab.SEARCH && !normalizeSearch(settingsSearch).isEmpty() && y == startY) {
-            labels.add(new DrawLabel("No settings matched the search.", leftX + 8, y + 8, 0xCCCCCC));
-            y += 34;
-        }
-
-        return y;
-    }
-
-    private int buildPvpSettings(int y) {
-        int controlWidth = leftWidth - RESET_WIDTH - 6;
-        int startY = y;
-
-        if (shouldShowFeature("combat.tracking", "Tracking", "stats", "session", "all time", "reach", "distance", "hit")) {
-            y = addFeatureSection(y, "combat.tracking", "Tracking");
-            if (!isFeatureCollapsed("combat.tracking")) {
-                addToggle(leftX, y, controlWidth, "Session Stats", sessionStatsEnabled, true, () -> sessionStatsEnabled, value -> sessionStatsEnabled = value, true); y += ROW_HEIGHT;
-                addToggle(leftX, y, controlWidth, "All Time Stats", allTimeStatsEnabled, true, () -> allTimeStatsEnabled, value -> allTimeStatsEnabled = value, true); y += ROW_HEIGHT;
-                addToggle(leftX, y, controlWidth, "Reach Display", reachDisplayEnabled, TpsConfig.DEFAULT_REACH_DISPLAY_ENABLED, () -> reachDisplayEnabled, value -> reachDisplayEnabled = value, false); y += ROW_HEIGHT;
-            }
-            y += 10;
-        }
-
-        if (shouldShowFeature("combat.nametags", "Nametags", "win odds", "totem pops", "pop count", "ping", "latency", "ms", "opponent info", "mctiers", "pvptiers", "tiers", "rankings", "layout", "move", "order")) {
-            y = addFeatureSection(y, "combat.nametags", "Nametags");
-            if (!isFeatureCollapsed("combat.nametags")) {
-                addToggle(leftX, y, controlWidth, "Win Odds", winOddsEnabled, true, () -> winOddsEnabled, value -> winOddsEnabled = value, false); y += ROW_HEIGHT;
-                addToggle(leftX, y, controlWidth, "Totem Pops", totemPopNametagEnabled, TpsConfig.DEFAULT_TOTEM_POP_NAMETAG_ENABLED, () -> totemPopNametagEnabled, value -> totemPopNametagEnabled = value, true); y += ROW_HEIGHT;
-                addToggle(leftX, y, controlWidth, "Ping", pingNametagEnabled, TpsConfig.DEFAULT_PING_NAMETAG_ENABLED, () -> pingNametagEnabled, value -> pingNametagEnabled = value, true); y += ROW_HEIGHT;
-                addToggle(leftX, y, controlWidth, "Tier Chat", opponentInfoEnabled, TpsConfig.DEFAULT_OPPONENT_INFO_ENABLED, () -> opponentInfoEnabled, value -> opponentInfoEnabled = value, false); y += ROW_HEIGHT;
-                addToggle(leftX, y, controlWidth, "Tier Nametag", opponentStatsNametagEnabled, TpsConfig.DEFAULT_OPPONENT_STATS_NAMETAG_ENABLED, () -> opponentStatsNametagEnabled, value -> opponentStatsNametagEnabled = value, true); y += ROW_HEIGHT;
-                if (opponentStatsNametagEnabled) {
-                    addWideButton(leftX, y, controlWidth, "Tier Format: " + opponentStatsNametagFormatLabel(opponentStatsNametagFormat), b -> {
-                        opponentStatsNametagFormat = nextOpponentStatsNametagFormat(opponentStatsNametagFormat);
-                        changed();
-                        clearAndInit();
-                    }); y += ROW_HEIGHT;
-                }
+        if (shouldShowFeature("pvp.nametags", "Nametag Customization", "nametag", "layout", "move", "order")) {
+            y = addFeatureSection(y, "pvp.nametags", "Nametag Customization");
+            if (!isFeatureCollapsed("pvp.nametags")) {
                 List<String> enabledItems = enabledNametagItems();
-                for (String item : enabledItems) {
-                    y = addNametagLayoutRow(y, item, enabledItems);
+                if (enabledItems.isEmpty()) {
+                    labels.add(new DrawLabel("Enable a nametag item to move it around.", leftX + 8, y + 4, 0xAAAAAA));
+                    y += 22;
+                } else {
+                    for (String item : enabledItems) {
+                        y = addNametagLayoutRow(y, item, enabledItems);
+                    }
+                    labels.add(new DrawLabel("Only enabled nametag items appear here.", leftX + 8, y + 4, 0xAAAAAA));
+                    y += 22;
                 }
             }
             y += 10;
         }
 
-        if (shouldShowFeature("combat.friends", "Friends & Foes", "friend", "foe", "friends", "foes", "highlight", "green", "red")) {
-            y = addFeatureSection(y, "combat.friends", "Friends & Foes");
-            if (!isFeatureCollapsed("combat.friends")) {
-                addToggle(leftX, y, controlWidth, "Player Overlay", friendFoeOverlayEnabled, TpsConfig.DEFAULT_FRIEND_FOE_OVERLAY_ENABLED, () -> friendFoeOverlayEnabled, value -> friendFoeOverlayEnabled = value, true); y += ROW_HEIGHT;
-                if (friendFoeOverlayEnabled) {
-                    addWideButton(leftX, y, controlWidth, "Edit Player List (" + getFriendFoeCount() + ")", b -> this.client.setScreen(new FriendFoeListScreen(this))); y += ROW_HEIGHT;
-                    addWideButton(leftX, y, controlWidth, "Render Style: " + friendFoeStyleLabel(friendFoeOverlayStyle), b -> {
-                        friendFoeOverlayStyle = nextFriendFoeStyle(friendFoeOverlayStyle);
-                        changed();
-                        clearAndInit();
-                    }); y += ROW_HEIGHT;
-                    addIntSlider(leftX, y, controlWidth, "Friend Red", friendOverlayR, 0, 255, 1, TpsConfig.DEFAULT_FRIEND_OVERLAY_R, value -> friendOverlayR = value); y += ROW_HEIGHT;
-                    addIntSlider(leftX, y, controlWidth, "Friend Green", friendOverlayG, 0, 255, 1, TpsConfig.DEFAULT_FRIEND_OVERLAY_G, value -> friendOverlayG = value); y += ROW_HEIGHT;
-                    addIntSlider(leftX, y, controlWidth, "Friend Blue", friendOverlayB, 0, 255, 1, TpsConfig.DEFAULT_FRIEND_OVERLAY_B, value -> friendOverlayB = value); y += ROW_HEIGHT;
-                    addDoubleSlider(leftX, y, controlWidth, "Friend Opacity", friendOverlayAlpha, 0.0, 1.0, 0.025, TpsConfig.DEFAULT_FRIEND_OVERLAY_ALPHA, value -> friendOverlayAlpha = (float) value, value -> formatPercent(value)); y += ROW_HEIGHT;
-                    addIntSlider(leftX, y, controlWidth, "Foe Red", foeOverlayR, 0, 255, 1, TpsConfig.DEFAULT_FOE_OVERLAY_R, value -> foeOverlayR = value); y += ROW_HEIGHT;
-                    addIntSlider(leftX, y, controlWidth, "Foe Green", foeOverlayG, 0, 255, 1, TpsConfig.DEFAULT_FOE_OVERLAY_G, value -> foeOverlayG = value); y += ROW_HEIGHT;
-                    addIntSlider(leftX, y, controlWidth, "Foe Blue", foeOverlayB, 0, 255, 1, TpsConfig.DEFAULT_FOE_OVERLAY_B, value -> foeOverlayB = value); y += ROW_HEIGHT;
-                    addDoubleSlider(leftX, y, controlWidth, "Foe Opacity", foeOverlayAlpha, 0.0, 1.0, 0.025, TpsConfig.DEFAULT_FOE_OVERLAY_ALPHA, value -> foeOverlayAlpha = (float) value, value -> formatPercent(value)); y += ROW_HEIGHT;
-                }
+        if (shouldShowFeature("pvp.opponent_info", "Opponent Info", "mctiers", "pvptiers", "tiers", "rankings")) {
+            y = addFeatureSection(y, "pvp.opponent_info", "Opponent Info");
+            if (!isFeatureCollapsed("pvp.opponent_info")) {
+                addToggle(leftX, y, controlWidth, "Send Opponent Tier Chat", opponentInfoEnabled, TpsConfig.DEFAULT_OPPONENT_INFO_ENABLED, () -> opponentInfoEnabled, value -> opponentInfoEnabled = value, false); y += ROW_HEIGHT;
+                addToggle(leftX, y, controlWidth, "Show Opponent Stats On Nametags", opponentStatsNametagEnabled, TpsConfig.DEFAULT_OPPONENT_STATS_NAMETAG_ENABLED, () -> opponentStatsNametagEnabled, value -> opponentStatsNametagEnabled = value, true); y += ROW_HEIGHT;
+                addWideButton(leftX, y, controlWidth, "Nametag Format: " + opponentStatsNametagFormatLabel(opponentStatsNametagFormat), b -> {
+                    opponentStatsNametagFormat = nextOpponentStatsNametagFormat(opponentStatsNametagFormat);
+                    changed();
+                    clearAndInit();
+                }); y += ROW_HEIGHT;
+                labels.add(new DrawLabel("Chat posts duel tier info. Nametag shows the best cached tier/ranking tag.", leftX + 8, y + 4, 0xAAAAAA));
+                y += 22;
             }
             y += 10;
         }
 
-        if (shouldShowFeature("combat.match", "Match Tools", "match end", "auto gg", "win message", "lose message", "dual spectate", "fight camera", "autofill", "third person")) {
-            y = addFeatureSection(y, "combat.match", "Match Tools");
-            if (!isFeatureCollapsed("combat.match")) {
-                addToggle(leftX, y, controlWidth, "Auto GG", autoGgEnabled, false, () -> autoGgEnabled, value -> autoGgEnabled = value, true); y += ROW_HEIGHT;
-                if (autoGgEnabled) {
-                    addTextField(leftX, y, controlWidth, "Win Message", autoGgWinMessage, "gg", value -> autoGgWinMessage = value); y += ROW_HEIGHT;
-                    addTextField(leftX, y, controlWidth, "Lose Message", autoGgLoseMessage, "gg", value -> autoGgLoseMessage = value); y += ROW_HEIGHT;
-                }
-
-                addToggle(leftX, y, controlWidth, "Dual Spectate Camera", dualSpectateEnabled, false, () -> dualSpectateEnabled, value -> dualSpectateEnabled = value, true); y += ROW_HEIGHT;
-                if (dualSpectateEnabled) {
-                    addToggle(leftX, y, controlWidth, "Auto Fill Nearest Pair", dualSpectateAutoFill, false, () -> dualSpectateAutoFill, value -> dualSpectateAutoFill = value, true); y += ROW_HEIGHT;
-                    addTextField(leftX, y, controlWidth, "Player One", dualSpectatePlayerOne, "Username", value -> dualSpectatePlayerOne = value); y += ROW_HEIGHT;
-                    addTextField(leftX, y, controlWidth, "Player Two", dualSpectatePlayerTwo, "Username", value -> dualSpectatePlayerTwo = value); y += ROW_HEIGHT;
-                    addWideButton(leftX, y, controlWidth, "Autofill Nearest Pair", b -> autofillDualSpectatePlayers()); y += ROW_HEIGHT;
-                    addToggle(leftX, y, controlWidth, "Force Third Person", dualSpectateForceThirdPerson, true, () -> dualSpectateForceThirdPerson, value -> dualSpectateForceThirdPerson = value, false); y += ROW_HEIGHT;
-                    addDoubleSlider(leftX, y, controlWidth, "Frame Padding", dualSpectatePadding, 1.0, 2.5, 0.05, 1.35, value -> dualSpectatePadding = (float) value, value -> formatDecimal(value, 2) + "x"); y += ROW_HEIGHT;
-                    addDoubleSlider(leftX, y, controlWidth, "Min Distance", dualSpectateMinDistance, 2.0, 30.0, 0.5, 6.0, value -> dualSpectateMinDistance = (float) value, value -> formatDecimal(value, 1)); y += ROW_HEIGHT;
-                    addDoubleSlider(leftX, y, controlWidth, "Max Distance", dualSpectateMaxDistance, 10.0, 160.0, 1.0, 80.0, value -> dualSpectateMaxDistance = (float) value, value -> formatDecimal(value, 0)); y += ROW_HEIGHT;
-                }
+        if (selectedTab != Tab.SEARCH && shouldShowFeature("stats.dashboard", "Stats Dashboard", "history", "graph", "kills", "deaths", "accuracy")) {
+            y = addFeatureSection(y, "stats.dashboard", "Stats Dashboard");
+            if (!isFeatureCollapsed("stats.dashboard")) {
+                statsDashboardY = y;
+                y += 20;
+                y = addStatsTimeframeDropdown(y, "Numbers Timeframe", statsNumbersTimeframe, value -> statsNumbersTimeframe = value, true);
+                y += statsCounterPanelHeight() + 14;
+                y += 18;
+                y = addHistoryGraphToggles(y);
+                y += 8;
+                y += historyLineGraphPanelHeight() + 14;
+                y = addStatsTimeframeDropdown(y, "Bar Graph Timeframe", statsBarGraphTimeframe, value -> statsBarGraphTimeframe = value, false);
+                y += statsBarGraphPanelHeight();
             }
             y += 10;
         }
@@ -686,35 +883,7 @@ public class AtomicsClientScreen extends Screen {
             labels.add(new DrawLabel("No settings matched the search.", leftX + 8, y + 8, 0xCCCCCC));
             y += 34;
         }
-
         return y;
-    }
-
-    private int buildSearchSettings(int y) {
-        int startY = y;
-        y = buildTotemSettings(y);
-        y = buildPvpSettings(y);
-        y = buildToolsSettings(y);
-        y = buildMiscSettings(y);
-        y = buildKeybindSettings(y);
-
-        if (!normalizeSearch(settingsSearch).isEmpty() && y == startY) {
-            labels.add(new DrawLabel("No modules matched the search.", leftX + 8, y + 8, 0xCCCCCC));
-            y += 34;
-        }
-        return y;
-    }
-
-    private int buildStatsDashboard(int y) {
-        y += 20;
-        y = addStatsTimeframeDropdown(y, "Numbers Timeframe", statsNumbersTimeframe, value -> statsNumbersTimeframe = value, true);
-        y += statsCounterPanelHeight() + 14;
-        y += 18;
-        y = addHistoryGraphToggles(y);
-        y += 8;
-        y += historyLineGraphPanelHeight() + 14;
-        y = addStatsTimeframeDropdown(y, "Bar Graph Timeframe", statsBarGraphTimeframe, value -> statsBarGraphTimeframe = value, false);
-        return y + statsBarGraphPanelHeight();
     }
 
     private int addStatsTimeframeDropdown(int y, String label, String selected, Consumer<String> setter, boolean numbersDropdown) {
@@ -1726,7 +1895,10 @@ public class AtomicsClientScreen extends Screen {
 
     private void renderStatsDashboard(DrawContext context) {
         int x = leftX;
-        int y = contentTop - scrollOffset;
+        int y = statsDashboardY;
+        if (y < 0) {
+            return;
+        }
         int w = leftWidth;
 
         context.drawTextWithShadow(this.textRenderer, Text.literal("Stats"), x, y - 2, textColor(0xFFFFFF));
@@ -2312,7 +2484,7 @@ public class AtomicsClientScreen extends Screen {
     }
 
     private enum Tab {
-        TOTEM("Totem", true), PVP("Combat", false), TOOLS("Visuals", false), MISC("Items", false), STATS("Stats", false), KEYBINDS("Controls", false), SEARCH("Find", false);
+        TOTEM("Totem", true), PVP("Combat", false), STATS("HUD & Stats", false), TOOLS("View", false), MISC("Items", false), KEYBINDS("Controls", false), SEARCH("Find", false);
         private final String label;
         private final boolean hasPreview;
         Tab(String label, boolean hasPreview) { this.label = label; this.hasPreview = hasPreview; }
