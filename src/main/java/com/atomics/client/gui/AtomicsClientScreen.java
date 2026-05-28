@@ -128,6 +128,12 @@ public class AtomicsClientScreen extends Screen {
     private int timeOfDay;
     private int tntTimerRange;
     private int armorDurabilityWarningPercent;
+    private int armorHudX;
+    private int armorHudY;
+    private boolean armorHudVertical;
+    private int armorHudSpacing;
+    private boolean armorHudHotbarBorder;
+    private String armorHudDurabilityMode;
     private int friendOverlayR;
     private int friendOverlayG;
     private int friendOverlayB;
@@ -519,7 +525,22 @@ public class AtomicsClientScreen extends Screen {
                 addToggle(leftX, y, controlWidth, "Warn On Low Armor", armorDurabilityWarningEnabled, TpsConfig.DEFAULT_ARMOR_DURABILITY_WARNING_ENABLED, () -> armorDurabilityWarningEnabled, value -> armorDurabilityWarningEnabled = value, true); y += ROW_HEIGHT;
                 if (armorHudEnabled || armorDurabilityWarningEnabled) {
                     addIntSlider(leftX, y, controlWidth, "Low Armor Percent", armorDurabilityWarningPercent, 1, 100, 1, TpsConfig.DEFAULT_ARMOR_DURABILITY_WARNING_PERCENT, value -> armorDurabilityWarningPercent = value); y += ROW_HEIGHT;
-                    labels.add(new DrawLabel("Shows remaining durability under each equipped armor piece.", leftX + 8, y + 4, 0xAAAAAA));
+                    if (armorHudEnabled) {
+                        addWideButton(leftX, y, controlWidth, "Edit HUD Position", b -> this.client.setScreen(new ArmorHudLayoutScreen(this, armorHudX, armorHudY, armorHudVertical, armorHudSpacing, armorHudDurabilityMode, armorHudHotbarBorder))); y += ROW_HEIGHT;
+                        addWideButton(leftX, y, controlWidth, "Orientation: " + (armorHudVertical ? "Vertical" : "Horizontal"), b -> {
+                            armorHudVertical = !armorHudVertical;
+                            changed();
+                            clearAndInit();
+                        }); y += ROW_HEIGHT;
+                        addToggle(leftX, y, controlWidth, "Hotbar Border", armorHudHotbarBorder, TpsConfig.DEFAULT_ARMOR_HUD_HOTBAR_BORDER, () -> armorHudHotbarBorder, value -> armorHudHotbarBorder = value, true); y += ROW_HEIGHT;
+                        addWideButton(leftX, y, controlWidth, "Durability: " + armorHudDurabilityModeLabel(armorHudDurabilityMode), b -> {
+                            armorHudDurabilityMode = nextArmorHudDurabilityMode(armorHudDurabilityMode);
+                            changed();
+                            clearAndInit();
+                        }); y += ROW_HEIGHT;
+                        addIntSlider(leftX, y, controlWidth, "Piece Spacing", armorHudSpacing, 20, 64, 1, TpsConfig.DEFAULT_ARMOR_HUD_SPACING, value -> armorHudSpacing = value); y += ROW_HEIGHT;
+                    }
+                    labels.add(new DrawLabel("Drag the HUD editor preview to place armor durability anywhere on screen.", leftX + 8, y + 4, 0xAAAAAA));
                     y += 22;
                 }
             }
@@ -1279,6 +1300,12 @@ public class AtomicsClientScreen extends Screen {
         armorHudEnabled = cfg.visual.armorHudEnabled;
         armorDurabilityWarningEnabled = cfg.visual.armorDurabilityWarningEnabled;
         armorDurabilityWarningPercent = cfg.visual.armorDurabilityWarningPercent;
+        armorHudX = cfg.visual.armorHudX;
+        armorHudY = cfg.visual.armorHudY;
+        armorHudVertical = cfg.visual.armorHudVertical;
+        armorHudSpacing = cfg.visual.armorHudSpacing;
+        armorHudHotbarBorder = cfg.visual.armorHudHotbarBorder;
+        armorHudDurabilityMode = cfg.visual.armorHudDurabilityMode;
         timeChangerEnabled = cfg.visual.timeChangerEnabled;
         timeOfDay = cfg.visual.timeOfDay;
         tntTimerEnabled = cfg.visual.tntTimerEnabled;
@@ -1303,6 +1330,41 @@ public class AtomicsClientScreen extends Screen {
         collapsedSections.clear();
         collapsedSections.addAll(cfg.ui.collapsedSections);
         stateLoaded = true;
+    }
+
+    void applyArmorHudLayout(int x, int y, boolean vertical, int spacing) {
+        armorHudX = Math.max(-1, Math.min(10000, x));
+        armorHudY = Math.max(-1, Math.min(10000, y));
+        armorHudVertical = vertical;
+        armorHudSpacing = Math.max(20, Math.min(64, spacing));
+        changed();
+    }
+
+    private static String nextArmorHudDurabilityMode(String mode) {
+        mode = normalizeArmorHudDurabilityMode(mode);
+        if (TpsConfig.ARMOR_HUD_DURABILITY_NUMBER.equals(mode)) {
+            return TpsConfig.ARMOR_HUD_DURABILITY_PERCENT;
+        }
+        if (TpsConfig.ARMOR_HUD_DURABILITY_PERCENT.equals(mode)) {
+            return TpsConfig.ARMOR_HUD_DURABILITY_BAR;
+        }
+        return TpsConfig.ARMOR_HUD_DURABILITY_NUMBER;
+    }
+
+    private static String armorHudDurabilityModeLabel(String mode) {
+        mode = normalizeArmorHudDurabilityMode(mode);
+        if (TpsConfig.ARMOR_HUD_DURABILITY_PERCENT.equals(mode)) return "Percent";
+        if (TpsConfig.ARMOR_HUD_DURABILITY_BAR.equals(mode)) return "Bars";
+        return "Numbers";
+    }
+
+    private static String normalizeArmorHudDurabilityMode(String mode) {
+        if (TpsConfig.ARMOR_HUD_DURABILITY_PERCENT.equals(mode)
+                || TpsConfig.ARMOR_HUD_DURABILITY_NUMBER.equals(mode)
+                || TpsConfig.ARMOR_HUD_DURABILITY_BAR.equals(mode)) {
+            return mode;
+        }
+        return TpsConfig.DEFAULT_ARMOR_HUD_DURABILITY_MODE;
     }
 
     private void changed() {
@@ -1426,6 +1488,12 @@ public class AtomicsClientScreen extends Screen {
         armorHudEnabled = TpsConfig.DEFAULT_ARMOR_HUD_ENABLED;
         armorDurabilityWarningEnabled = TpsConfig.DEFAULT_ARMOR_DURABILITY_WARNING_ENABLED;
         armorDurabilityWarningPercent = TpsConfig.DEFAULT_ARMOR_DURABILITY_WARNING_PERCENT;
+        armorHudX = TpsConfig.DEFAULT_ARMOR_HUD_X;
+        armorHudY = TpsConfig.DEFAULT_ARMOR_HUD_Y;
+        armorHudVertical = TpsConfig.DEFAULT_ARMOR_HUD_VERTICAL;
+        armorHudSpacing = TpsConfig.DEFAULT_ARMOR_HUD_SPACING;
+        armorHudHotbarBorder = TpsConfig.DEFAULT_ARMOR_HUD_HOTBAR_BORDER;
+        armorHudDurabilityMode = TpsConfig.DEFAULT_ARMOR_HUD_DURABILITY_MODE;
         timeChangerEnabled = TpsConfig.DEFAULT_TIME_CHANGER_ENABLED;
         timeOfDay = TpsConfig.DEFAULT_TIME_OF_DAY;
         tntTimerEnabled = TpsConfig.DEFAULT_TNT_TIMER_ENABLED;
@@ -1563,6 +1631,12 @@ public class AtomicsClientScreen extends Screen {
         cfg.visual.armorHudEnabled = armorHudEnabled;
         cfg.visual.armorDurabilityWarningEnabled = armorDurabilityWarningEnabled;
         cfg.visual.armorDurabilityWarningPercent = Math.max(1, Math.min(100, armorDurabilityWarningPercent));
+        cfg.visual.armorHudX = Math.max(-1, Math.min(10000, armorHudX));
+        cfg.visual.armorHudY = Math.max(-1, Math.min(10000, armorHudY));
+        cfg.visual.armorHudVertical = armorHudVertical;
+        cfg.visual.armorHudSpacing = Math.max(20, Math.min(64, armorHudSpacing));
+        cfg.visual.armorHudHotbarBorder = armorHudHotbarBorder;
+        cfg.visual.armorHudDurabilityMode = normalizeArmorHudDurabilityMode(armorHudDurabilityMode);
         cfg.visual.timeChangerEnabled = timeChangerEnabled;
         cfg.visual.timeOfDay = Math.max(0, Math.min(24000, timeOfDay));
         cfg.visual.tntTimerEnabled = tntTimerEnabled;

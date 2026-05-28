@@ -75,9 +75,18 @@ public class TpsConfig {
     public static final String OPPONENT_STATS_NAMETAG_MODE_TIER = "mode_tier";
     public static final String DEFAULT_OPPONENT_STATS_NAMETAG_FORMAT = OPPONENT_STATS_NAMETAG_ICON_TIER;
     public static final boolean DEFAULT_FULL_BRIGHT_ENABLED = false;
-    public static final boolean DEFAULT_ARMOR_HUD_ENABLED = false;
+    public static final boolean DEFAULT_ARMOR_HUD_ENABLED = true;
     public static final boolean DEFAULT_ARMOR_DURABILITY_WARNING_ENABLED = true;
     public static final int DEFAULT_ARMOR_DURABILITY_WARNING_PERCENT = 20;
+    public static final int DEFAULT_ARMOR_HUD_X = -1;
+    public static final int DEFAULT_ARMOR_HUD_Y = -1;
+    public static final boolean DEFAULT_ARMOR_HUD_VERTICAL = false;
+    public static final int DEFAULT_ARMOR_HUD_SPACING = 20;
+    public static final boolean DEFAULT_ARMOR_HUD_HOTBAR_BORDER = true;
+    public static final String ARMOR_HUD_DURABILITY_PERCENT = "percent";
+    public static final String ARMOR_HUD_DURABILITY_NUMBER = "number";
+    public static final String ARMOR_HUD_DURABILITY_BAR = "bar";
+    public static final String DEFAULT_ARMOR_HUD_DURABILITY_MODE = ARMOR_HUD_DURABILITY_BAR;
     public static final boolean DEFAULT_TIME_CHANGER_ENABLED = false;
     public static final int DEFAULT_TIME_OF_DAY = 6000;
     public static final boolean DEFAULT_TNT_TIMER_ENABLED = false;
@@ -171,6 +180,14 @@ public class TpsConfig {
         visual.tntTimerRange = clampInt(visual.tntTimerRange, 8, 128);
         visual.zoomMultiplier = clampFloat(visual.zoomMultiplier, 1.5f, 8.0f);
         visual.armorDurabilityWarningPercent = clampInt(visual.armorDurabilityWarningPercent, 1, 100);
+        visual.armorHudX = clampInt(visual.armorHudX, -1, 10000);
+        visual.armorHudY = clampInt(visual.armorHudY, -1, 10000);
+        visual.armorHudSpacing = clampInt(visual.armorHudSpacing, 20, 64);
+        if (!ARMOR_HUD_DURABILITY_PERCENT.equals(visual.armorHudDurabilityMode)
+                && !ARMOR_HUD_DURABILITY_NUMBER.equals(visual.armorHudDurabilityMode)
+                && !ARMOR_HUD_DURABILITY_BAR.equals(visual.armorHudDurabilityMode)) {
+            visual.armorHudDurabilityMode = DEFAULT_ARMOR_HUD_DURABILITY_MODE;
+        }
         if (macros.messages == null
                 || macros.messages.length < MIN_MACRO_SLOTS
                 || macros.messages.length > MAX_MACRO_SLOTS) {
@@ -513,6 +530,12 @@ public class TpsConfig {
         public boolean armorHudEnabled = DEFAULT_ARMOR_HUD_ENABLED;
         public boolean armorDurabilityWarningEnabled = DEFAULT_ARMOR_DURABILITY_WARNING_ENABLED;
         public int armorDurabilityWarningPercent = DEFAULT_ARMOR_DURABILITY_WARNING_PERCENT;
+        public int armorHudX = DEFAULT_ARMOR_HUD_X;
+        public int armorHudY = DEFAULT_ARMOR_HUD_Y;
+        public boolean armorHudVertical = DEFAULT_ARMOR_HUD_VERTICAL;
+        public int armorHudSpacing = DEFAULT_ARMOR_HUD_SPACING;
+        public boolean armorHudHotbarBorder = DEFAULT_ARMOR_HUD_HOTBAR_BORDER;
+        public String armorHudDurabilityMode = DEFAULT_ARMOR_HUD_DURABILITY_MODE;
         public boolean timeChangerEnabled = DEFAULT_TIME_CHANGER_ENABLED;
         public int timeOfDay = DEFAULT_TIME_OF_DAY;
         public boolean tntTimerEnabled = DEFAULT_TNT_TIMER_ENABLED;

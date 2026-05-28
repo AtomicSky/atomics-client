@@ -1,6 +1,7 @@
 package com.atomics.client;
 
 import com.atomics.client.config.TpsConfig;
+import net.minecraft.client.gl.RenderPipelines;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.network.PlayerListEntry;
@@ -15,6 +16,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.particle.ParticleEffect;
 import net.minecraft.text.MutableText;
 import net.minecraft.text.Text;
+import net.minecraft.util.Identifier;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
@@ -32,6 +34,7 @@ public final class ClientFeatureManager {
     private static final float ZOOM_MIN = 1.5f;
     private static final float ZOOM_MAX = 8.0f;
     private static final float ZOOM_SCROLL_STEP = 0.25f;
+    private static final Identifier HOTBAR_SPRITE_TEXTURE = Identifier.ofVanilla("textures/gui/sprites/hud/hotbar.png");
 
     private static long lastReachMillis;
     private static String lastReachTextString = "";
@@ -272,8 +275,12 @@ public final class ClientFeatureManager {
     }
 
     private record ArmorPiece(ItemStack stack, String slotName, int remaining, int maxDamage, int percent) {
-        boolean hasDurability() {
-            return stack != null && !stack.isEmpty() && maxDamage > 0;
+        boolean isPresent() {
+            return stack != null && !stack.isEmpty();
+        }
+
+        boolean isDamageable() {
+            return isPresent() && maxDamage > 0;
         }
     }
 
@@ -352,17 +359,17 @@ public final class ClientFeatureManager {
     private static void renderArmorHudAndWarnings(DrawContext context, MinecraftClient client, TpsConfig.VisualSettings visual) {
         ArmorPiece[] armor = armorPieces(client.player);
         if (visual.armorHudEnabled) {
-            renderArmorHud(context, client, armor, visual.armorDurabilityWarningPercent);
+            renderArmorHud(context, client, armor, visual);
         }
         if (visual.armorDurabilityWarningEnabled) {
             warnLowArmorDurability(client, armor, visual.armorDurabilityWarningPercent);
         }
     }
 
-    private static void renderArmorHud(DrawContext context, MinecraftClient client, ArmorPiece[] armor, int warningPercent) {
+    private static void renderArmorHud(DrawContext context, MinecraftClient client, ArmorPiece[] armor, TpsConfig.VisualSettings visual) {
         int visible = 0;
         for (ArmorPiece piece : armor) {
-            if (piece != null && piece.hasDurability()) {
+            if (piece != null && piece.isPresent()) {
                 visible++;
             }
         }
@@ -370,36 +377,78 @@ public final class ClientFeatureManager {
             return;
         }
 
-        int slotWidth = 28;
-        int totalWidth = visible * slotWidth;
-        int x = client.getWindow().getScaledWidth() / 2 - totalWidth / 2;
-        int y = client.getWindow().getScaledHeight() - 74;
+        int spacing = Math.max(20, Math.min(64, visual.armorHudSpacing));
+        int slotSize = visual.armorHudHotbarBorder ? 22 : 16;
+        int itemOffset = visual.armorHudHotbarBorder ? 3 : 0;
+        int itemHeight = TpsConfig.ARMOR_HUD_DURABILITY_BAR.equals(visual.armorHudDurabilityMode) ? 16 : 28;
+        int hudWidth = visual.armorHudVertical ? slotSize : slotSize + (visible - 1) * spacing;
+        int hudHeight = visual.armorHudVertical ? Math.max(slotSize, itemHeight) + (visible - 1) * spacing : Math.max(slotSize, itemHeight);
+        int x = visual.armorHudX;
+        int y = visual.armorHudY;
+        if (x < 0 || y < 0) {
+            x = client.getWindow().getScaledWidth() / 2 - 127 - hudWidth;
+            y = client.getWindow().getScaledHeight() - 22;
+            if (visual.armorHudVertical) {
+                y = client.getWindow().getScaledHeight() / 2 - hudHeight / 2;
+            }
+        }
+        x = Math.max(0, Math.min(client.getWindow().getScaledWidth() - hudWidth, x));
+        y = Math.max(0, Math.min(client.getWindow().getScaledHeight() - hudHeight, y));
+
+        int warningPercent = visual.armorDurabilityWarningPercent;
         for (ArmorPiece piece : armor) {
-            if (piece == null || !piece.hasDurability()) {
+            if (piece == null || !piece.isPresent()) {
                 continue;
             }
-            int itemX = x + 6;
-            context.drawItem(piece.stack(), itemX, y);
-            context.drawStackOverlay(client.textRenderer, piece.stack(), itemX, y);
+            if (visual.armorHudHotbarBorder) {
+                renderArmorHudSlot(context, x, y, visible);
+            }
+            int itemX = x + itemOffset;
+            int itemY = y + itemOffset;
+            context.drawItem(piece.stack(), itemX, itemY);
+            context.drawStackOverlay(client.textRenderer, piece.stack(), itemX, itemY);
 
-            String durability = String.valueOf(piece.remaining());
-            int color = armorDurabilityColor(piece.percent(), warningPercent);
-            float scale = 0.68f;
-            int textWidth = client.textRenderer.getWidth(durability);
-            int textX = Math.round((x + slotWidth / 2.0f - textWidth * scale / 2.0f) / scale);
-            int textY = Math.round((y + 18) / scale);
-            context.getMatrices().pushMatrix();
-            context.getMatrices().scale(scale, scale);
-            context.drawTextWithShadow(client.textRenderer, durability, textX, textY, color);
-            context.getMatrices().popMatrix();
-            x += slotWidth;
+            String durability = armorDurabilityText(piece, visual.armorHudDurabilityMode);
+            if (!durability.isEmpty()) {
+                int color = armorDurabilityColor(piece.percent(), warningPercent);
+                float scale = 0.68f;
+                int textWidth = client.textRenderer.getWidth(durability);
+                int textX = Math.round((itemX + 8.0f - textWidth * scale / 2.0f) / scale);
+                int textY = Math.round((itemY + 18) / scale);
+                context.getMatrices().pushMatrix();
+                context.getMatrices().scale(scale, scale);
+                context.drawTextWithShadow(client.textRenderer, durability, textX, textY, color);
+                context.getMatrices().popMatrix();
+            }
+            if (visual.armorHudVertical) {
+                y += spacing;
+            } else {
+                x += spacing;
+            }
         }
+    }
+
+    private static void renderArmorHudSlot(DrawContext context, int x, int y, int visible) {
+        context.drawTexture(RenderPipelines.GUI_TEXTURED, HOTBAR_SPRITE_TEXTURE, x, y, 0.0f, 0.0f, 22, 22, 182, 22);
+    }
+
+    private static String armorDurabilityText(ArmorPiece piece, String mode) {
+        if (!piece.isDamageable()) {
+            return "";
+        }
+        if (TpsConfig.ARMOR_HUD_DURABILITY_PERCENT.equals(mode)) {
+            return piece.percent() + "%";
+        }
+        if (TpsConfig.ARMOR_HUD_DURABILITY_BAR.equals(mode)) {
+            return "";
+        }
+        return String.valueOf(piece.remaining());
     }
 
     private static void warnLowArmorDurability(MinecraftClient client, ArmorPiece[] armor, int warningPercent) {
         ArmorPiece lowest = null;
         for (ArmorPiece piece : armor) {
-            if (piece == null || !piece.hasDurability() || piece.percent() > warningPercent) {
+            if (piece == null || !piece.isDamageable() || piece.percent() > warningPercent) {
                 continue;
             }
             if (lowest == null || piece.percent() < lowest.percent()) {
@@ -435,8 +484,11 @@ public final class ClientFeatureManager {
             return new ArmorPiece(ItemStack.EMPTY, slotName, 0, 0, 100);
         }
         ItemStack stack = player.getEquippedStack(slot);
-        if (stack == null || stack.isEmpty() || !stack.isDamageable()) {
+        if (stack == null || stack.isEmpty()) {
             return new ArmorPiece(ItemStack.EMPTY, slotName, 0, 0, 100);
+        }
+        if (!stack.isDamageable()) {
+            return new ArmorPiece(stack, slotName, 0, 0, 100);
         }
         int maxDamage = Math.max(1, stack.getMaxDamage());
         int remaining = Math.max(0, maxDamage - stack.getDamage());
