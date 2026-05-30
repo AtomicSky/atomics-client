@@ -28,7 +28,10 @@ public final class PlayerOverlayColorContext {
 
     public static int apply(int originalColor) {
         int overlayColor = activeColor();
-        if (overlayColor == -1 || style == STYLE_OUTLINE) {
+        if (overlayColor == -1) {
+            return originalColor;
+        }
+        if (style == STYLE_OUTLINE) {
             return originalColor;
         }
 

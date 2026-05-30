@@ -49,6 +49,7 @@ public class AtomicsClient implements ClientModInitializer {
     private static KeyBinding openStudioKey;
     private static KeyBinding resetTotemCounterKey;
     private static KeyBinding zoomKey;
+    private static KeyBinding freelookKey;
     private static KeyBinding toggleAutoGgKey;
     private static KeyBinding toggleDualSpectateKey;
     private static KeyBinding toggleFullBrightKey;
@@ -95,6 +96,13 @@ public class AtomicsClient implements ClientModInitializer {
                     "key.atomics_client.zoom",
                     InputUtil.Type.KEYSYM,
                     GLFW.GLFW_KEY_C,
+                    keyCategory
+            ));
+
+            freelookKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+                    "key.atomics_client.freelook",
+                    InputUtil.Type.KEYSYM,
+                    GLFW.GLFW_KEY_LEFT_ALT,
                     keyCategory
             ));
 
@@ -160,6 +168,7 @@ public class AtomicsClient implements ClientModInitializer {
             TotemPopEffects.tick(client);
             PvpStatsManager.tick(client);
             DualSpectateCamera.tick(client);
+            FreelookManager.tick(client);
             ClientFeatureManager.tick(client);
         });
 
@@ -192,6 +201,23 @@ public class AtomicsClient implements ClientModInitializer {
         return zoomKey != null && zoomKey.isPressed();
     }
 
+    public static boolean isFreelookEnabled() {
+        return CONFIG != null
+                && CONFIG.enabled
+                && CONFIG.visual != null
+                && CONFIG.visual.freelookEnabled;
+    }
+
+    public static boolean isFreelookKeyPressed() {
+        return freelookKey != null && freelookKey.isPressed();
+    }
+
+    public static boolean isFreelookToggleMode() {
+        return CONFIG != null
+                && CONFIG.visual != null
+                && CONFIG.visual.freelookToggleMode;
+    }
+
     public static KeyBinding getOpenStudioKeyBinding() {
         return openStudioKey;
     }
@@ -202,6 +228,10 @@ public class AtomicsClient implements ClientModInitializer {
 
     public static KeyBinding getZoomKeyBinding() {
         return zoomKey;
+    }
+
+    public static KeyBinding getFreelookKeyBinding() {
+        return freelookKey;
     }
 
     public static KeyBinding getToggleAutoGgKeyBinding() {

@@ -112,8 +112,11 @@ public class AtomicsClientScreen extends Screen {
     private boolean tntTimerEnabled;
     private boolean projectileTrailEnabled;
     private boolean foodOverlayEnabled;
+    private boolean partialStatusIconsEnabled;
     private boolean streamerModeEnabled;
     private boolean zoomEnabled;
+    private boolean freelookEnabled;
+    private boolean freelookToggleMode;
     private boolean chatMacrosEnabled;
     private String autoGgWinMessage;
     private String autoGgLoseMessage;
@@ -531,6 +534,21 @@ public class AtomicsClientScreen extends Screen {
             y += 10;
         }
 
+        if (shouldShowFeature("tools.freelook", "Freelook", "third person", "camera", "look around")) {
+            y = addFeatureSection(y, "tools.freelook", "Freelook");
+            if (!isFeatureCollapsed("tools.freelook")) {
+                addToggle(leftX, y, controlWidth, "Enable Freelook", freelookEnabled, TpsConfig.DEFAULT_FREELOOK_ENABLED, () -> freelookEnabled, value -> freelookEnabled = value, true); y += ROW_HEIGHT;
+                if (freelookEnabled) {
+                    addWideButton(leftX, y, controlWidth, "Activation: " + (freelookToggleMode ? "Toggle" : "Hold"), b -> {
+                        freelookToggleMode = !freelookToggleMode;
+                        changed();
+                        clearAndInit();
+                    }); y += ROW_HEIGHT;
+                }
+            }
+            y += 10;
+        }
+
         if (selectedTab != Tab.SEARCH && !normalizeSearch(settingsSearch).isEmpty() && y == contentTop - scrollOffset) {
             labels.add(new DrawLabel("No settings matched the search.", leftX + 8, y + 8, 0xCCCCCC));
             y += 34;
@@ -564,6 +582,7 @@ public class AtomicsClientScreen extends Screen {
                 addKeybindButton(leftX, y, controlWidth, "Open Menu", AtomicsClient.getOpenStudioKeyBinding()); y += ROW_HEIGHT;
                 addKeybindButton(leftX, y, controlWidth, "Reset Totem Counter", AtomicsClient.getResetTotemCounterKeyBinding()); y += ROW_HEIGHT;
                 addKeybindButton(leftX, y, controlWidth, "Zoom", AtomicsClient.getZoomKeyBinding()); y += ROW_HEIGHT;
+                addKeybindButton(leftX, y, controlWidth, "Freelook", AtomicsClient.getFreelookKeyBinding()); y += ROW_HEIGHT;
             }
             y += 10;
         }
@@ -647,7 +666,7 @@ public class AtomicsClientScreen extends Screen {
                     addIntSlider(leftX, y, controlWidth, "Foe Green", foeOverlayG, 0, 255, 1, TpsConfig.DEFAULT_FOE_OVERLAY_G, value -> foeOverlayG = value); y += ROW_HEIGHT;
                     addIntSlider(leftX, y, controlWidth, "Foe Blue", foeOverlayB, 0, 255, 1, TpsConfig.DEFAULT_FOE_OVERLAY_B, value -> foeOverlayB = value); y += ROW_HEIGHT;
                     addDoubleSlider(leftX, y, controlWidth, "Foe Opacity", foeOverlayAlpha, 0.0, 1.0, 0.025, TpsConfig.DEFAULT_FOE_OVERLAY_ALPHA, value -> foeOverlayAlpha = (float) value, value -> formatPercent(value)); y += ROW_HEIGHT;
-                    labels.add(new DrawLabel("Styles: full tint, outline, outline + tint, or pulsing tint.", leftX + 8, y + 4, 0xAAAAAA));
+                    labels.add(new DrawLabel("Outline styles render visible model edges without showing through walls.", leftX + 8, y + 4, 0xAAAAAA));
                     y += 14;
                     labels.add(new DrawLabel("Use the keybind to cycle a looked-at player through Friend, Foe, and Neutral.", leftX + 8, y + 4, 0xAAAAAA));
                     y += 22;
@@ -803,6 +822,14 @@ public class AtomicsClientScreen extends Screen {
             y = addFeatureSection(y, "tools.food_overlay", "Food Preview Overlay");
             if (!isFeatureCollapsed("tools.food_overlay")) {
                 addToggle(leftX, y, controlWidth, "Show Food Preview Overlay", foodOverlayEnabled, TpsConfig.DEFAULT_FOOD_OVERLAY_ENABLED, () -> foodOverlayEnabled, value -> foodOverlayEnabled = value, true); y += ROW_HEIGHT;
+            }
+            y += 10;
+        }
+
+        if (shouldShowFeature("tools.partial_status_icons", "Precise Status Icons", "partial hearts", "decimal health", "health", "hunger")) {
+            y = addFeatureSection(y, "tools.partial_status_icons", "Precise Status Icons");
+            if (!isFeatureCollapsed("tools.partial_status_icons")) {
+                addToggle(leftX, y, controlWidth, "Show Precise Partial Hearts", partialStatusIconsEnabled, TpsConfig.DEFAULT_PARTIAL_STATUS_ICONS_ENABLED, () -> partialStatusIconsEnabled, value -> partialStatusIconsEnabled = value, true); y += ROW_HEIGHT;
             }
             y += 10;
         }
@@ -1326,6 +1353,7 @@ public class AtomicsClientScreen extends Screen {
         tntTimerRange = cfg.visual.tntTimerRange;
         projectileTrailEnabled = cfg.visual.projectileTrailEnabled;
         foodOverlayEnabled = cfg.visual.foodOverlayEnabled;
+        partialStatusIconsEnabled = cfg.visual.partialStatusIconsEnabled;
         TpsConfig.ParticleBurst trailBurst = firstProjectileTrailBurst(cfg);
         projectileTrailParticleId = trailBurst.particle;
         projectileTrailParticleCount = trailBurst.count;
@@ -1334,6 +1362,8 @@ public class AtomicsClientScreen extends Screen {
         streamerModeEnabled = cfg.visual.streamerModeEnabled;
         zoomEnabled = cfg.visual.zoomEnabled;
         zoomMultiplier = cfg.visual.zoomMultiplier;
+        freelookEnabled = cfg.visual.freelookEnabled;
+        freelookToggleMode = cfg.visual.freelookToggleMode;
         chatMacrosEnabled = cfg.macros.enabled;
         macroMessages.clear();
         for (String message : cfg.macros.messages) {
@@ -1516,6 +1546,7 @@ public class AtomicsClientScreen extends Screen {
         tntTimerRange = TpsConfig.DEFAULT_TNT_TIMER_RANGE;
         projectileTrailEnabled = TpsConfig.DEFAULT_PROJECTILE_TRAIL_ENABLED;
         foodOverlayEnabled = TpsConfig.DEFAULT_FOOD_OVERLAY_ENABLED;
+        partialStatusIconsEnabled = TpsConfig.DEFAULT_PARTIAL_STATUS_ICONS_ENABLED;
         TpsConfig.ParticleBurst trailBurst = TpsConfig.defaultProjectileTrailParticle();
         projectileTrailParticleId = trailBurst.particle;
         projectileTrailParticleCount = trailBurst.count;
@@ -1524,6 +1555,8 @@ public class AtomicsClientScreen extends Screen {
         streamerModeEnabled = TpsConfig.DEFAULT_STREAMER_MODE_ENABLED;
         zoomEnabled = TpsConfig.DEFAULT_ZOOM_ENABLED;
         zoomMultiplier = TpsConfig.DEFAULT_ZOOM_MULTIPLIER;
+        freelookEnabled = TpsConfig.DEFAULT_FREELOOK_ENABLED;
+        freelookToggleMode = TpsConfig.DEFAULT_FREELOOK_TOGGLE_MODE;
         chatMacrosEnabled = false;
         macroMessages.clear();
         for (int i = 0; i < TpsConfig.MIN_MACRO_SLOTS; i++) {
@@ -1663,6 +1696,7 @@ public class AtomicsClientScreen extends Screen {
         cfg.visual.foodOverlayEnabled = foodOverlayEnabled;
         cfg.visual.foodOverlayHue = TpsConfig.DEFAULT_FOOD_OVERLAY_HUE;
         cfg.visual.foodOverlayAlpha = TpsConfig.DEFAULT_FOOD_OVERLAY_ALPHA;
+        cfg.visual.partialStatusIconsEnabled = partialStatusIconsEnabled;
         TpsConfig.ParticleBurst trailBurst = TpsConfig.defaultProjectileTrailParticle();
         trailBurst.particle = projectileTrailParticleId == null || projectileTrailParticleId.trim().isEmpty()
                 ? TpsConfig.DEFAULT_PROJECTILE_TRAIL_PARTICLE_ID
@@ -1676,6 +1710,8 @@ public class AtomicsClientScreen extends Screen {
         cfg.visual.streamerModeEnabled = streamerModeEnabled;
         cfg.visual.zoomEnabled = zoomEnabled;
         cfg.visual.zoomMultiplier = Math.max(1.5f, Math.min(8.0f, zoomMultiplier));
+        cfg.visual.freelookEnabled = freelookEnabled;
+        cfg.visual.freelookToggleMode = freelookToggleMode;
         cfg.macros.enabled = chatMacrosEnabled;
         int macroCount = Math.max(TpsConfig.MIN_MACRO_SLOTS, Math.min(TpsConfig.MAX_MACRO_SLOTS, macroMessages.size()));
         String[] normalizedMacros = new String[macroCount];

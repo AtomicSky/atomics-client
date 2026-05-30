@@ -100,9 +100,12 @@ public class TpsConfig {
     public static final boolean DEFAULT_FOOD_OVERLAY_ENABLED = false;
     public static final float DEFAULT_FOOD_OVERLAY_HUE = 100.0f;
     public static final float DEFAULT_FOOD_OVERLAY_ALPHA = 0.5f;
+    public static final boolean DEFAULT_PARTIAL_STATUS_ICONS_ENABLED = true;
     public static final boolean DEFAULT_STREAMER_MODE_ENABLED = false;
     public static final boolean DEFAULT_ZOOM_ENABLED = true;
     public static final float DEFAULT_ZOOM_MULTIPLIER = 4.0f;
+    public static final boolean DEFAULT_FREELOOK_ENABLED = true;
+    public static final boolean DEFAULT_FREELOOK_TOGGLE_MODE = false;
     public static final int MIN_MACRO_SLOTS = 4;
     public static final int MAX_MACRO_SLOTS = 12;
     public static final float DEFAULT_SHIELD_DOWN_X = 0.0f;
@@ -554,9 +557,12 @@ public class TpsConfig {
         public boolean foodOverlayEnabled = DEFAULT_FOOD_OVERLAY_ENABLED;
         public float foodOverlayHue = DEFAULT_FOOD_OVERLAY_HUE;
         public float foodOverlayAlpha = DEFAULT_FOOD_OVERLAY_ALPHA;
+        public boolean partialStatusIconsEnabled = DEFAULT_PARTIAL_STATUS_ICONS_ENABLED;
         public boolean streamerModeEnabled = DEFAULT_STREAMER_MODE_ENABLED;
         public boolean zoomEnabled = DEFAULT_ZOOM_ENABLED;
         public float zoomMultiplier = DEFAULT_ZOOM_MULTIPLIER;
+        public boolean freelookEnabled = DEFAULT_FREELOOK_ENABLED;
+        public boolean freelookToggleMode = DEFAULT_FREELOOK_TOGGLE_MODE;
     }
 
     public static class MacroSettings {

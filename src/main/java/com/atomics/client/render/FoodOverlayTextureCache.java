@@ -10,15 +10,14 @@ import net.minecraft.util.Identifier;
 
 import java.io.InputStream;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
 public final class FoodOverlayTextureCache {
-    private static final int SATURATION_YELLOW = 0xFFFFD800;
+    private static final int SATURATION_GRADIENT_START = 0xFF9F8609;
+    private static final int SATURATION_GRADIENT_END = 0xFFE9D262;
     private static final int SHAPE_ALPHA_CUTOFF = 24;
     private static final Map<Identifier, Identifier> TEXTURES = new HashMap<>();
-    private static final Map<Identifier, Boolean> VANILLA_SHAPES = new HashMap<>();
 
     private FoodOverlayTextureCache() {
     }
@@ -31,7 +30,6 @@ public final class FoodOverlayTextureCache {
             }
         }
         TEXTURES.clear();
-        VANILLA_SHAPES.clear();
     }
 
     public static Identifier get(Identifier vanillaSpriteId) {
@@ -41,7 +39,7 @@ public final class FoodOverlayTextureCache {
         }
 
         Identifier textureId = Identifier.of(AtomicsClient.MOD_ID, "generated/food_overlay/" + vanillaSpriteId.getPath().replace('/', '_'));
-        NativeImage image = loadYellowImage(vanillaSpriteId);
+        NativeImage image = loadYellowOutlineImage(vanillaSpriteId);
         if (image == null) {
             return null;
         }
@@ -57,18 +55,7 @@ public final class FoodOverlayTextureCache {
         return textureId;
     }
 
-    public static boolean hasVanillaShape(Identifier vanillaSpriteId) {
-        Boolean cached = VANILLA_SHAPES.get(vanillaSpriteId);
-        if (cached != null) {
-            return cached;
-        }
-
-        boolean vanillaShape = loadVanillaShapeMatch(vanillaSpriteId);
-        VANILLA_SHAPES.put(vanillaSpriteId, vanillaShape);
-        return vanillaShape;
-    }
-
-    private static NativeImage loadYellowImage(Identifier vanillaSpriteId) {
+    private static NativeImage loadYellowOutlineImage(Identifier vanillaSpriteId) {
         MinecraftClient client = MinecraftClient.getInstance();
         ResourceManager resourceManager = client == null ? null : client.getResourceManager();
         if (resourceManager == null) {
@@ -85,7 +72,7 @@ public final class FoodOverlayTextureCache {
             NativeImage shifted = new NativeImage(source.getWidth(), source.getHeight(), false);
             for (int y = 0; y < source.getHeight(); y++) {
                 for (int x = 0; x < source.getWidth(); x++) {
-                    shifted.setColorArgb(x, y, yellowMask(source.getColorArgb(x, y)));
+                    shifted.setColorArgb(x, y, yellowOutline(source, x, y));
                 }
             }
             return shifted;
@@ -94,57 +81,46 @@ public final class FoodOverlayTextureCache {
         }
     }
 
-    private static boolean loadVanillaShapeMatch(Identifier vanillaSpriteId) {
-        MinecraftClient client = MinecraftClient.getInstance();
-        ResourceManager resourceManager = client == null ? null : client.getResourceManager();
-        if (resourceManager == null) {
-            return false;
-        }
-
-        Identifier resourceId = Identifier.of(vanillaSpriteId.getNamespace(), "textures/gui/sprites/" + vanillaSpriteId.getPath() + ".png");
-        List<Resource> resources = resourceManager.getAllResources(resourceId);
-        if (resources.isEmpty()) {
-            return false;
-        }
-        if (resources.size() == 1) {
-            return true;
-        }
-
-        try (NativeImage first = readImage(resources.get(0)); NativeImage last = readImage(resources.get(resources.size() - 1))) {
-            return sameAlphaShape(first, last);
-        } catch (Exception ignored) {
-            return false;
-        }
-    }
-
-    private static NativeImage readImage(Resource resource) throws Exception {
-        try (InputStream stream = resource.getInputStream()) {
-            return NativeImage.read(stream);
-        }
-    }
-
-    private static boolean sameAlphaShape(NativeImage first, NativeImage second) {
-        if (first.getWidth() != second.getWidth() || first.getHeight() != second.getHeight()) {
-            return false;
-        }
-
-        for (int y = 0; y < first.getHeight(); y++) {
-            for (int x = 0; x < first.getWidth(); x++) {
-                boolean firstVisible = ((first.getColorArgb(x, y) >>> 24) & 255) >= SHAPE_ALPHA_CUTOFF;
-                boolean secondVisible = ((second.getColorArgb(x, y) >>> 24) & 255) >= SHAPE_ALPHA_CUTOFF;
-                if (firstVisible != secondVisible) {
-                    return false;
-                }
-            }
-        }
-        return true;
-    }
-
-    private static int yellowMask(int argb) {
+    private static int yellowOutline(NativeImage image, int x, int y) {
+        int argb = image.getColorArgb(x, y);
         int alpha = (argb >>> 24) & 255;
-        if (alpha == 0) {
-            return argb;
+        if (alpha < SHAPE_ALPHA_CUTOFF || !isEdgePixel(image, x, y)) {
+            return 0;
         }
-        return (alpha << 24) | (SATURATION_YELLOW & 0x00FFFFFF);
+        return (alpha << 24) | (gradientColor(image, x, y) & 0x00FFFFFF);
+    }
+
+    private static int gradientColor(NativeImage image, int x, int y) {
+        float width = Math.max(1.0f, image.getWidth() - 1.0f);
+        float height = Math.max(1.0f, image.getHeight() - 1.0f);
+        float horizontal = x / width;
+        float vertical = 1.0f - y / height;
+        float amount = Math.max(0.0f, Math.min(1.0f, vertical * 0.82f + horizontal * 0.18f));
+        return lerpColor(SATURATION_GRADIENT_START, SATURATION_GRADIENT_END, amount);
+    }
+
+    private static int lerpColor(int from, int to, float amount) {
+        int r = lerpChannel((from >>> 16) & 255, (to >>> 16) & 255, amount);
+        int g = lerpChannel((from >>> 8) & 255, (to >>> 8) & 255, amount);
+        int b = lerpChannel(from & 255, to & 255, amount);
+        return (r << 16) | (g << 8) | b;
+    }
+
+    private static int lerpChannel(int from, int to, float amount) {
+        return Math.round(from + (to - from) * amount);
+    }
+
+    private static boolean isEdgePixel(NativeImage image, int x, int y) {
+        return !isVisible(image, x - 1, y)
+                || !isVisible(image, x + 1, y)
+                || !isVisible(image, x, y - 1)
+                || !isVisible(image, x, y + 1);
+    }
+
+    private static boolean isVisible(NativeImage image, int x, int y) {
+        if (x < 0 || y < 0 || x >= image.getWidth() || y >= image.getHeight()) {
+            return false;
+        }
+        return ((image.getColorArgb(x, y) >>> 24) & 255) >= SHAPE_ALPHA_CUTOFF;
     }
 }
