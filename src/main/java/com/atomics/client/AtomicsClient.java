@@ -2,11 +2,14 @@ package com.atomics.client;
 
 import com.atomics.client.config.TpsConfig;
 import com.atomics.client.gui.AtomicsClientScreen;
+import com.atomics.client.render.FoodOverlayTextureCache;
 import com.atomics.client.render.PlayerOverlayColorContext;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
+import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
+import net.fabricmc.fabric.api.resource.SimpleSynchronousResourceReloadListener;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.component.DataComponentTypes;
 import net.minecraft.component.type.BlocksAttacksComponent;
@@ -20,6 +23,8 @@ import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.registry.Registries;
+import net.minecraft.resource.ResourceManager;
+import net.minecraft.resource.ResourceType;
 import net.minecraft.util.hit.EntityHitResult;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.Box;
@@ -105,6 +110,18 @@ public class AtomicsClient implements ClientModInitializer {
         } catch (RuntimeException e) {
             LOGGER.error("Failed to register keybindings", e);
         }
+
+        ResourceManagerHelper.get(ResourceType.CLIENT_RESOURCES).registerReloadListener(new SimpleSynchronousResourceReloadListener() {
+            @Override
+            public Identifier getFabricId() {
+                return Identifier.of(MOD_ID, "food_overlay_textures");
+            }
+
+            @Override
+            public void reload(ResourceManager manager) {
+                FoodOverlayTextureCache.clear();
+            }
+        });
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (openStudioKey != null && openStudioKey.wasPressed()) {

@@ -111,6 +111,7 @@ public class AtomicsClientScreen extends Screen {
     private boolean timeChangerEnabled;
     private boolean tntTimerEnabled;
     private boolean projectileTrailEnabled;
+    private boolean foodOverlayEnabled;
     private boolean streamerModeEnabled;
     private boolean zoomEnabled;
     private boolean chatMacrosEnabled;
@@ -798,6 +799,14 @@ public class AtomicsClientScreen extends Screen {
             y += 10;
         }
 
+        if (shouldShowFeature("tools.food_overlay", "Food Preview Overlay", "food", "hunger", "apple skin", "appleskin", "saturation")) {
+            y = addFeatureSection(y, "tools.food_overlay", "Food Preview Overlay");
+            if (!isFeatureCollapsed("tools.food_overlay")) {
+                addToggle(leftX, y, controlWidth, "Show Food Preview Overlay", foodOverlayEnabled, TpsConfig.DEFAULT_FOOD_OVERLAY_ENABLED, () -> foodOverlayEnabled, value -> foodOverlayEnabled = value, true); y += ROW_HEIGHT;
+            }
+            y += 10;
+        }
+
         if (shouldShowFeature("pvp.opponent_odds", "Opponent Odds", "win odds", "nametags")) {
             y = addFeatureSection(y, "pvp.opponent_odds", "Opponent Odds");
             if (!isFeatureCollapsed("pvp.opponent_odds")) {
@@ -1316,6 +1325,7 @@ public class AtomicsClientScreen extends Screen {
         tntTimerEnabled = cfg.visual.tntTimerEnabled;
         tntTimerRange = cfg.visual.tntTimerRange;
         projectileTrailEnabled = cfg.visual.projectileTrailEnabled;
+        foodOverlayEnabled = cfg.visual.foodOverlayEnabled;
         TpsConfig.ParticleBurst trailBurst = firstProjectileTrailBurst(cfg);
         projectileTrailParticleId = trailBurst.particle;
         projectileTrailParticleCount = trailBurst.count;
@@ -1505,6 +1515,7 @@ public class AtomicsClientScreen extends Screen {
         tntTimerEnabled = TpsConfig.DEFAULT_TNT_TIMER_ENABLED;
         tntTimerRange = TpsConfig.DEFAULT_TNT_TIMER_RANGE;
         projectileTrailEnabled = TpsConfig.DEFAULT_PROJECTILE_TRAIL_ENABLED;
+        foodOverlayEnabled = TpsConfig.DEFAULT_FOOD_OVERLAY_ENABLED;
         TpsConfig.ParticleBurst trailBurst = TpsConfig.defaultProjectileTrailParticle();
         projectileTrailParticleId = trailBurst.particle;
         projectileTrailParticleCount = trailBurst.count;
@@ -1649,6 +1660,9 @@ public class AtomicsClientScreen extends Screen {
         cfg.visual.tntTimerEnabled = tntTimerEnabled;
         cfg.visual.tntTimerRange = Math.max(8, Math.min(128, tntTimerRange));
         cfg.visual.projectileTrailEnabled = projectileTrailEnabled;
+        cfg.visual.foodOverlayEnabled = foodOverlayEnabled;
+        cfg.visual.foodOverlayHue = TpsConfig.DEFAULT_FOOD_OVERLAY_HUE;
+        cfg.visual.foodOverlayAlpha = TpsConfig.DEFAULT_FOOD_OVERLAY_ALPHA;
         TpsConfig.ParticleBurst trailBurst = TpsConfig.defaultProjectileTrailParticle();
         trailBurst.particle = projectileTrailParticleId == null || projectileTrailParticleId.trim().isEmpty()
                 ? TpsConfig.DEFAULT_PROJECTILE_TRAIL_PARTICLE_ID

@@ -97,6 +97,9 @@ public class TpsConfig {
     public static final int DEFAULT_PROJECTILE_TRAIL_PARTICLE_COUNT = 1;
     public static final double DEFAULT_PROJECTILE_TRAIL_SPREAD = 0.03;
     public static final double DEFAULT_PROJECTILE_TRAIL_SPEED = 0.0;
+    public static final boolean DEFAULT_FOOD_OVERLAY_ENABLED = false;
+    public static final float DEFAULT_FOOD_OVERLAY_HUE = 100.0f;
+    public static final float DEFAULT_FOOD_OVERLAY_ALPHA = 0.5f;
     public static final boolean DEFAULT_STREAMER_MODE_ENABLED = false;
     public static final boolean DEFAULT_ZOOM_ENABLED = true;
     public static final float DEFAULT_ZOOM_MULTIPLIER = 4.0f;
@@ -180,6 +183,8 @@ public class TpsConfig {
         visual.timeOfDay = clampInt(visual.timeOfDay, 0, 24000);
         visual.tntTimerRange = clampInt(visual.tntTimerRange, 8, 128);
         visual.zoomMultiplier = clampFloat(visual.zoomMultiplier, 1.5f, 8.0f);
+        visual.foodOverlayHue = clampFloat(visual.foodOverlayHue, -180.0f, 180.0f);
+        visual.foodOverlayAlpha = clampFloat(visual.foodOverlayAlpha, 0.0f, 1.0f);
         visual.armorDurabilityWarningPercent = DEFAULT_ARMOR_DURABILITY_WARNING_PERCENT;
         visual.armorHudX = clampInt(visual.armorHudX, -1, 10000);
         visual.armorHudY = clampInt(visual.armorHudY, -1, 10000);
@@ -546,6 +551,9 @@ public class TpsConfig {
         public List<ParticleBurst> projectileTrailParticles = new ArrayList<>(List.of(
                 defaultProjectileTrailParticle()
         ));
+        public boolean foodOverlayEnabled = DEFAULT_FOOD_OVERLAY_ENABLED;
+        public float foodOverlayHue = DEFAULT_FOOD_OVERLAY_HUE;
+        public float foodOverlayAlpha = DEFAULT_FOOD_OVERLAY_ALPHA;
         public boolean streamerModeEnabled = DEFAULT_STREAMER_MODE_ENABLED;
         public boolean zoomEnabled = DEFAULT_ZOOM_ENABLED;
         public float zoomMultiplier = DEFAULT_ZOOM_MULTIPLIER;
