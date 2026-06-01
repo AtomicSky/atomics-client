@@ -5,11 +5,15 @@
   "name": "Atomics Client",
   "description": "Atomics Client is a mod that provides some nice QOL features for PvP",
   "authors": ["AtomicSky1"],
-  "contact": {},
+  "contact": {
+    "homepage": "https://modrinth.com/mod/atomics-client"
+  },
+  "icon": "assets/atomics_client/icon.png",
   "license": "MIT",
   "environment": "client",
   "entrypoints": {
-    "client": ["com.atomics.client.AtomicsClient"]
+    "client": ["com.atomics.client.AtomicsClient"],
+    "modmenu": ["com.atomics.client.compat.AtomicsModMenuApi"]
   },
   "mixins": ["atomics_client.mixins.json"],
   "depends": {
