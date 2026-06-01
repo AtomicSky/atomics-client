@@ -27,7 +27,12 @@ public class HeldItemRendererMixin {
             int light,
             CallbackInfo ci
     ) {
-        AtomicsClient.setRenderingLocalPlayerHeldItem(entity);
+        boolean firstPerson = displayContext == ItemDisplayContext.FIRST_PERSON_LEFT_HAND
+                || displayContext == ItemDisplayContext.FIRST_PERSON_RIGHT_HAND;
+        AtomicsClient.setRenderingLocalPlayerHeldItem(firstPerson ? entity : null);
+        if (!firstPerson) {
+            return;
+        }
 
         if (AtomicsClient.CONFIG != null && AtomicsClient.CONFIG.enabled && AtomicsClient.CONFIG.misc != null && stack.is(Items.SHIELD)) {
             boolean raised = entity != null && entity.isUsingItem() && entity.getUseItem().is(Items.SHIELD);
