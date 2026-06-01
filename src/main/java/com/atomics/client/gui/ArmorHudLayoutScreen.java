@@ -1,32 +1,19 @@
 package com.atomics.client.gui;
 
 import com.atomics.client.config.TpsConfig;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gl.RenderPipelines;
-import net.minecraft.client.gui.Click;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.text.Text;
-import net.minecraft.util.Identifier;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.network.chat.Component;
 
 class ArmorHudLayoutScreen extends Screen {
     private static final int HUD_ITEM_SIZE = 16;
     private static final int HUD_TEXT_HEIGHT = 12;
     private static final int MIN_SPACING = 20;
     private static final int MAX_SPACING = 64;
-    private static final Identifier HOTBAR_TEXTURE = Identifier.ofVanilla("hud/hotbar");
-    private static final Identifier HOTBAR_SPRITE_TEXTURE = Identifier.ofVanilla("textures/gui/sprites/hud/hotbar.png");
-    private static final Identifier HOTBAR_OFFHAND_LEFT_TEXTURE = Identifier.ofVanilla("hud/hotbar_offhand_left");
-    private static final Identifier HEART_CONTAINER_TEXTURE = Identifier.ofVanilla("hud/heart/container");
-    private static final Identifier HEART_FULL_TEXTURE = Identifier.ofVanilla("hud/heart/full");
-    private static final Identifier ARMOR_EMPTY_TEXTURE = Identifier.ofVanilla("hud/armor_empty");
-    private static final Identifier ARMOR_FULL_TEXTURE = Identifier.ofVanilla("hud/armor_full");
-    private static final Identifier FOOD_EMPTY_TEXTURE = Identifier.ofVanilla("hud/food_empty");
-    private static final Identifier FOOD_FULL_TEXTURE = Identifier.ofVanilla("hud/food_full");
-
     private final AtomicsClientScreen parent;
     private int hudX;
     private int hudY;
@@ -39,7 +26,7 @@ class ArmorHudLayoutScreen extends Screen {
     private int dragOffsetY;
 
     ArmorHudLayoutScreen(AtomicsClientScreen parent, int hudX, int hudY, boolean vertical, int spacing, String durabilityMode, boolean hotbarBorder) {
-        super(Text.literal("Armor HUD Layout"));
+        super(Component.literal("Armor HUD Layout"));
         this.parent = parent;
         this.hudX = hudX;
         this.hudY = hudY;
@@ -61,27 +48,27 @@ class ArmorHudLayoutScreen extends Screen {
         int buttonW = 82;
         int gap = 6;
         int x = this.width / 2 - (buttonW * 4 + gap * 3) / 2;
-        addDrawableChild(ButtonWidget.builder(Text.literal(vertical ? "Vertical" : "Horizontal"), button -> {
+        addRenderableWidget(Button.builder(Component.literal(vertical ? "Vertical" : "Horizontal"), button -> {
             vertical = !vertical;
             clampHud();
-            button.setMessage(Text.literal(vertical ? "Vertical" : "Horizontal"));
+            button.setMessage(Component.literal(vertical ? "Vertical" : "Horizontal"));
             apply();
-        }).dimensions(x, buttonY, buttonW, 20).build());
-        addDrawableChild(ButtonWidget.builder(Text.literal("Spacing -"), button -> {
+        }).bounds(x, buttonY, buttonW, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Spacing -"), button -> {
             spacing = Math.max(MIN_SPACING, spacing - 2);
             clampHud();
             apply();
-        }).dimensions(x + (buttonW + gap), buttonY, buttonW, 20).build());
-        addDrawableChild(ButtonWidget.builder(Text.literal("Spacing +"), button -> {
+        }).bounds(x + (buttonW + gap), buttonY, buttonW, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Spacing +"), button -> {
             spacing = Math.min(MAX_SPACING, spacing + 2);
             clampHud();
             apply();
-        }).dimensions(x + (buttonW + gap) * 2, buttonY, buttonW, 20).build());
-        addDrawableChild(ButtonWidget.builder(Text.literal("Done"), button -> close()).dimensions(x + (buttonW + gap) * 3, buttonY, buttonW, 20).build());
+        }).bounds(x + (buttonW + gap) * 2, buttonY, buttonW, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Done"), button -> onClose()).bounds(x + (buttonW + gap) * 3, buttonY, buttonW, 20).build());
     }
 
     @Override
-    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
+    public void render(GuiGraphics context, int mouseX, int mouseY, float delta) {
         context.fill(0, 0, this.width, this.height, 0xDD080706);
         super.render(context, mouseX, mouseY, delta);
         renderVanillaHudReference(context);
@@ -89,45 +76,45 @@ class ArmorHudLayoutScreen extends Screen {
     }
 
     @Override
-    public boolean mouseClicked(Click click, boolean doubleClick) {
-        if (isInsideHud(click.x(), click.y())) {
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (isInsideHud(mouseX, mouseY)) {
             dragging = true;
-            dragOffsetX = (int) Math.round(click.x()) - hudX;
-            dragOffsetY = (int) Math.round(click.y()) - hudY;
+            dragOffsetX = (int) Math.round(mouseX) - hudX;
+            dragOffsetY = (int) Math.round(mouseY) - hudY;
             return true;
         }
-        return super.mouseClicked(click, doubleClick);
+        return super.mouseClicked(mouseX, mouseY, button);
     }
 
     @Override
-    public boolean mouseDragged(Click click, double offsetX, double offsetY) {
+    public boolean mouseDragged(double mouseX, double mouseY, int button, double offsetX, double offsetY) {
         if (dragging) {
-            hudX = (int) Math.round(click.x()) - dragOffsetX;
-            hudY = (int) Math.round(click.y()) - dragOffsetY;
+            hudX = (int) Math.round(mouseX) - dragOffsetX;
+            hudY = (int) Math.round(mouseY) - dragOffsetY;
             clampHud();
             apply();
             return true;
         }
-        return super.mouseDragged(click, offsetX, offsetY);
+        return super.mouseDragged(mouseX, mouseY, button, offsetX, offsetY);
     }
 
     @Override
-    public boolean mouseReleased(Click click) {
+    public boolean mouseReleased(double mouseX, double mouseY, int button) {
         if (dragging) {
             dragging = false;
             apply();
             return true;
         }
-        return super.mouseReleased(click);
+        return super.mouseReleased(mouseX, mouseY, button);
     }
 
     @Override
-    public void close() {
+    public void onClose() {
         apply();
-        MinecraftClient.getInstance().setScreen(parent);
+        Minecraft.getInstance().setScreen(parent);
     }
 
-    private void renderHudPreview(DrawContext context) {
+    private void renderHudPreview(GuiGraphics context) {
         int left = hudX - 4;
         int top = hudY - 4;
         int right = hudX + hudWidth() + 4;
@@ -153,18 +140,18 @@ class ArmorHudLayoutScreen extends Screen {
             }
             int itemX = x + (hotbarBorder ? 3 : 0);
             int itemY = y + (hotbarBorder ? 3 : 0);
-            context.drawItem(stacks[i], itemX, itemY);
+            context.renderItem(stacks[i], itemX, itemY);
             renderItemDurabilityBar(context, itemX + 2, itemY + 13, 12, i);
             String text = previewDurabilityText(i);
             if (!text.isEmpty()) {
                 float scale = 0.68f;
-                int textWidth = this.textRenderer.getWidth(text);
+                int textWidth = this.font.width(text);
                 int textX = Math.round((itemX + 8.0f - textWidth * scale / 2.0f) / scale);
                 int textY = Math.round((itemY + 18) / scale);
-                context.getMatrices().pushMatrix();
-                context.getMatrices().scale(scale, scale);
-                context.drawTextWithShadow(this.textRenderer, text, textX, textY, 0xFF55FF55);
-                context.getMatrices().popMatrix();
+                context.pose().pushPose();
+                context.pose().scale(scale, scale, 1.0f);
+                context.drawString(this.font, text, textX, textY, 0xFF55FF55);
+                context.pose().popPose();
             }
 
             if (vertical) {
@@ -175,36 +162,39 @@ class ArmorHudLayoutScreen extends Screen {
         }
     }
 
-    private void renderPreviewSlot(DrawContext context, int x, int y) {
-        context.drawTexture(RenderPipelines.GUI_TEXTURED, HOTBAR_SPRITE_TEXTURE, x, y, 0.0f, 0.0f, 22, 22, 182, 22);
+    private void renderPreviewSlot(GuiGraphics context, int x, int y) {
+        context.fill(x, y, x + 22, y + 22, 0xAA222222);
+        context.fill(x, y, x + 22, y + 1, 0xFF777777);
+        context.fill(x, y + 21, x + 22, y + 22, 0xFF777777);
+        context.fill(x, y, x + 1, y + 22, 0xFF777777);
+        context.fill(x + 21, y, x + 22, y + 22, 0xFF777777);
     }
 
-    private void renderVanillaHudReference(DrawContext context) {
+    private void renderVanillaHudReference(GuiGraphics context) {
         int hotbarX = this.width / 2 - 91;
         int hotbarY = this.height - 23;
-        context.drawGuiTexture(RenderPipelines.GUI_TEXTURED, HOTBAR_TEXTURE, hotbarX, hotbarY, 182, 22);
+        context.fill(hotbarX, hotbarY, hotbarX + 182, hotbarY + 22, 0xAA222222);
 
         int offhandX = hotbarX - 28;
         int offhandY = hotbarY;
-        context.drawGuiTexture(RenderPipelines.GUI_TEXTURED, HOTBAR_OFFHAND_LEFT_TEXTURE, offhandX - 1, offhandY - 1, 29, 24);
-        context.drawItem(new ItemStack(Items.SHIELD), offhandX + 3, offhandY + 3);
+        renderPreviewSlot(context, offhandX, offhandY);
+        context.renderItem(new ItemStack(Items.SHIELD), offhandX + 3, offhandY + 3);
 
         int statusY = hotbarY - 20;
         int armorY = hotbarY - 30;
-        renderGuiIconRow(context, hotbarX, statusY, 10, HEART_CONTAINER_TEXTURE, HEART_FULL_TEXTURE);
-        renderGuiIconRow(context, hotbarX + 101, statusY, 10, FOOD_EMPTY_TEXTURE, FOOD_FULL_TEXTURE);
-        renderGuiIconRow(context, hotbarX, armorY, 10, ARMOR_EMPTY_TEXTURE, ARMOR_FULL_TEXTURE);
+        renderGuiIconRow(context, hotbarX, statusY, 10, 0xFFFF5555);
+        renderGuiIconRow(context, hotbarX + 101, statusY, 10, 0xFFD69B35);
+        renderGuiIconRow(context, hotbarX, armorY, 10, 0xFFB4B4B4);
     }
 
-    private void renderGuiIconRow(DrawContext context, int x, int y, int count, Identifier background, Identifier foreground) {
+    private void renderGuiIconRow(GuiGraphics context, int x, int y, int count, int color) {
         for (int i = 0; i < count; i++) {
             int iconX = x + i * 8;
-            context.drawGuiTexture(RenderPipelines.GUI_TEXTURED, background, iconX, y, 9, 9);
-            context.drawGuiTexture(RenderPipelines.GUI_TEXTURED, foreground, iconX, y, 9, 9);
+            context.fill(iconX, y, iconX + 7, y + 7, color);
         }
     }
 
-    private void renderItemDurabilityBar(DrawContext context, int x, int y, int width, int index) {
+    private void renderItemDurabilityBar(GuiGraphics context, int x, int y, int width, int index) {
         int fill = Math.max(1, width - index * 2);
         context.fill(x, y, x + width, y + 2, 0xFF000000);
         context.fill(x, y, x + fill, y + 1, index >= 3 ? 0xFFFF5555 : 0xFF55FF55);

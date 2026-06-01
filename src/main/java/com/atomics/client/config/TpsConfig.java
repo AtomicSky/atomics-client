@@ -2,7 +2,7 @@ package com.atomics.client.config;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import net.fabricmc.loader.api.FabricLoader;
+import net.minecraftforge.fml.loading.FMLPaths;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -146,7 +146,7 @@ public class TpsConfig {
     public UiSettings ui = new UiSettings();
 
     public static TpsConfig load() {
-        Path path = FabricLoader.getInstance().getConfigDir().resolve("atomics_client.json");
+        Path path = FMLPaths.CONFIGDIR.get().resolve("atomics_client.json");
         try {
             if (!Files.exists(path)) {
                 TpsConfig cfg = new TpsConfig();

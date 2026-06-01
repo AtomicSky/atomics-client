@@ -1,45 +1,24 @@
 package com.atomics.client.mixin;
 
-import com.atomics.client.AtomicsClient;
-import com.atomics.client.access.PlayerOverlayRenderStateAccess;
 import com.atomics.client.ClientFeatureManager;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.render.entity.PlayerEntityRenderer;
-import net.minecraft.client.render.entity.state.PlayerEntityRenderState;
-import net.minecraft.entity.PlayerLikeEntity;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.util.math.ColorHelper;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.client.player.AbstractClientPlayer;
+import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.entity.player.PlayerRenderer;
+import net.minecraft.network.chat.Component;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.ModifyVariable;
 
-@Mixin(PlayerEntityRenderer.class)
+@Mixin(PlayerRenderer.class)
 public class PlayerEntityRendererMixin {
-    @Inject(method = "updateRenderState", at = @At("TAIL"))
-    private void atomics_client$addWinOddsToNametag(PlayerLikeEntity player, PlayerEntityRenderState state, float tickProgress, CallbackInfo ci) {
-        if (player instanceof PlayerEntity playerEntity) {
-            PlayerOverlayRenderStateAccess access = (PlayerOverlayRenderStateAccess) state;
-            int color = AtomicsClient.getPlayerFriendFoeOverlayColor(playerEntity);
-            int style = AtomicsClient.getPlayerFriendFoeOverlayStyle(playerEntity);
-            access.atomics_client$setFriendFoeOverlayColor(color);
-            access.atomics_client$setFriendFoeOverlayStyle(style);
-            if (color != -1 && AtomicsClient.usesFriendFoeOutline(style)) {
-                MinecraftClient client = MinecraftClient.getInstance();
-                state.outlineColor = client.player != null && client.player.canSee(playerEntity)
-                        ? ColorHelper.fullAlpha(color)
-                        : 0;
-            }
-        } else {
-            PlayerOverlayRenderStateAccess access = (PlayerOverlayRenderStateAccess) state;
-            access.atomics_client$setFriendFoeOverlayColor(-1);
-            access.atomics_client$setFriendFoeOverlayStyle(0);
-        }
-
-        if (!(player instanceof PlayerEntity playerEntity) || state.displayName == null) {
-            return;
-        }
-
-        state.displayName = ClientFeatureManager.customizePlayerNametag(playerEntity, state.displayName);
+    @ModifyVariable(
+            method = "renderNameTag(Lnet/minecraft/client/player/AbstractClientPlayer;Lnet/minecraft/network/chat/Component;Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/MultiBufferSource;I)V",
+            at = @At("HEAD"),
+            argsOnly = true,
+            ordinal = 0
+    )
+    private Component atomics_client$customizeNametag(Component name, AbstractClientPlayer player, Component original, PoseStack matrices, MultiBufferSource buffers, int light) {
+        return ClientFeatureManager.customizePlayerNametag(player, name);
     }
 }

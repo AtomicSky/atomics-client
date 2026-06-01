@@ -1,63 +1,36 @@
 package com.atomics.client.mixin;
 
 import com.atomics.client.AtomicsClient;
-import net.minecraft.client.render.command.OrderedRenderCommandQueue;
-import net.minecraft.client.render.item.HeldItemRenderer;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.item.ItemDisplayContext;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.util.math.RotationAxis;
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.math.Axis;
+import net.minecraft.client.renderer.ItemInHandRenderer;
+import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.item.ItemDisplayContext;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.ModifyArg;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-@Mixin(HeldItemRenderer.class)
+@Mixin(ItemInHandRenderer.class)
 public class HeldItemRendererMixin {
-    @Unique
-    private static LivingEntity atomics_client$currentEntity;
-
-    @Inject(
-            method = "renderItem(Lnet/minecraft/entity/LivingEntity;Lnet/minecraft/item/ItemStack;Lnet/minecraft/item/ItemDisplayContext;Lnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/command/OrderedRenderCommandQueue;I)V",
-            at = @At("HEAD")
-    )
-    private void atomics_client$captureHeldEntity(LivingEntity entity, ItemStack stack, ItemDisplayContext renderMode, MatrixStack matrices, OrderedRenderCommandQueue queue, int light, CallbackInfo ci) {
-        atomics_client$currentEntity = entity;
+    @Inject(method = "renderItem", at = @At("HEAD"))
+    private void atomics_client$transformHeldItem(
+            LivingEntity entity,
+            ItemStack stack,
+            ItemDisplayContext displayContext,
+            boolean leftHand,
+            PoseStack matrices,
+            MultiBufferSource buffers,
+            int light,
+            CallbackInfo ci
+    ) {
         AtomicsClient.setRenderingLocalPlayerHeldItem(entity);
-    }
 
-    @Inject(
-            method = "renderItem(Lnet/minecraft/entity/LivingEntity;Lnet/minecraft/item/ItemStack;Lnet/minecraft/item/ItemDisplayContext;Lnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/command/OrderedRenderCommandQueue;I)V",
-            at = @At("RETURN")
-    )
-    private void atomics_client$clearHeldEntity(LivingEntity entity, ItemStack stack, ItemDisplayContext renderMode, MatrixStack matrices, OrderedRenderCommandQueue queue, int light, CallbackInfo ci) {
-        atomics_client$currentEntity = null;
-        AtomicsClient.clearRenderingLocalPlayerHeldItem();
-    }
-
-    @ModifyArg(
-            method = "renderItem(Lnet/minecraft/entity/LivingEntity;Lnet/minecraft/item/ItemStack;Lnet/minecraft/item/ItemDisplayContext;Lnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/command/OrderedRenderCommandQueue;I)V",
-            at = @At(
-                    value = "INVOKE",
-                    target = "Lnet/minecraft/client/item/ItemModelManager;clearAndUpdate(Lnet/minecraft/client/render/item/ItemRenderState;Lnet/minecraft/item/ItemStack;Lnet/minecraft/item/ItemDisplayContext;Lnet/minecraft/world/World;Lnet/minecraft/util/HeldItemContext;I)V"
-            ),
-            index = 1
-    )
-    private ItemStack atomics_client$retextureHeldTotem(ItemStack stack) {
-        return AtomicsClient.getVisualHeldStack(atomics_client$currentEntity, stack);
-    }
-
-    @Inject(
-            method = "renderItem(Lnet/minecraft/entity/LivingEntity;Lnet/minecraft/item/ItemStack;Lnet/minecraft/item/ItemDisplayContext;Lnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/command/OrderedRenderCommandQueue;I)V",
-            at = @At(value = "INVOKE", target = "Lnet/minecraft/client/render/item/ItemRenderState;render(Lnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/command/OrderedRenderCommandQueue;III)V")
-    )
-    private void atomics_client$scaleTotemInHand(LivingEntity entity, ItemStack stack, ItemDisplayContext renderMode, MatrixStack matrices, OrderedRenderCommandQueue queue, int light, CallbackInfo ci) {
-        if (AtomicsClient.CONFIG != null && AtomicsClient.CONFIG.enabled && AtomicsClient.CONFIG.misc != null && stack.isOf(Items.SHIELD)) {
-            boolean raised = entity != null && entity.isUsingItem() && entity.getActiveItem().isOf(Items.SHIELD);
+        if (AtomicsClient.CONFIG != null && AtomicsClient.CONFIG.enabled && AtomicsClient.CONFIG.misc != null && stack.is(Items.SHIELD)) {
+            boolean raised = entity != null && entity.isUsingItem() && entity.getUseItem().is(Items.SHIELD);
             boolean enabled = raised ? AtomicsClient.CONFIG.misc.shieldUpEnabled : AtomicsClient.CONFIG.misc.shieldDownEnabled;
             if (enabled) {
                 float x = raised ? AtomicsClient.CONFIG.misc.shieldUpX : AtomicsClient.CONFIG.misc.shieldDownX;
@@ -68,15 +41,29 @@ public class HeldItemRendererMixin {
                 float rotZ = raised ? AtomicsClient.CONFIG.misc.shieldUpRotZ : AtomicsClient.CONFIG.misc.shieldDownRotZ;
 
                 matrices.translate(x, y, z);
-                matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees(rotX));
-                matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(rotY));
-                matrices.multiply(RotationAxis.POSITIVE_Z.rotationDegrees(rotZ));
+                matrices.mulPose(Axis.XP.rotationDegrees(rotX));
+                matrices.mulPose(Axis.YP.rotationDegrees(rotY));
+                matrices.mulPose(Axis.ZP.rotationDegrees(rotZ));
             }
         }
 
-        if (!AtomicsClient.isTotemPopItemEnabled()) return;
-        if (!stack.isOf(Items.TOTEM_OF_UNDYING)) return;
-        float scale = AtomicsClient.getHandScale();
-        matrices.scale(scale, scale, scale);
+        if (AtomicsClient.isTotemPopItemEnabled() && stack.is(Items.TOTEM_OF_UNDYING)) {
+            float scale = AtomicsClient.getHandScale();
+            matrices.scale(scale, scale, scale);
+        }
+    }
+
+    @Inject(method = "renderItem", at = @At("RETURN"))
+    private void atomics_client$clearHeldItem(
+            LivingEntity entity,
+            ItemStack stack,
+            ItemDisplayContext displayContext,
+            boolean leftHand,
+            PoseStack matrices,
+            MultiBufferSource buffers,
+            int light,
+            CallbackInfo ci
+    ) {
+        AtomicsClient.clearRenderingLocalPlayerHeldItem();
     }
 }

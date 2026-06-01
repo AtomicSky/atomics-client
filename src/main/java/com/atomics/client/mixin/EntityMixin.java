@@ -1,8 +1,6 @@
 package com.atomics.client.mixin;
 
 import com.atomics.client.AtomicsClient;
-import com.atomics.client.PvpStatsManager;
-import net.minecraft.client.Minecraft;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import org.spongepowered.asm.mixin.Mixin;
@@ -10,23 +8,18 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-@Mixin(Minecraft.class)
-public class MinecraftClientMixin {
-    @Inject(method = "startAttack", at = @At("HEAD"))
-    private void atomics_client$trackAttackSwing(CallbackInfoReturnable<Boolean> cir) {
-        PvpStatsManager.recordAttackSwing();
-    }
-
-    @Inject(method = "shouldEntityAppearGlowing", at = @At("RETURN"), cancellable = true)
-    private void atomics_client$showFriendFoeOutline(Entity entity, CallbackInfoReturnable<Boolean> cir) {
-        if (cir.getReturnValue() || !(entity instanceof Player player)) {
+@Mixin(Entity.class)
+public class EntityMixin {
+    @Inject(method = "getTeamColor", at = @At("RETURN"), cancellable = true)
+    private void atomics_client$applyFriendFoeOutlineColor(CallbackInfoReturnable<Integer> cir) {
+        if (!((Object) this instanceof Player player)) {
             return;
         }
 
         int color = AtomicsClient.getPlayerFriendFoeOverlayColor(player);
         int style = AtomicsClient.getPlayerFriendFoeOverlayStyle(player);
         if (color != -1 && AtomicsClient.usesFriendFoeOutline(style)) {
-            cir.setReturnValue(true);
+            cir.setReturnValue(color);
         }
     }
 }

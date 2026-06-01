@@ -1,15 +1,19 @@
 pluginManagement {
     repositories {
-        maven { url = 'https://maven.fabricmc.net/' }
         gradlePluginPortal()
-        mavenCentral()
+        maven {
+            name = 'MinecraftForge'
+            url = 'https://maven.minecraftforge.net/'
+        }
+        maven {
+            name = 'SpongePowered'
+            url = 'https://repo.spongepowered.org/repository/maven-public/'
+        }
     }
 }
-dependencyResolutionManagement {
-    repositoriesMode.set(RepositoriesMode.PREFER_PROJECT)
-    repositories {
-        maven { url = 'https://maven.fabricmc.net/' }
-        mavenCentral()
-    }
+
+plugins {
+    id 'org.gradle.toolchains.foojay-resolver-convention' version '0.7.0'
 }
+
 rootProject.name = 'AtomicsClient'

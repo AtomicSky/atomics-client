@@ -6,12 +6,12 @@ import org.spongepowered.asm.mixin.gen.Accessor;
 
 @Mixin(Particle.class)
 public interface ParticleAccessor {
-    @Accessor("red")
+    @Accessor("rCol")
     void atomics_client$setRed(float red);
 
-    @Accessor("green")
+    @Accessor("gCol")
     void atomics_client$setGreen(float green);
 
-    @Accessor("blue")
+    @Accessor("bCol")
     void atomics_client$setBlue(float blue);
 }

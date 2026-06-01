@@ -1,38 +1,27 @@
 package com.atomics.client.mixin;
 
 import com.atomics.client.ClientFeatureManager;
-import net.minecraft.client.render.entity.TntEntityRenderer;
-import net.minecraft.client.render.entity.state.TntEntityRenderState;
-import net.minecraft.entity.TntEntity;
-import net.minecraft.util.math.Vec3d;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.entity.EntityRenderer;
+import net.minecraft.client.renderer.entity.EntityRendererProvider;
+import net.minecraft.client.renderer.entity.TntRenderer;
+import net.minecraft.world.entity.item.PrimedTnt;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-@Mixin(TntEntityRenderer.class)
-public abstract class TntEntityRendererMixin {
-    @Unique
-    private static float atomics_client$cachedLabelHeight = Float.NaN;
+@Mixin(TntRenderer.class)
+public abstract class TntEntityRendererMixin extends EntityRenderer<PrimedTnt> {
+    protected TntEntityRendererMixin(EntityRendererProvider.Context context) {
+        super(context);
+    }
 
-    @Unique
-    private static Vec3d atomics_client$cachedLabelPos;
-
-    @Inject(method = "updateRenderState(Lnet/minecraft/entity/TntEntity;Lnet/minecraft/client/render/entity/state/TntEntityRenderState;F)V", at = @At("TAIL"))
-    private void atomics_client$addFuseLabel(TntEntity tnt, TntEntityRenderState state, float tickProgress, CallbackInfo ci) {
-        if (!ClientFeatureManager.shouldShowTntTimer(tnt)) {
-            state.displayName = null;
-            state.nameLabelPos = null;
-            return;
+    @Inject(method = "render(Lnet/minecraft/world/entity/item/PrimedTnt;FFLcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/MultiBufferSource;I)V", at = @At("TAIL"))
+    private void atomics_client$renderFuseLabel(PrimedTnt tnt, float yaw, float tickDelta, PoseStack matrices, MultiBufferSource buffers, int light, CallbackInfo ci) {
+        if (ClientFeatureManager.shouldShowTntTimer(tnt)) {
+            renderNameTag(tnt, ClientFeatureManager.tntTimerText(tnt), matrices, buffers, light);
         }
-
-        state.displayName = ClientFeatureManager.tntTimerText(tnt);
-        float labelHeight = tnt.getHeight() + 0.35f;
-        if (atomics_client$cachedLabelPos == null || Float.compare(labelHeight, atomics_client$cachedLabelHeight) != 0) {
-            atomics_client$cachedLabelHeight = labelHeight;
-            atomics_client$cachedLabelPos = new Vec3d(0.0, labelHeight, 0.0);
-        }
-        state.nameLabelPos = atomics_client$cachedLabelPos;
     }
 }

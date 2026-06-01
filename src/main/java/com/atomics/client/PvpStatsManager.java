@@ -1,26 +1,24 @@
 package com.atomics.client;
 
 import com.atomics.client.config.TpsConfig;
-import net.fabricmc.loader.api.FabricLoader;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.network.ServerInfo;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.EquipmentSlot;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.entity.damage.DamageSource;
-import net.minecraft.entity.decoration.EndCrystalEntity;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.entity.player.PlayerInventory;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.scoreboard.ReadableScoreboardScore;
-import net.minecraft.scoreboard.ScoreHolder;
-import net.minecraft.scoreboard.Scoreboard;
-import net.minecraft.scoreboard.ScoreboardDisplaySlot;
-import net.minecraft.scoreboard.ScoreboardObjective;
-import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
-import net.minecraft.util.math.BlockPos;
+import net.minecraftforge.fml.loading.FMLPaths;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ServerData;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.entity.boss.enderdragon.EndCrystal;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.scores.Objective;
+import net.minecraft.world.scores.Score;
+import net.minecraft.world.scores.Scoreboard;
+import net.minecraft.network.chat.Component;
+import net.minecraft.ChatFormatting;
+import net.minecraft.core.BlockPos;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -124,7 +122,7 @@ public final class PvpStatsManager {
     private PvpStatsManager() {
     }
 
-    public static void tick(MinecraftClient client) {
+    public static void tick(Minecraft client) {
         if (client == null || client.player == null) {
             if (saveCooldownTicks > 0) {
                 saveCooldownTicks = 0;
@@ -149,7 +147,7 @@ public final class PvpStatsManager {
             return;
         }
 
-        PlayerEntity player = client.player;
+        Player player = client.player;
         float health = Math.max(0.0f, player.getHealth() + player.getAbsorptionAmount());
         if (lastKnownHealth >= 0.0f && health < lastKnownHealth) {
             float damageAmount = lastKnownHealth - health;
@@ -158,9 +156,9 @@ public final class PvpStatsManager {
         }
         lastKnownHealth = health;
 
-        boolean dead = player.isDead() || !player.isAlive() || health <= 0.0f;
+        boolean dead = player.isDeadOrDying() || !player.isAlive() || health <= 0.0f;
         if (dead && !wasDead) {
-            recordDeath(player, player.getRecentDamageSource());
+            recordDeath(player, player.getLastDamageSource());
         }
         wasDead = dead;
 
@@ -221,7 +219,7 @@ public final class PvpStatsManager {
             if (pvp.allTimeStatsEnabled) {
                 pvp.allTimeTotemPops++;
             }
-        } else if (entity instanceof PlayerEntity player) {
+        } else if (entity instanceof Player player) {
             statsFor(player).totemPops++;
         }
     }
@@ -239,7 +237,7 @@ public final class PvpStatsManager {
             clearPendingHit();
             return;
         }
-        if (target instanceof EndCrystalEntity) {
+        if (target instanceof EndCrystal) {
             undoAttackClick();
             clearPendingHit();
             return;
@@ -249,10 +247,10 @@ public final class PvpStatsManager {
             return;
         }
 
-        if (target instanceof PlayerEntity playerTarget && !isLocalPlayer(playerTarget)) {
+        if (target instanceof Player playerTarget && !isLocalPlayer(playerTarget)) {
             setActiveOpponent(playerTarget);
         }
-        pendingAttackTargetUuid = target.getUuid();
+        pendingAttackTargetUuid = target.getUUID();
         pendingAttackTarget = livingTarget;
         pendingAttackTargetHealth = livingTarget.getHealth() + livingTarget.getAbsorptionAmount();
         pendingAttackMillis = System.currentTimeMillis();
@@ -262,20 +260,20 @@ public final class PvpStatsManager {
         if (entity == null) return;
         if (isLocalPlayer(entity)) {
             return;
-        } else if (entity instanceof PlayerEntity player) {
+        } else if (entity instanceof Player player) {
             OpponentDuelStats stats = statsFor(player);
             stats.gaps++;
         }
     }
 
-    public static Text getWinOddsNameSuffix(PlayerEntity player) {
+    public static Component getWinOddsNameSuffix(Player player) {
         TpsConfig.PvpSettings pvp = livePvpSettings();
         if (player == null || pvp == null || !pvp.winOddsEnabled || isLocalPlayer(player)) {
             return null;
         }
 
-        MinecraftClient client = MinecraftClient.getInstance();
-        PlayerEntity spectatedOpponent = DualSpectateCamera.getOtherSpectatedPlayer(player);
+        Minecraft client = Minecraft.getInstance();
+        Player spectatedOpponent = DualSpectateCamera.getOtherSpectatedPlayer(player);
         if (spectatedOpponent == null && !isTrackableOpponent(client, player)) {
             return null;
         }
@@ -284,11 +282,11 @@ public final class PvpStatsManager {
         if (spectatedOpponent != null) {
             display = buildWinOddsDisplay(client, player, spectatedOpponent);
         } else {
-            display = WIN_ODDS_BY_OPPONENT.get(player.getUuid());
+            display = WIN_ODDS_BY_OPPONENT.get(player.getUUID());
         }
         if (display == null) {
             display = buildWinOddsDisplay(client, player);
-            WIN_ODDS_BY_OPPONENT.put(player.getUuid(), display);
+            WIN_ODDS_BY_OPPONENT.put(player.getUUID(), display);
         }
         if (!display.available) {
             return null;
@@ -297,7 +295,7 @@ public final class PvpStatsManager {
         return display.suffix;
     }
 
-    public static Text getTotemPopNameSuffix(PlayerEntity player) {
+    public static Component getTotemPopNameSuffix(Player player) {
         TpsConfig.PvpSettings pvp = livePvpSettings();
         if (player == null || pvp == null || !pvp.totemPopNametagEnabled || isLocalPlayer(player)) {
             return null;
@@ -307,10 +305,10 @@ public final class PvpStatsManager {
         if (stats == null || stats.totemPops <= 0) {
             return null;
         }
-        return Text.literal(formatPopCount(stats.totemPops)).formatted(Formatting.GOLD);
+        return Component.literal(formatPopCount(stats.totemPops)).withStyle(ChatFormatting.GOLD);
     }
 
-    private static WinOddsDisplay buildWinOddsDisplay(MinecraftClient client, PlayerEntity opponent) {
+    private static WinOddsDisplay buildWinOddsDisplay(Minecraft client, Player opponent) {
         if (client == null || client.player == null || opponent == null) return WinOddsDisplay.DEFAULT;
 
         OpponentDuelStats stats = statsFor(opponent);
@@ -330,7 +328,7 @@ public final class PvpStatsManager {
         return WinOddsDisplay.available(percent, opponentHealth.value, showPopCount, stats.totemPops);
     }
 
-    private static WinOddsDisplay buildWinOddsDisplay(MinecraftClient client, PlayerEntity subject, PlayerEntity opponent) {
+    private static WinOddsDisplay buildWinOddsDisplay(Minecraft client, Player subject, Player opponent) {
         if (client == null || subject == null || opponent == null) return WinOddsDisplay.DEFAULT;
 
         OpponentDuelStats subjectStats = statsFor(subject);
@@ -356,7 +354,7 @@ public final class PvpStatsManager {
         return WinOddsDisplay.available(percent, subjectHealth.value, showPopCount, subjectStats.totemPops);
     }
 
-    private static HealthRead readOpponentHealth(MinecraftClient client, PlayerEntity opponent, OpponentDuelStats stats) {
+    private static HealthRead readOpponentHealth(Minecraft client, Player opponent, OpponentDuelStats stats) {
         if (client == null || client.player == null || opponent == null || stats == null) {
             return new HealthRead(0.0f, false);
         }
@@ -375,7 +373,7 @@ public final class PvpStatsManager {
         return new HealthRead(0.0f, false);
     }
 
-    private static boolean usesSpoofedOpponentHealth(MinecraftClient client) {
+    private static boolean usesSpoofedOpponentHealth(Minecraft client) {
         String address = getCurrentServerAddress(client);
         if (address.equals(cachedSpoofedHealthAddress)) {
             return cachedSpoofedHealthServer;
@@ -393,9 +391,9 @@ public final class PvpStatsManager {
         return cachedSpoofedHealthServer;
     }
 
-    public static void recordOutcomeFromServerMessage(Text text) {
+    public static void recordOutcomeFromServerMessage(Component text) {
         if (text == null) return;
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         if (client == null || client.player == null) {
             return;
         }
@@ -403,7 +401,7 @@ public final class PvpStatsManager {
         String message = cleanServerMessage(text.getString());
         if (message.isEmpty()) return;
 
-        String localName = client.player.getGameProfile().name();
+        String localName = client.player.getGameProfile().getName();
         if (localName == null || localName.isEmpty()) return;
 
         recordOpponentInfoFromStartMessage(client, message, localName);
@@ -538,22 +536,22 @@ public final class PvpStatsManager {
         return false;
     }
 
-    private static void recordOpponentInfoFromStartMessage(MinecraftClient client, String message, String localName) {
+    private static void recordOpponentInfoFromStartMessage(Minecraft client, String message, String localName) {
         if (!isLikelyMatchStartMessage(message)) {
             return;
         }
 
         String opponentName = findOpponentNameFromStartMessage(message, localName);
         if ((opponentName == null || opponentName.isBlank()) && isStrongStartSignal(message)) {
-            PlayerEntity onlyOpponent = findOnlyTrackableOpponent(client);
+            Player onlyOpponent = findOnlyTrackableOpponent(client);
             if (onlyOpponent != null) {
-                opponentName = onlyOpponent.getNameForScoreboard();
+                opponentName = onlyOpponent.getScoreboardName();
             }
         }
         if (opponentName == null || opponentName.isBlank()) {
             return;
         }
-        PlayerEntity opponent = findWorldPlayer(client, opponentName);
+        Player opponent = findWorldPlayer(client, opponentName);
         if (opponent != null) {
             setActiveOpponent(opponent);
         }
@@ -637,24 +635,24 @@ public final class PvpStatsManager {
                 && !lower.equals("round");
     }
 
-    private static PlayerEntity findWorldPlayer(MinecraftClient client, String name) {
-        if (client == null || client.world == null || name == null || name.isBlank()) {
+    private static Player findWorldPlayer(Minecraft client, String name) {
+        if (client == null || client.level == null || name == null || name.isBlank()) {
             return null;
         }
-        for (PlayerEntity player : client.world.getPlayers()) {
-            if (player != null && playerNameMatches(player.getNameForScoreboard(), name)) {
+        for (Player player : client.level.players()) {
+            if (player != null && playerNameMatches(player.getScoreboardName(), name)) {
                 return player;
             }
         }
         return null;
     }
 
-    private static PlayerEntity findOnlyTrackableOpponent(MinecraftClient client) {
-        if (client == null || client.world == null || client.player == null) {
+    private static Player findOnlyTrackableOpponent(Minecraft client) {
+        if (client == null || client.level == null || client.player == null) {
             return null;
         }
-        PlayerEntity found = null;
-        for (PlayerEntity player : client.world.getPlayers()) {
+        Player found = null;
+        for (Player player : client.level.players()) {
             if (!isTrackableOpponent(client, player)) {
                 continue;
             }
@@ -666,7 +664,7 @@ public final class PvpStatsManager {
         return found;
     }
 
-    private static void sendOpponentInfoChat(MinecraftClient client, String opponentName) {
+    private static void sendOpponentInfoChat(Minecraft client, String opponentName) {
         if (client == null
                 || AtomicsClient.CONFIG == null
                 || !AtomicsClient.CONFIG.enabled
@@ -692,9 +690,9 @@ public final class PvpStatsManager {
 
     private static boolean isActiveOpponentName(String name) {
         if (name == null || activeOpponentEntity == null) return false;
-        if (activeOpponentEntity instanceof PlayerEntity player) {
-            return playerNameMatches(name, player.getGameProfile().name())
-                    || playerNameMatches(name, player.getNameForScoreboard());
+        if (activeOpponentEntity instanceof Player player) {
+            return playerNameMatches(name, player.getGameProfile().getName())
+                    || playerNameMatches(name, player.getScoreboardName());
         }
         return false;
     }
@@ -725,11 +723,11 @@ public final class PvpStatsManager {
         return Character.isLetterOrDigit(c) || c == '_';
     }
 
-    private static String getCurrentServerAddress(MinecraftClient client) {
+    private static String getCurrentServerAddress(Minecraft client) {
         if (client == null) return "";
-        ServerInfo serverInfo = client.getCurrentServerEntry();
-        if (serverInfo == null || serverInfo.address == null) return "";
-        String rawAddress = serverInfo.address;
+        ServerData serverInfo = client.getCurrentServer();
+        if (serverInfo == null || serverInfo.ip == null) return "";
+        String rawAddress = serverInfo.ip;
         if (rawAddress.equals(cachedServerAddressRaw)) {
             return cachedServerAddress;
         }
@@ -749,8 +747,8 @@ public final class PvpStatsManager {
         return host.equals(domain) || host.endsWith("." + domain);
     }
 
-    private static void tickOpponentCache(MinecraftClient client) {
-        if (client == null || client.world == null || client.player == null) return;
+    private static void tickOpponentCache(Minecraft client) {
+        if (client == null || client.level == null || client.player == null) return;
         TpsConfig.PvpSettings pvp = livePvpSettings();
         if (pvp == null || !pvp.winOddsEnabled) {
             if (!WIN_ODDS_BY_OPPONENT.isEmpty()) {
@@ -765,33 +763,34 @@ public final class PvpStatsManager {
         opponentCacheCooldownTicks = 4;
 
         WIN_ODDS_BY_OPPONENT.clear();
-        for (PlayerEntity other : client.world.getPlayers()) {
+        for (Player other : client.level.players()) {
             if (!isTrackableOpponent(client, other)) {
                 continue;
             }
-            WIN_ODDS_BY_OPPONENT.put(other.getUuid(), buildWinOddsDisplay(client, other));
+            WIN_ODDS_BY_OPPONENT.put(other.getUUID(), buildWinOddsDisplay(client, other));
         }
     }
 
-    private static float readCurrentHealth(PlayerEntity player) {
-        if (player == null || player.isDead() || !player.isAlive()) return 0.0f;
+    private static float readCurrentHealth(Player player) {
+        if (player == null || player.isDeadOrDying() || !player.isAlive()) return 0.0f;
 
         float health = player.getHealth();
         if (!Float.isFinite(health)) return 0.0f;
         return Math.max(0.0f, health);
     }
 
-    private static float readBelowNameHealth(MinecraftClient client, PlayerEntity player) {
-        if (client == null || client.world == null || player == null) return Float.NaN;
+    private static float readBelowNameHealth(Minecraft client, Player player) {
+        if (client == null || client.level == null || player == null) return Float.NaN;
         try {
-            Scoreboard scoreboard = client.world.getScoreboard();
+            Scoreboard scoreboard = client.level.getScoreboard();
             if (scoreboard == null) return Float.NaN;
 
-            ScoreboardObjective objective = scoreboard.getObjectiveForSlot(ScoreboardDisplaySlot.BELOW_NAME);
+            Objective objective = scoreboard.getDisplayObjective(Scoreboard.DISPLAY_SLOT_BELOW_NAME);
             if (objective == null) return Float.NaN;
 
-            ReadableScoreboardScore score = scoreboard.getScore(ScoreHolder.fromName(player.getNameForScoreboard()), objective);
-            if (score == null) return Float.NaN;
+            String scoreboardName = player.getScoreboardName();
+            if (!scoreboard.hasPlayerScore(scoreboardName, objective)) return Float.NaN;
+            Score score = scoreboard.getOrCreatePlayerScore(scoreboardName, objective);
 
             float value = score.getScore();
             return isUsableHealth(value) ? value : Float.NaN;
@@ -804,12 +803,12 @@ public final class PvpStatsManager {
         return Float.isFinite(health) && health >= 0.0f && health <= 40.0f;
     }
 
-    private static boolean isTrackableOpponent(MinecraftClient client, PlayerEntity other) {
-        if (client == null || client.player == null || other == null || isLocalPlayer(other) || other.isSpectator() || other.isDead() || !other.isAlive()) {
+    private static boolean isTrackableOpponent(Minecraft client, Player other) {
+        if (client == null || client.player == null || other == null || isLocalPlayer(other) || other.isSpectator() || other.isDeadOrDying() || !other.isAlive()) {
             return false;
         }
 
-        PlayerEntity local = client.player;
+        Player local = client.player;
         double dx = other.getX() - local.getX();
         double dy = other.getY() - local.getY();
         double dz = other.getZ() - local.getZ();
@@ -849,20 +848,20 @@ public final class PvpStatsManager {
         return Math.max(0, Math.min(100, percent));
     }
 
-    private static void setActiveOpponent(PlayerEntity opponent) {
+    private static void setActiveOpponent(Player opponent) {
         if (opponent == null) return;
-        if (activeOpponentUuid != null && activeOpponentUuid.equals(opponent.getUuid())) {
+        if (activeOpponentUuid != null && activeOpponentUuid.equals(opponent.getUUID())) {
             activeOpponentEntity = opponent;
             return;
         }
-        activeOpponentUuid = opponent.getUuid();
+        activeOpponentUuid = opponent.getUUID();
         activeOpponentEntity = opponent;
         statsFor(opponent);
-        sendOpponentInfoChat(MinecraftClient.getInstance(), opponent.getNameForScoreboard());
+        sendOpponentInfoChat(Minecraft.getInstance(), opponent.getScoreboardName());
     }
 
-    private static OpponentDuelStats statsFor(PlayerEntity opponent) {
-        UUID uuid = opponent.getUuid();
+    private static OpponentDuelStats statsFor(Player opponent) {
+        UUID uuid = opponent.getUUID();
         OpponentDuelStats stats = OPPONENT_STATS.get(uuid);
         if (stats == null) {
             stats = new OpponentDuelStats();
@@ -872,7 +871,7 @@ public final class PvpStatsManager {
     }
 
     public static void recordEntityHurt(Entity entity) {
-        if (entity == null || entity instanceof EndCrystalEntity || pendingAttackTargetUuid == null || !pendingAttackTargetUuid.equals(entity.getUuid())) {
+        if (entity == null || entity instanceof EndCrystal || pendingAttackTargetUuid == null || !pendingAttackTargetUuid.equals(entity.getUUID())) {
             return;
         }
 
@@ -907,22 +906,22 @@ public final class PvpStatsManager {
         }
     }
 
-    private static void tickPlayerDeathFallbacks(MinecraftClient client) {
-        if (client.world == null || ++playerDeathScanCooldown < 2) return;
+    private static void tickPlayerDeathFallbacks(Minecraft client) {
+        if (client.level == null || ++playerDeathScanCooldown < 2) return;
         playerDeathScanCooldown = 0;
 
-        for (PlayerEntity other : client.world.getPlayers()) {
+        for (Player other : client.level.players()) {
             if (other == null || isLocalPlayer(other)) continue;
             boolean dead = isPlayerDeadByClientSignal(client, other);
-            Boolean wasDeadBefore = DEAD_STATE_BY_ENTITY.put(other.getUuid(), dead);
+            Boolean wasDeadBefore = DEAD_STATE_BY_ENTITY.put(other.getUUID(), dead);
             if (dead && !Boolean.TRUE.equals(wasDeadBefore)) {
                 recordDeathStatus(other);
             } else if (!dead) {
-                RECENT_KILL_BY_VICTIM.remove(other.getUuid());
+                RECENT_KILL_BY_VICTIM.remove(other.getUUID());
             }
         }
 
-        if (activeOpponentEntity instanceof PlayerEntity activePlayer && activeOpponentUuid != null) {
+        if (activeOpponentEntity instanceof Player activePlayer && activeOpponentUuid != null) {
             boolean activeDead = isPlayerDeadByClientSignal(client, activePlayer);
             Boolean wasDeadBefore = DEAD_STATE_BY_ENTITY.put(activeOpponentUuid, activeDead);
             if (activeDead && !Boolean.TRUE.equals(wasDeadBefore)) {
@@ -933,11 +932,11 @@ public final class PvpStatsManager {
         }
     }
 
-    private static boolean isPlayerDeadByClientSignal(MinecraftClient client, PlayerEntity player) {
+    private static boolean isPlayerDeadByClientSignal(Minecraft client, Player player) {
         if (player == null) return true;
 
         // Normal vanilla/client-side death signals.
-        if (player.isDead() || !player.isAlive() || player.getHealth() <= 0.0f) {
+        if (player.isDeadOrDying() || !player.isAlive() || player.getHealth() <= 0.0f) {
             return true;
         }
 
@@ -963,13 +962,13 @@ public final class PvpStatsManager {
     public static void recordDeathStatus(Entity entity) {
         if (!(entity instanceof LivingEntity livingEntity)) return;
         recordOpponentDeathFallback(livingEntity);
-        recordDeath(livingEntity, livingEntity.getRecentDamageSource());
+        recordDeath(livingEntity, livingEntity.getLastDamageSource());
     }
 
     public static void recordLocalDeathFromHealthPacket() {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         if (client.player != null) {
-            recordDeath(client.player, client.player.getRecentDamageSource());
+            recordDeath(client.player, client.player.getLastDamageSource());
         }
     }
 
@@ -984,7 +983,7 @@ public final class PvpStatsManager {
     }
 
     private static void recordDetectedMatchEnd(boolean won, boolean authoritative) {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         if (!usesSpoofedOpponentHealth(client)) return;
 
         long now = System.currentTimeMillis();
@@ -1017,10 +1016,10 @@ public final class PvpStatsManager {
         pendingAutoGgTicks = 12;
     }
 
-    private static void tickAutoGg(MinecraftClient client) {
+    private static void tickAutoGg(Minecraft client) {
         if (pendingAutoGgTicks <= 0) return;
         if (--pendingAutoGgTicks > 0) return;
-        if (client == null || client.getNetworkHandler() == null) return;
+        if (client == null || client.getConnection() == null) return;
 
         TpsConfig.PvpSettings pvp = getPvpSettings();
         if (!pvp.autoGgEnabled) return;
@@ -1031,7 +1030,7 @@ public final class PvpStatsManager {
         if (message.length() > 64) {
             message = message.substring(0, 64);
         }
-        client.getNetworkHandler().sendChatMessage(message);
+        client.getConnection().sendChat(message);
     }
 
     public static void recordDeath(LivingEntity entity, DamageSource source) {
@@ -1052,30 +1051,30 @@ public final class PvpStatsManager {
         }
 
         lastDeathRecap = DeathRecap.from(entity, source);
-        if (pvp.deathRecapEnabled && entity instanceof PlayerEntity player) {
-            player.sendMessage(Text.literal("[Atomics] " + lastDeathRecap.shortLine()).formatted(Formatting.GRAY), false);
+        if (pvp.deathRecapEnabled && entity instanceof Player player) {
+            player.displayClientMessage(Component.literal("[Atomics] " + lastDeathRecap.shortLine()).withStyle(ChatFormatting.GRAY), false);
         }
         scheduleSave();
         recordDetectedMatchEnd(false);
     }
 
     private static void recordPossibleKill(LivingEntity victim, DamageSource source) {
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client.player == null || victim == null || victim.getUuid().equals(client.player.getUuid()) || source == null) {
+        Minecraft client = Minecraft.getInstance();
+        if (client.player == null || victim == null || victim.getUUID().equals(client.player.getUUID()) || source == null) {
             return;
         }
-        Entity attacker = source.getAttacker();
-        if (attacker == null || !attacker.getUuid().equals(client.player.getUuid())) {
+        Entity attacker = source.getEntity();
+        if (attacker == null || !attacker.getUUID().equals(client.player.getUUID())) {
             return;
         }
-        recordKill(victim.getUuid());
+        recordKill(victim.getUUID());
     }
 
     private static void recordOpponentDeathFallback(LivingEntity victim) {
         if (victim == null || !isActiveOpponent(victim)) return;
         long now = System.currentTimeMillis();
         if (now - Math.max(lastConfirmedHitMillis, pendingAttackMillis) > 8000L) return;
-        recordKill(victim.getUuid());
+        recordKill(victim.getUUID());
     }
 
     private static void recordKill(UUID victimUuid) {
@@ -1328,7 +1327,7 @@ public final class PvpStatsManager {
 
     private static void recordLocalDuelHitTaken(float damageAmount) {
         if (damageAmount <= 0.0f || !Float.isFinite(damageAmount)) return;
-        if (usesSpoofedOpponentHealth(MinecraftClient.getInstance())) {
+        if (usesSpoofedOpponentHealth(Minecraft.getInstance())) {
             localDuelHitsTaken++;
         }
     }
@@ -1336,7 +1335,7 @@ public final class PvpStatsManager {
     private static void recordHitLanded(Entity hitEntity) {
         ClientFeatureManager.onHitLanded(hitEntity);
 
-        if (usesSpoofedOpponentHealth(MinecraftClient.getInstance()) && hitEntity instanceof PlayerEntity player) {
+        if (usesSpoofedOpponentHealth(Minecraft.getInstance()) && hitEntity instanceof Player player) {
             statsFor(player).hitsTaken++;
         }
 
@@ -1350,12 +1349,12 @@ public final class PvpStatsManager {
     }
 
     private static boolean isLocalPlayer(Entity entity) {
-        MinecraftClient client = MinecraftClient.getInstance();
-        return entity != null && client.player != null && entity.getUuid().equals(client.player.getUuid());
+        Minecraft client = Minecraft.getInstance();
+        return entity != null && client.player != null && entity.getUUID().equals(client.player.getUUID());
     }
 
     private static boolean isActiveOpponent(Entity entity) {
-        return entity != null && activeOpponentUuid != null && activeOpponentUuid.equals(entity.getUuid());
+        return entity != null && activeOpponentUuid != null && activeOpponentUuid.equals(entity.getUUID());
     }
 
     private static void scheduleSave() {
@@ -1367,7 +1366,7 @@ public final class PvpStatsManager {
         try {
             AtomicsClient.CONFIG.normalize();
             updateCurrentSessionHistory(AtomicsClient.CONFIG.pvp);
-            AtomicsClient.CONFIG.save(FabricLoader.getInstance().getConfigDir().resolve("atomics_client.json"));
+            AtomicsClient.CONFIG.save(FMLPaths.CONFIGDIR.get().resolve("atomics_client.json"));
         } catch (IOException e) {
             LOGGER.error("Failed to save PvP stats", e);
         }
@@ -1383,13 +1382,13 @@ public final class PvpStatsManager {
     }
 
     private record WinOddsDisplay(int percent, float opponentHealth, boolean showPopCount, int opponentPops,
-                                  boolean available, Text suffix) {
+                                  boolean available, Component suffix) {
         private static final WinOddsDisplay UNAVAILABLE = new WinOddsDisplay(50, 0.0f, false, 0, false, null);
         private static final WinOddsDisplay DEFAULT = UNAVAILABLE;
 
         private static WinOddsDisplay available(int percent, float opponentHealth, boolean showPopCount, int opponentPops) {
             int color = winOddsGradientColor(percent);
-            Text suffix = Text.literal(percent + "%").withColor(color);
+            Component suffix = Component.literal(percent + "%").withStyle(style -> style.withColor(color));
             return new WinOddsDisplay(percent, opponentHealth, showPopCount, opponentPops, true, suffix);
         }
     }
@@ -1429,22 +1428,22 @@ public final class PvpStatsManager {
         }
 
         public static DeathRecap from(LivingEntity entity, DamageSource source) {
-            String cause = source == null ? "unknown" : source.getName();
+            String cause = source == null ? "unknown" : source.getMsgId();
             String attacker = "none";
             PlayerSnapshot attackerSnapshot = PlayerSnapshot.empty();
-            if (source != null && source.getAttacker() != null) {
-                attacker = source.getAttacker().getName().getString();
-                if (source.getAttacker() instanceof PlayerEntity player) {
+            if (source != null && source.getEntity() != null) {
+                attacker = source.getEntity().getName().getString();
+                if (source.getEntity() instanceof Player player) {
                     attackerSnapshot = PlayerSnapshot.from(player);
                 }
-            } else if (source != null && source.getSource() != null) {
-                attacker = source.getSource().getName().getString();
-                if (source.getSource() instanceof PlayerEntity player) {
+            } else if (source != null && source.getDirectEntity() != null) {
+                attacker = source.getDirectEntity().getName().getString();
+                if (source.getDirectEntity() instanceof Player player) {
                     attackerSnapshot = PlayerSnapshot.from(player);
                 }
             }
 
-            BlockPos pos = entity.getBlockPos();
+            BlockPos pos = entity.blockPosition();
             String position = pos.getX() + ", " + pos.getY() + ", " + pos.getZ();
             return new DeathRecap(LocalTime.now().format(TIME_FORMAT), cause, attacker, position, SESSION.damageTaken, attackerSnapshot);
         }
@@ -1475,32 +1474,32 @@ public final class PvpStatsManager {
             return new PlayerSnapshot(false, false, 0.0f, 0, 0, 0, 0);
         }
 
-        public static PlayerSnapshot from(PlayerEntity player) {
+        public static PlayerSnapshot from(Player player) {
             if (player == null) return empty();
-            MinecraftClient client = MinecraftClient.getInstance();
-            boolean local = client.player != null && player.getUuid().equals(client.player.getUuid());
+            Minecraft client = Minecraft.getInstance();
+            boolean local = client.player != null && player.getUUID().equals(client.player.getUUID());
             ResourceCounts counts = local ? countFullInventory(player) : countVisibleStacks(player);
             float health = Math.max(0.0f, player.getHealth() + player.getAbsorptionAmount());
             return new PlayerSnapshot(true, local, health, counts.totems, counts.gaps, counts.enchantedGaps, counts.pots);
         }
 
-        private static ResourceCounts countFullInventory(PlayerEntity player) {
-            PlayerInventory inventory = player.getInventory();
+        private static ResourceCounts countFullInventory(Player player) {
+            Inventory inventory = player.getInventory();
             ResourceCounts counts = new ResourceCounts();
-            for (int slot = 0; slot < inventory.size(); slot++) {
-                counts.add(inventory.getStack(slot));
+            for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
+                counts.add(inventory.getItem(slot));
             }
             return counts;
         }
 
-        private static ResourceCounts countVisibleStacks(PlayerEntity player) {
+        private static ResourceCounts countVisibleStacks(Player player) {
             ResourceCounts counts = new ResourceCounts();
-            counts.add(player.getMainHandStack());
-            counts.add(player.getOffHandStack());
-            counts.add(player.getEquippedStack(EquipmentSlot.HEAD));
-            counts.add(player.getEquippedStack(EquipmentSlot.CHEST));
-            counts.add(player.getEquippedStack(EquipmentSlot.LEGS));
-            counts.add(player.getEquippedStack(EquipmentSlot.FEET));
+            counts.add(player.getMainHandItem());
+            counts.add(player.getOffhandItem());
+            counts.add(player.getItemBySlot(EquipmentSlot.HEAD));
+            counts.add(player.getItemBySlot(EquipmentSlot.CHEST));
+            counts.add(player.getItemBySlot(EquipmentSlot.LEGS));
+            counts.add(player.getItemBySlot(EquipmentSlot.FEET));
             return counts;
         }
     }
@@ -1515,17 +1514,17 @@ public final class PvpStatsManager {
 
         void add(ItemStack stack) {
             if (stack == null || stack.isEmpty()) return;
-            if (stack.isOf(Items.TOTEM_OF_UNDYING)) {
+            if (stack.is(Items.TOTEM_OF_UNDYING)) {
                 totems += stack.getCount();
-            } else if (stack.isOf(Items.END_CRYSTAL)) {
+            } else if (stack.is(Items.END_CRYSTAL)) {
                 crystals += stack.getCount();
-            } else if (stack.isOf(Items.RESPAWN_ANCHOR)) {
+            } else if (stack.is(Items.RESPAWN_ANCHOR)) {
                 respawnAnchors += stack.getCount();
-            } else if (stack.isOf(Items.GOLDEN_APPLE)) {
+            } else if (stack.is(Items.GOLDEN_APPLE)) {
                 gaps += stack.getCount();
-            } else if (stack.isOf(Items.ENCHANTED_GOLDEN_APPLE)) {
+            } else if (stack.is(Items.ENCHANTED_GOLDEN_APPLE)) {
                 enchantedGaps += stack.getCount();
-            } else if (stack.isOf(Items.POTION) || stack.isOf(Items.SPLASH_POTION) || stack.isOf(Items.LINGERING_POTION)) {
+            } else if (stack.is(Items.POTION) || stack.is(Items.SPLASH_POTION) || stack.is(Items.LINGERING_POTION)) {
                 pots += stack.getCount();
             }
         }
