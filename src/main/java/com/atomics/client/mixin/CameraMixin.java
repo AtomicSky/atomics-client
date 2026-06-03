@@ -2,10 +2,10 @@ package com.atomics.client.mixin;
 
 import com.atomics.client.DualSpectateCamera;
 import com.atomics.client.FreelookManager;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.render.Camera;
-import net.minecraft.entity.Entity;
-import net.minecraft.world.World;
+import net.minecraft.client.Camera;
+import net.minecraft.client.Minecraft;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.level.Level;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
@@ -15,11 +15,11 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(Camera.class)
 public class CameraMixin {
     @Shadow
-    private boolean thirdPerson;
+    private boolean detached;
 
-    @Inject(method = "update", at = @At("TAIL"))
+    @Inject(method = "setup", at = @At("TAIL"))
     private void atomics_client$disableVanillaThirdPersonOffset(
-            World world,
+            Level world,
             Entity focusedEntity,
             boolean thirdPerson,
             boolean inverseView,
@@ -27,10 +27,10 @@ public class CameraMixin {
             CallbackInfo ci
     ) {
         if (DualSpectateCamera.isActive()) {
-            this.thirdPerson = false;
-            DualSpectateCamera.applyToCamera((Camera) (Object) this, MinecraftClient.getInstance(), tickProgress);
+            this.detached = false;
+            DualSpectateCamera.applyToCamera((Camera) (Object) this, Minecraft.getInstance(), tickProgress);
         } else if (FreelookManager.isActive()) {
-            this.thirdPerson = true;
+            this.detached = true;
             FreelookManager.applyToCamera((Camera) (Object) this, focusedEntity, tickProgress);
         }
     }

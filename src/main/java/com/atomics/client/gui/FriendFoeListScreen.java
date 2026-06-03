@@ -1,17 +1,16 @@
 package com.atomics.client.gui;
 
 import com.atomics.client.AtomicsClient;
+import com.atomics.client.config.ConfigPaths;
 import com.atomics.client.config.TpsConfig;
-import net.fabricmc.loader.api.FabricLoader;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
-
 import java.util.ArrayList;
 import java.util.List;
+import net.minecraft.ChatFormatting;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.chat.Component;
 
 public class FriendFoeListScreen extends Screen {
     private static final int ROW_HEIGHT = 46;
@@ -21,10 +20,10 @@ public class FriendFoeListScreen extends Screen {
     private final List<Entry> entries = new ArrayList<>();
     private boolean loaded;
     private int scroll;
-    private Text status = Text.empty();
+    private Component status = Component.empty();
 
     public FriendFoeListScreen(Screen parent) {
-        super(Text.literal("Friend/Foe Players"));
+        super(Component.literal("Friend/Foe Players"));
         this.parent = parent;
     }
 
@@ -46,20 +45,20 @@ public class FriendFoeListScreen extends Screen {
         }
 
         int bottom = this.height - 28;
-        addDrawableChild(ButtonWidget.builder(Text.literal("+ Add Player"), b -> {
+        addRenderableWidget(Button.builder(Component.literal("+ Add Player"), b -> {
             entries.add(new Entry("", true));
             writeToConfig();
-            status = Text.literal("Added player row").formatted(Formatting.GREEN);
-            clearAndInit();
-        }).dimensions(24, bottom, 104, 20).build());
-        addDrawableChild(ButtonWidget.builder(Text.literal("Clear All"), b -> {
+            status = Component.literal("Added player row").withStyle(ChatFormatting.GREEN);
+            rebuildWidgets();
+        }).bounds(24, bottom, 104, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Clear All"), b -> {
             entries.clear();
             writeToConfig();
-            status = Text.literal("Player list cleared").formatted(Formatting.YELLOW);
-            clearAndInit();
-        }).dimensions(134, bottom, 90, 20).build());
-        addDrawableChild(ButtonWidget.builder(Text.literal("Save"), b -> save()).dimensions(this.width - 174, bottom, 72, 20).build());
-        addDrawableChild(ButtonWidget.builder(Text.literal("Done"), b -> close()).dimensions(this.width - 96, bottom, 72, 20).build());
+            status = Component.literal("Player list cleared").withStyle(ChatFormatting.YELLOW);
+            rebuildWidgets();
+        }).bounds(134, bottom, 90, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Save"), b -> save()).bounds(this.width - 174, bottom, 72, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Done"), b -> onClose()).bounds(this.width - 96, bottom, 72, 20).build());
     }
 
     private void addPlayerRow(int x, int y, Entry entry) {
@@ -70,27 +69,27 @@ public class FriendFoeListScreen extends Screen {
         addLabel("Username", x + 2, y + 2);
         addLabel("Type", typeX + 2, y + 2);
 
-        TextFieldWidget name = new TextFieldWidget(this.textRenderer, x, y + 16, fieldW, 20, Text.literal("Username"));
-        name.setText(entry.name);
-        name.setChangedListener(value -> {
+        EditBox name = new EditBox(this.font, x, y + 16, fieldW, 20, Component.literal("Username"));
+        name.setValue(entry.name);
+        name.setResponder(value -> {
             entry.name = sanitizeName(value);
             writeToConfig();
         });
-        addDrawableChild(name);
+        addRenderableWidget(name);
 
-        addDrawableChild(ButtonWidget.builder(Text.literal(entry.friend ? "Friend" : "Foe"), b -> {
+        addRenderableWidget(Button.builder(Component.literal(entry.friend ? "Friend" : "Foe"), b -> {
             entry.friend = !entry.friend;
-            b.setMessage(Text.literal(entry.friend ? "Friend" : "Foe"));
+            b.setMessage(Component.literal(entry.friend ? "Friend" : "Foe"));
             writeToConfig();
-            status = Text.literal("Set " + (entry.friend ? "Friend" : "Foe")).formatted(Formatting.AQUA);
-        }).dimensions(typeX, y + 16, 80, 20).build());
+            status = Component.literal("Set " + (entry.friend ? "Friend" : "Foe")).withStyle(ChatFormatting.AQUA);
+        }).bounds(typeX, y + 16, 80, 20).build());
 
-        addDrawableChild(ButtonWidget.builder(Text.literal("Remove"), b -> {
+        addRenderableWidget(Button.builder(Component.literal("Remove"), b -> {
             entries.remove(entry);
             writeToConfig();
-            status = Text.literal("Removed player").formatted(Formatting.RED);
-            clearAndInit();
-        }).dimensions(removeX, y + 16, 70, 20).build());
+            status = Component.literal("Removed player").withStyle(ChatFormatting.RED);
+            rebuildWidgets();
+        }).bounds(removeX, y + 16, 70, 20).build());
     }
 
     private void addLabel(String text, int x, int y) {
@@ -101,34 +100,34 @@ public class FriendFoeListScreen extends Screen {
     public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
         int max = Math.max(0, entries.size() * ROW_HEIGHT - (this.height - 92));
         scroll = Math.max(0, Math.min(max, scroll - (int) (verticalAmount * 24)));
-        clearAndInit();
+        rebuildWidgets();
         return true;
     }
 
     @Override
-    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
+    public void render(GuiGraphics context, int mouseX, int mouseY, float delta) {
         context.fill(0, 0, this.width, this.height, 0xE0101010);
-        context.drawCenteredTextWithShadow(this.textRenderer, this.title, this.width / 2, 12, 0xFFFFFF);
+        context.drawCenteredString(this.font, this.title, this.width / 2, 12, 0xFFFFFF);
         for (RowLabel label : labels) {
-            context.drawTextWithShadow(this.textRenderer, Text.literal(label.text), label.x, label.y, 0xFFBDBDBD);
+            context.drawString(this.font, Component.literal(label.text), label.x, label.y, 0xFFBDBDBD);
         }
         super.render(context, mouseX, mouseY, delta);
-        context.drawTextWithShadow(this.textRenderer, status, 234, this.height - 22, 0xFFFFFF);
+        context.drawString(this.font, status, 234, this.height - 22, 0xFFFFFF);
     }
 
     @Override
-    public void close() {
+    public void onClose() {
         writeToConfig();
-        if (this.client != null) this.client.setScreen(parent);
+        if (this.minecraft != null) this.minecraft.setScreen(parent);
     }
 
     private void save() {
         try {
             writeToConfig();
-            AtomicsClient.CONFIG.save(FabricLoader.getInstance().getConfigDir().resolve("atomics_client.json"));
-            status = Text.literal("Saved player list").formatted(Formatting.GREEN);
+            AtomicsClient.CONFIG.save(ConfigPaths.atomicsClient());
+            status = Component.literal("Saved player list").withStyle(ChatFormatting.GREEN);
         } catch (Exception e) {
-            status = Text.literal("Save failed: " + e.getMessage()).formatted(Formatting.RED);
+            status = Component.literal("Save failed: " + e.getMessage()).withStyle(ChatFormatting.RED);
         }
     }
 

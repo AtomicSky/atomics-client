@@ -1,0 +1,27 @@
+modLoader="javafml"
+loaderVersion="[61,)"
+license="MIT"
+clientSideOnly=true
+
+[[mods]]
+modId="atomics_client"
+version="${version}"
+displayName="Atomics Client"
+displayURL="https://modrinth.com/mod/atomics-client"
+logoFile="assets/atomics_client/icon.png"
+authors="AtomicSky1"
+description='''Atomics Client is a mod that provides some nice QOL features for PvP.'''
+
+[[dependencies.atomics_client]]
+modId="forge"
+mandatory=true
+versionRange="[61,)"
+ordering="NONE"
+side="CLIENT"
+
+[[dependencies.atomics_client]]
+modId="minecraft"
+mandatory=true
+versionRange="[1.21.11]"
+ordering="NONE"
+side="CLIENT"

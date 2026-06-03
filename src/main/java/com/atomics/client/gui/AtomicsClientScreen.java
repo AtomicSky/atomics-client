@@ -4,25 +4,9 @@ import com.atomics.client.PvpStatsManager;
 import com.atomics.client.TotemPopEffects;
 import com.atomics.client.AtomicsClient;
 import com.atomics.client.DualSpectateCamera;
+import com.atomics.client.config.ConfigPaths;
 import com.atomics.client.config.TpsConfig;
-import net.fabricmc.loader.api.FabricLoader;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.Click;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.screen.ingame.InventoryScreen;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.gui.widget.ClickableWidget;
-import net.minecraft.client.gui.widget.SliderWidget;
-import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.client.input.CharInput;
-import net.minecraft.client.input.KeyInput;
-import net.minecraft.client.option.KeyBinding;
-import net.minecraft.client.util.InputUtil;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
+import com.mojang.blaze3d.platform.InputConstants;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
@@ -32,6 +16,22 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.DoubleConsumer;
 import java.util.function.DoubleFunction;
+import net.minecraft.ChatFormatting;
+import net.minecraft.client.KeyMapping;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.AbstractSliderButton;
+import net.minecraft.client.gui.components.AbstractWidget;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.screens.inventory.InventoryScreen;
+import net.minecraft.client.input.CharacterEvent;
+import net.minecraft.client.input.KeyEvent;
+import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 
 public class AtomicsClientScreen extends Screen {
     private static final int TOP_BAR_HEIGHT = 112;
@@ -181,15 +181,15 @@ public class AtomicsClientScreen extends Screen {
     private boolean searchRefreshQueued;
     private boolean statsNumbersDropdownOpen;
     private boolean statsBarGraphDropdownOpen;
-    private KeyBinding listeningKeyBinding;
+    private KeyMapping listeningKeyBinding;
     private String listeningKeyLabel;
     private final List<String> collapsedSections = new ArrayList<>();
     private int scrollOffset;
     private int maxScroll;
     private int previewCooldown;
     private int dualSpectateAutoFillRefreshTicks;
-    private Text status = Text.empty();
-    private TextFieldWidget settingsSearchField;
+    private Component status = Component.empty();
+    private EditBox settingsSearchField;
 
     private int contentTop;
     private int contentBottom;
@@ -200,7 +200,7 @@ public class AtomicsClientScreen extends Screen {
     private int statsDashboardY = -1;
 
     public AtomicsClientScreen(Screen parent) {
-        super(Text.literal("Atomics Client"));
+        super(Component.literal("Atomics Client"));
         this.parent = parent;
     }
 
@@ -270,12 +270,12 @@ public class AtomicsClientScreen extends Screen {
         int startX = this.width / 2 - totalW / 2;
         int x = startX;
         if (selectedTab == Tab.TOTEM) {
-            addDrawableChild(ButtonWidget.builder(Text.literal("Preview Now"), b -> previewNow()).dimensions(x, footerY, buttonW, BUTTON_HEIGHT).build());
+            addRenderableWidget(Button.builder(Component.literal("Preview Now"), b -> previewNow()).bounds(x, footerY, buttonW, BUTTON_HEIGHT).build());
             x += buttonW + gap;
         }
-        addDrawableChild(ButtonWidget.builder(Text.literal("Save"), b -> save()).dimensions(x, footerY, buttonW, BUTTON_HEIGHT).build());
-        addDrawableChild(ButtonWidget.builder(Text.literal("Reset All"), b -> resetAll()).dimensions(x + buttonW + gap, footerY, buttonW, BUTTON_HEIGHT).build());
-        addDrawableChild(ButtonWidget.builder(Text.literal("Done"), b -> close()).dimensions(x + (buttonW + gap) * 2, footerY, buttonW, BUTTON_HEIGHT).build());
+        addRenderableWidget(Button.builder(Component.literal("Save"), b -> save()).bounds(x, footerY, buttonW, BUTTON_HEIGHT).build());
+        addRenderableWidget(Button.builder(Component.literal("Reset All"), b -> resetAll()).bounds(x + buttonW + gap, footerY, buttonW, BUTTON_HEIGHT).build());
+        addRenderableWidget(Button.builder(Component.literal("Done"), b -> onClose()).bounds(x + (buttonW + gap) * 2, footerY, buttonW, BUTTON_HEIGHT).build());
     }
 
     private void addTopTabs() {
@@ -293,12 +293,12 @@ public class AtomicsClientScreen extends Screen {
     }
 
     private void addTabButton(Tab tab, int x, int y, int w, int h) {
-        addDrawableChild(new TabButtonWidget(x, y, w, h, tab.label, selectedTab == tab, () -> {
+        addRenderableWidget(new TabButtonWidget(x, y, w, h, tab.label, selectedTab == tab, () -> {
             selectedTab = tab;
             scrollOffset = 0;
             statsNumbersDropdownOpen = false;
             statsBarGraphDropdownOpen = false;
-            clearAndInit();
+            rebuildWidgets();
         }));
     }
 
@@ -306,17 +306,17 @@ public class AtomicsClientScreen extends Screen {
         int width = Math.min(320, Math.max(180, this.width / 3));
         int x = this.width / 2 - width / 2;
         int y = 76;
-        TextFieldWidget field = new TextFieldWidget(this.textRenderer, x, y, width, BUTTON_HEIGHT, Text.literal("Search settings"));
+        EditBox field = new EditBox(this.font, x, y, width, BUTTON_HEIGHT, Component.literal("Search settings"));
         settingsSearchField = field;
-        field.setText(settingsSearch == null ? "" : settingsSearch);
-        field.setPlaceholder(Text.literal("Search settings").formatted(Formatting.DARK_GRAY));
-        field.setChangedListener(value -> {
+        field.setValue(settingsSearch == null ? "" : settingsSearch);
+        field.setHint(Component.literal("Search settings").withStyle(ChatFormatting.DARK_GRAY));
+        field.setResponder(value -> {
             settingsSearch = value;
             scrollOffset = 0;
             settingsSearchFocused = true;
             searchRefreshQueued = true;
         });
-        addDrawableChild(field);
+        addRenderableWidget(field);
         if (settingsSearchFocused) focusSettingsSearchField();
     }
 
@@ -378,7 +378,7 @@ public class AtomicsClientScreen extends Screen {
             if (!isFeatureCollapsed("totem.particles")) {
                 addToggle(leftX, y, controlWidth, "Enable Particles", particlesEnabled, true, () -> particlesEnabled, value -> particlesEnabled = value, true); y += ROW_HEIGHT;
                 if (particlesEnabled) {
-                    addWideButton(leftX, y, controlWidth, "Edit Particle List (" + getParticleCount() + ")", b -> this.client.setScreen(new ParticleListScreen(this))); y += ROW_HEIGHT;
+                    addWideButton(leftX, y, controlWidth, "Edit Particle List (" + getParticleCount() + ")", b -> this.minecraft.setScreen(new ParticleListScreen(this))); y += ROW_HEIGHT;
                 }
             }
             y += 10;
@@ -389,7 +389,7 @@ public class AtomicsClientScreen extends Screen {
             if (!isFeatureCollapsed("totem.sounds")) {
                 addToggle(leftX, y, controlWidth, "Enable Sounds", soundsEnabled, true, () -> soundsEnabled, value -> soundsEnabled = value, true); y += ROW_HEIGHT;
                 if (soundsEnabled) {
-                    addWideButton(leftX, y, controlWidth, "Edit Sound List (" + getSoundCount() + ")", b -> this.client.setScreen(new SoundListScreen(this))); y += ROW_HEIGHT;
+                    addWideButton(leftX, y, controlWidth, "Edit Sound List (" + getSoundCount() + ")", b -> this.minecraft.setScreen(new SoundListScreen(this))); y += ROW_HEIGHT;
                 }
             }
             y += 10;
@@ -542,7 +542,7 @@ public class AtomicsClientScreen extends Screen {
                     addWideButton(leftX, y, controlWidth, "Activation: " + (freelookToggleMode ? "Toggle" : "Hold"), b -> {
                         freelookToggleMode = !freelookToggleMode;
                         changed();
-                        clearAndInit();
+                        rebuildWidgets();
                     }); y += ROW_HEIGHT;
                 }
             }
@@ -652,11 +652,11 @@ public class AtomicsClientScreen extends Screen {
             if (!isFeatureCollapsed("pvp.friend_foe_overlay")) {
                 addToggle(leftX, y, controlWidth, "Enable Friend/Foe Overlay", friendFoeOverlayEnabled, TpsConfig.DEFAULT_FRIEND_FOE_OVERLAY_ENABLED, () -> friendFoeOverlayEnabled, value -> friendFoeOverlayEnabled = value, true); y += ROW_HEIGHT;
                 if (friendFoeOverlayEnabled) {
-                    addWideButton(leftX, y, controlWidth, "Edit Player List (" + getFriendFoeCount() + ")", b -> this.client.setScreen(new FriendFoeListScreen(this))); y += ROW_HEIGHT;
+                    addWideButton(leftX, y, controlWidth, "Edit Player List (" + getFriendFoeCount() + ")", b -> this.minecraft.setScreen(new FriendFoeListScreen(this))); y += ROW_HEIGHT;
                     addWideButton(leftX, y, controlWidth, "Render Style: " + friendFoeStyleLabel(friendFoeOverlayStyle), b -> {
                         friendFoeOverlayStyle = nextFriendFoeStyle(friendFoeOverlayStyle);
                         changed();
-                        clearAndInit();
+                        rebuildWidgets();
                     }); y += ROW_HEIGHT;
                     addIntSlider(leftX, y, controlWidth, "Friend Red", friendOverlayR, 0, 255, 1, TpsConfig.DEFAULT_FRIEND_OVERLAY_R, value -> friendOverlayR = value); y += ROW_HEIGHT;
                     addIntSlider(leftX, y, controlWidth, "Friend Green", friendOverlayG, 0, 255, 1, TpsConfig.DEFAULT_FRIEND_OVERLAY_G, value -> friendOverlayG = value); y += ROW_HEIGHT;
@@ -796,18 +796,18 @@ public class AtomicsClientScreen extends Screen {
                     if (armorHudEnabled) {
                         addToggle(leftX, y, controlWidth, "Auto HUD Position", armorHudAutoPosition, TpsConfig.DEFAULT_ARMOR_HUD_AUTO_POSITION, () -> armorHudAutoPosition, value -> armorHudAutoPosition = value, true); y += ROW_HEIGHT;
                         if (!armorHudAutoPosition) {
-                            addWideButton(leftX, y, controlWidth, "Edit HUD Position", b -> this.client.setScreen(new ArmorHudLayoutScreen(this, armorHudX, armorHudY, armorHudVertical, armorHudSpacing, armorHudDurabilityMode, armorHudHotbarBorder))); y += ROW_HEIGHT;
+                            addWideButton(leftX, y, controlWidth, "Edit HUD Position", b -> this.minecraft.setScreen(new ArmorHudLayoutScreen(this, armorHudX, armorHudY, armorHudVertical, armorHudSpacing, armorHudDurabilityMode, armorHudHotbarBorder))); y += ROW_HEIGHT;
                             addWideButton(leftX, y, controlWidth, "Orientation: " + (armorHudVertical ? "Vertical" : "Horizontal"), b -> {
                                 armorHudVertical = !armorHudVertical;
                                 changed();
-                                clearAndInit();
+                                rebuildWidgets();
                             }); y += ROW_HEIGHT;
                         }
                         addToggle(leftX, y, controlWidth, "Hotbar Border", armorHudHotbarBorder, TpsConfig.DEFAULT_ARMOR_HUD_HOTBAR_BORDER, () -> armorHudHotbarBorder, value -> armorHudHotbarBorder = value, true); y += ROW_HEIGHT;
                         addWideButton(leftX, y, controlWidth, "Durability: " + armorHudDurabilityModeLabel(armorHudDurabilityMode), b -> {
                             armorHudDurabilityMode = nextArmorHudDurabilityMode(armorHudDurabilityMode);
                             changed();
-                            clearAndInit();
+                            rebuildWidgets();
                         }); y += ROW_HEIGHT;
                         if (!armorHudAutoPosition) {
                             addIntSlider(leftX, y, controlWidth, "Piece Spacing", armorHudSpacing, 20, 64, 1, TpsConfig.DEFAULT_ARMOR_HUD_SPACING, value -> armorHudSpacing = value); y += ROW_HEIGHT;
@@ -890,7 +890,7 @@ public class AtomicsClientScreen extends Screen {
                 addWideButton(leftX, y, controlWidth, "Nametag Format: " + opponentStatsNametagFormatLabel(opponentStatsNametagFormat), b -> {
                     opponentStatsNametagFormat = nextOpponentStatsNametagFormat(opponentStatsNametagFormat);
                     changed();
-                    clearAndInit();
+                    rebuildWidgets();
                 }); y += ROW_HEIGHT;
                 labels.add(new DrawLabel("Chat posts duel tier info. Nametag shows the best cached tier/ranking tag.", leftX + 8, y + 4, 0xAAAAAA));
                 y += 22;
@@ -925,7 +925,7 @@ public class AtomicsClientScreen extends Screen {
     private int addStatsTimeframeDropdown(int y, String label, String selected, Consumer<String> setter, boolean numbersDropdown) {
         boolean open = numbersDropdown ? statsNumbersDropdownOpen : statsBarGraphDropdownOpen;
         if (isWidgetVisible(y)) {
-            addDrawableChild(new DropdownButtonWidget(leftX, y, leftWidth, BUTTON_HEIGHT, label, statsTimeframeLabel(selected), open, () -> {
+            addRenderableWidget(new DropdownButtonWidget(leftX, y, leftWidth, BUTTON_HEIGHT, label, statsTimeframeLabel(selected), open, () -> {
                 if (numbersDropdown) {
                     statsNumbersDropdownOpen = !statsNumbersDropdownOpen;
                     statsBarGraphDropdownOpen = false;
@@ -933,7 +933,7 @@ public class AtomicsClientScreen extends Screen {
                     statsBarGraphDropdownOpen = !statsBarGraphDropdownOpen;
                     statsNumbersDropdownOpen = false;
                 }
-                clearAndInit();
+                rebuildWidgets();
             }));
         }
         y += BUTTON_HEIGHT + 4;
@@ -945,7 +945,7 @@ public class AtomicsClientScreen extends Screen {
                 int optionX = leftX + i * (optionW + 4);
                 if (isWidgetVisible(y)) {
                     String marker = normalizeStatsTimeframe(selected).equals(option) ? "* " : "";
-                    addDrawableChild(ButtonWidget.builder(Text.literal(marker + statsTimeframeLabel(option)), b -> {
+                    addRenderableWidget(Button.builder(Component.literal(marker + statsTimeframeLabel(option)), b -> {
                         setter.accept(option);
                         if (numbersDropdown) {
                             statsNumbersDropdownOpen = false;
@@ -953,8 +953,8 @@ public class AtomicsClientScreen extends Screen {
                             statsBarGraphDropdownOpen = false;
                         }
                         statsGraphChanged();
-                        clearAndInit();
-                    }).dimensions(optionX, y, optionW, BUTTON_HEIGHT).build());
+                        rebuildWidgets();
+                    }).bounds(optionX, y, optionW, BUTTON_HEIGHT).build());
                 }
             }
             y += BUTTON_HEIGHT + 6;
@@ -981,32 +981,32 @@ public class AtomicsClientScreen extends Screen {
 
     private void addHistoryGraphToggle(int x, int y, int width, String label, BooleanSupplier getter, ToggleSetter setter) {
         if (!isWidgetVisible(y)) return;
-        addDrawableChild(ButtonWidget.builder(graphToggleText(label, getter.getAsBoolean()), b -> {
+        addRenderableWidget(Button.builder(graphToggleText(label, getter.getAsBoolean()), b -> {
             boolean newValue = !getter.getAsBoolean();
             setter.set(newValue);
             b.setMessage(graphToggleText(label, newValue));
             statsGraphChanged();
-        }).dimensions(x, y, width, BUTTON_HEIGHT).build());
+        }).bounds(x, y, width, BUTTON_HEIGHT).build());
     }
 
     private void autofillDualSpectatePlayers() {
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client == null || client.world == null || client.player == null) {
-            status = Text.literal("Autofill failed: no world loaded").formatted(Formatting.RED);
+        Minecraft client = Minecraft.getInstance();
+        if (client == null || client.level == null || client.player == null) {
+            status = Component.literal("Autofill failed: no world loaded").withStyle(ChatFormatting.RED);
             return;
         }
 
         String[] pair = DualSpectateCamera.findNearestPair(client);
         if (pair == null) {
-            status = Text.literal("Autofill needs at least two nearby players").formatted(Formatting.RED);
+            status = Component.literal("Autofill needs at least two nearby players").withStyle(ChatFormatting.RED);
             return;
         }
 
         dualSpectatePlayerOne = pair[0];
         dualSpectatePlayerTwo = pair[1];
         changed();
-        status = Text.literal("Autofilled " + dualSpectatePlayerOne + " and " + dualSpectatePlayerTwo).formatted(Formatting.GREEN);
-        clearAndInit();
+        status = Component.literal("Autofilled " + dualSpectatePlayerOne + " and " + dualSpectatePlayerTwo).withStyle(ChatFormatting.GREEN);
+        rebuildWidgets();
     }
 
     private void refreshDualSpectateAutoFill() {
@@ -1014,7 +1014,7 @@ public class AtomicsClientScreen extends Screen {
             return;
         }
 
-        String[] pair = DualSpectateCamera.findNearestPair(MinecraftClient.getInstance());
+        String[] pair = DualSpectateCamera.findNearestPair(Minecraft.getInstance());
         if (pair == null) {
             return;
         }
@@ -1027,9 +1027,9 @@ public class AtomicsClientScreen extends Screen {
         dualSpectatePlayerOne = pair[0];
         dualSpectatePlayerTwo = pair[1];
         applyToConfig();
-        status = Text.literal("Auto-filled " + dualSpectatePlayerOne + " and " + dualSpectatePlayerTwo).formatted(Formatting.AQUA);
+        status = Component.literal("Auto-filled " + dualSpectatePlayerOne + " and " + dualSpectatePlayerTwo).withStyle(ChatFormatting.AQUA);
         if (selectedTab == Tab.PVP) {
-            clearAndInit();
+            rebuildWidgets();
         }
     }
 
@@ -1059,9 +1059,9 @@ public class AtomicsClientScreen extends Screen {
     private int addFeatureSection(int y, String key, String title) {
         boolean collapsed = isFeatureCollapsed(key);
         if (isWidgetVisible(y)) {
-            addDrawableChild(new SectionHeaderWidget(leftX, y, leftWidth, BUTTON_HEIGHT, title, collapsed, () -> {
+            addRenderableWidget(new SectionHeaderWidget(leftX, y, leftWidth, BUTTON_HEIGHT, title, collapsed, () -> {
                 toggleFeatureSection(key);
-                clearAndInit();
+                rebuildWidgets();
             }));
         } else {
             labels.add(new DrawLabel((collapsed ? "> " : "v ") + title, leftX + 8, y + 5, 0xFFFFFF));
@@ -1091,9 +1091,9 @@ public class AtomicsClientScreen extends Screen {
         return y + SECTION_HEIGHT;
     }
 
-    private void addWideButton(int x, int y, int width, String label, ButtonWidget.PressAction action) {
+    private void addWideButton(int x, int y, int width, String label, Button.OnPress action) {
         if (!isWidgetVisible(y)) return;
-        addDrawableChild(ButtonWidget.builder(Text.literal(label), action).dimensions(x, y, width, BUTTON_HEIGHT).build());
+        addRenderableWidget(Button.builder(Component.literal(label), action).bounds(x, y, width, BUTTON_HEIGHT).build());
     }
 
     private int addNametagLayoutRow(int y, String item, List<String> enabledItems) {
@@ -1108,34 +1108,34 @@ public class AtomicsClientScreen extends Screen {
         int itemIndex = enabledItems.indexOf(item);
         boolean beforeName = nametagItemsBeforeName.contains(item);
 
-        ButtonWidget sideButton = ButtonWidget.builder(Text.literal((itemIndex + 1) + ". " + nametagItemLabel(item) + ": " + (beforeName ? "Before" : "After")), b -> {
+        Button sideButton = Button.builder(Component.literal((itemIndex + 1) + ". " + nametagItemLabel(item) + ": " + (beforeName ? "Before" : "After")), b -> {
             toggleNametagItemSide(item);
             changed();
-            clearAndInit();
-        }).dimensions(leftX, y, labelWidth, BUTTON_HEIGHT).build();
-        addDrawableChild(sideButton);
+            rebuildWidgets();
+        }).bounds(leftX, y, labelWidth, BUTTON_HEIGHT).build();
+        addRenderableWidget(sideButton);
 
-        ButtonWidget upButton = ButtonWidget.builder(Text.literal("Up"), b -> {
+        Button upButton = Button.builder(Component.literal("Up"), b -> {
             moveNametagItem(item, -1);
             changed();
-            clearAndInit();
-        }).dimensions(leftX + labelWidth + gap, y, buttonWidth, BUTTON_HEIGHT).build();
+            rebuildWidgets();
+        }).bounds(leftX + labelWidth + gap, y, buttonWidth, BUTTON_HEIGHT).build();
         upButton.active = itemIndex > 0;
-        addDrawableChild(upButton);
+        addRenderableWidget(upButton);
 
-        ButtonWidget downButton = ButtonWidget.builder(Text.literal("Down"), b -> {
+        Button downButton = Button.builder(Component.literal("Down"), b -> {
             moveNametagItem(item, 1);
             changed();
-            clearAndInit();
-        }).dimensions(leftX + labelWidth + gap + buttonWidth + gap, y, buttonWidth, BUTTON_HEIGHT).build();
+            rebuildWidgets();
+        }).bounds(leftX + labelWidth + gap + buttonWidth + gap, y, buttonWidth, BUTTON_HEIGHT).build();
         downButton.active = itemIndex >= 0 && itemIndex < enabledItems.size() - 1;
-        addDrawableChild(downButton);
+        addRenderableWidget(downButton);
 
-        addDrawableChild(ButtonWidget.builder(Text.literal(beforeName ? "Put After" : "Put Before"), b -> {
+        addRenderableWidget(Button.builder(Component.literal(beforeName ? "Put After" : "Put Before"), b -> {
             toggleNametagItemSide(item);
             changed();
-            clearAndInit();
-        }).dimensions(leftX + labelWidth + gap + buttonWidth * 2 + gap * 2, y, sideWidth, BUTTON_HEIGHT).build());
+            rebuildWidgets();
+        }).bounds(leftX + labelWidth + gap + buttonWidth * 2 + gap * 2, y, sideWidth, BUTTON_HEIGHT).build());
         return y + ROW_HEIGHT;
     }
 
@@ -1143,41 +1143,41 @@ public class AtomicsClientScreen extends Screen {
         if (!isWidgetVisible(y)) return;
         int gap = 6;
         int buttonWidth = (width - gap) / 2;
-        ButtonWidget addButton = ButtonWidget.builder(Text.literal("Add Macro"), b -> {
+        Button addButton = Button.builder(Component.literal("Add Macro"), b -> {
             if (macroMessages.size() < TpsConfig.MAX_MACRO_SLOTS) {
                 macroMessages.add("");
                 changed();
-                clearAndInit();
+                rebuildWidgets();
             }
-        }).dimensions(x, y, buttonWidth, BUTTON_HEIGHT).build();
+        }).bounds(x, y, buttonWidth, BUTTON_HEIGHT).build();
         addButton.active = macroMessages.size() < TpsConfig.MAX_MACRO_SLOTS;
-        addDrawableChild(addButton);
+        addRenderableWidget(addButton);
 
-        ButtonWidget removeButton = ButtonWidget.builder(Text.literal("Remove Last"), b -> {
+        Button removeButton = Button.builder(Component.literal("Remove Last"), b -> {
             if (macroMessages.size() > TpsConfig.MIN_MACRO_SLOTS) {
                 macroMessages.remove(macroMessages.size() - 1);
                 changed();
-                clearAndInit();
+                rebuildWidgets();
             }
-        }).dimensions(x + buttonWidth + gap, y, width - buttonWidth - gap, BUTTON_HEIGHT).build();
+        }).bounds(x + buttonWidth + gap, y, width - buttonWidth - gap, BUTTON_HEIGHT).build();
         removeButton.active = macroMessages.size() > TpsConfig.MIN_MACRO_SLOTS;
-        addDrawableChild(removeButton);
+        addRenderableWidget(removeButton);
     }
 
-    private void addKeybindButton(int x, int y, int width, String label, KeyBinding keyBinding) {
+    private void addKeybindButton(int x, int y, int width, String label, KeyMapping keyBinding) {
         if (!isWidgetVisible(y)) return;
         String value = listeningKeyBinding == keyBinding ? "Press a key..." : AtomicsClient.keyBindingName(keyBinding);
-        ButtonWidget button = ButtonWidget.builder(rowText(label, value), b -> {
+        Button button = Button.builder(rowText(label, value), b -> {
             if (keyBinding == null) {
                 return;
             }
             listeningKeyBinding = keyBinding;
             listeningKeyLabel = label;
-            status = Text.literal("Press a key for " + label + " (Delete unbinds)").formatted(Formatting.AQUA);
-            clearAndInit();
-        }).dimensions(x, y, width, BUTTON_HEIGHT).build();
+            status = Component.literal("Press a key for " + label + " (Delete unbinds)").withStyle(ChatFormatting.AQUA);
+            rebuildWidgets();
+        }).bounds(x, y, width, BUTTON_HEIGHT).build();
         button.active = keyBinding != null;
-        addDrawableChild(button);
+        addRenderableWidget(button);
     }
 
     private void setMacroMessage(int index, String value) {
@@ -1187,37 +1187,37 @@ public class AtomicsClientScreen extends Screen {
         macroMessages.set(index, value == null ? "" : value);
     }
 
-    private ButtonWidget addToggle(int x, int y, int controlWidth, String label, boolean initialValue, boolean defaultValue, BooleanSupplier getter, ToggleSetter setter, boolean rebuildOnChange) {
+    private Button addToggle(int x, int y, int controlWidth, String label, boolean initialValue, boolean defaultValue, BooleanSupplier getter, ToggleSetter setter, boolean rebuildOnChange) {
         if (!isWidgetVisible(y)) {
             setter.set(initialValue);
             return null;
         }
-        ButtonWidget button = ButtonWidget.builder(rowText(label, initialValue ? "ON" : "OFF"), b -> {
+        Button button = Button.builder(rowText(label, initialValue ? "ON" : "OFF"), b -> {
             boolean newValue = !getter.getAsBoolean();
             setter.set(newValue);
             b.setMessage(rowText(label, newValue ? "ON" : "OFF"));
             changed();
-            if (rebuildOnChange) clearAndInit();
-        }).dimensions(x, y, controlWidth, BUTTON_HEIGHT).build();
-        addDrawableChild(button);
-        addDrawableChild(ButtonWidget.builder(Text.literal("↻"), b -> {
+            if (rebuildOnChange) rebuildWidgets();
+        }).bounds(x, y, controlWidth, BUTTON_HEIGHT).build();
+        addRenderableWidget(button);
+        addRenderableWidget(Button.builder(Component.literal("↻"), b -> {
             setter.set(defaultValue);
             changed();
-            if (rebuildOnChange) clearAndInit(); else button.setMessage(rowText(label, defaultValue ? "ON" : "OFF"));
-        }).dimensions(x + controlWidth + 6, y, RESET_WIDTH, BUTTON_HEIGHT).build());
+            if (rebuildOnChange) rebuildWidgets(); else button.setMessage(rowText(label, defaultValue ? "ON" : "OFF"));
+        }).bounds(x + controlWidth + 6, y, RESET_WIDTH, BUTTON_HEIGHT).build());
         setter.set(initialValue);
         return button;
     }
 
-    private TextFieldWidget addTextField(int x, int y, int controlWidth, String label, String initialValue, String defaultValue, Consumer<String> setter) {
+    private EditBox addTextField(int x, int y, int controlWidth, String label, String initialValue, String defaultValue, Consumer<String> setter) {
         labels.add(new DrawLabel(label, x + 4, y - 11, 0xF0F0F0));
         if (!isWidgetVisible(y)) return null;
-        TextFieldWidget field = new TextFieldWidget(this.textRenderer, x, y, controlWidth, BUTTON_HEIGHT, Text.literal(label));
-        field.setText(initialValue == null ? "" : initialValue);
-        field.setPlaceholder(Text.literal(defaultValue).formatted(Formatting.DARK_GRAY));
-        field.setChangedListener(value -> { setter.accept(value); changed(); });
-        addDrawableChild(field);
-        addDrawableChild(ButtonWidget.builder(Text.literal("↻"), b -> { setter.accept(defaultValue); field.setText(defaultValue); changed(); }).dimensions(x + controlWidth + 6, y, RESET_WIDTH, BUTTON_HEIGHT).build());
+        EditBox field = new EditBox(this.font, x, y, controlWidth, BUTTON_HEIGHT, Component.literal(label));
+        field.setValue(initialValue == null ? "" : initialValue);
+        field.setHint(Component.literal(defaultValue).withStyle(ChatFormatting.DARK_GRAY));
+        field.setResponder(value -> { setter.accept(value); changed(); });
+        addRenderableWidget(field);
+        addRenderableWidget(Button.builder(Component.literal("↻"), b -> { setter.accept(defaultValue); field.setValue(defaultValue); changed(); }).bounds(x + controlWidth + 6, y, RESET_WIDTH, BUTTON_HEIGHT).build());
         return field;
     }
 
@@ -1231,8 +1231,8 @@ public class AtomicsClientScreen extends Screen {
             return null;
         }
         ValueSlider slider = new ValueSlider(label, x, y, controlWidth, initialValue, min, max, step, setter::set, formatter);
-        addDrawableChild(slider);
-        addDrawableChild(ButtonWidget.builder(Text.literal("↻"), b -> slider.setActualValue(defaultValue)).dimensions(x + controlWidth + 6, y, RESET_WIDTH, BUTTON_HEIGHT).build());
+        addRenderableWidget(slider);
+        addRenderableWidget(Button.builder(Component.literal("↻"), b -> slider.setActualValue(defaultValue)).bounds(x + controlWidth + 6, y, RESET_WIDTH, BUTTON_HEIGHT).build());
         return slider;
     }
 
@@ -1420,7 +1420,7 @@ public class AtomicsClientScreen extends Screen {
         // Saving still only controls whether those changes persist after restart.
         applyToConfig();
 
-        status = Text.literal("Unsaved changes").formatted(Formatting.YELLOW);
+        status = Component.literal("Unsaved changes").withStyle(ChatFormatting.YELLOW);
         if (autoPreview) {
             previewCooldown = 8;
         }
@@ -1429,16 +1429,16 @@ public class AtomicsClientScreen extends Screen {
     private void statsGraphChanged() {
         if (initializing) return;
         applyToConfig();
-        status = Text.literal("Unsaved changes").formatted(Formatting.YELLOW);
+        status = Component.literal("Unsaved changes").withStyle(ChatFormatting.YELLOW);
     }
 
     private void save() {
         try {
             applyToConfig();
-            AtomicsClient.CONFIG.save(FabricLoader.getInstance().getConfigDir().resolve("atomics_client.json"));
-            status = Text.literal("Saved to config/atomics_client.json").formatted(Formatting.GREEN);
+            AtomicsClient.CONFIG.save(ConfigPaths.atomicsClient());
+            status = Component.literal("Saved to config/atomics_client.json").withStyle(ChatFormatting.GREEN);
         } catch (Exception e) {
-            status = Text.literal("Save failed: " + e.getMessage()).formatted(Formatting.RED);
+            status = Component.literal("Save failed: " + e.getMessage()).withStyle(ChatFormatting.RED);
         }
     }
 
@@ -1572,7 +1572,7 @@ public class AtomicsClientScreen extends Screen {
             AtomicsClient.CONFIG.pvp.foeNames = new ArrayList<>();
         }
         changed();
-        clearAndInit();
+        rebuildWidgets();
     }
 
     private void applyToConfig() {
@@ -1726,7 +1726,7 @@ public class AtomicsClientScreen extends Screen {
         applyToConfig();
         playPreview();
 
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         int delayTicks = Math.max(1, animationTicks) + 10;
         long delayMs = delayTicks * 50L;
         client.setScreen(null);
@@ -1738,7 +1738,7 @@ public class AtomicsClientScreen extends Screen {
                 return;
             }
             client.execute(() -> {
-                if (client.currentScreen == null) {
+                if (client.screen == null) {
                     client.setScreen(this);
                 }
             });
@@ -1748,14 +1748,14 @@ public class AtomicsClientScreen extends Screen {
     }
 
     private void playPreview() {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         if (client.player == null) {
-            status = Text.literal("Preview failed: no player loaded").formatted(Formatting.RED);
+            status = Component.literal("Preview failed: no player loaded").withStyle(ChatFormatting.RED);
             return;
         }
-        client.gameRenderer.showFloatingItem(Items.TOTEM_OF_UNDYING.getDefaultStack());
+        client.gameRenderer.displayItemActivation(Items.TOTEM_OF_UNDYING.getDefaultInstance());
         TotemPopEffects.play(client.player);
-        status = Text.literal("Preview played").formatted(Formatting.AQUA);
+        status = Component.literal("Preview played").withStyle(ChatFormatting.AQUA);
     }
 
     @Override
@@ -1763,7 +1763,7 @@ public class AtomicsClientScreen extends Screen {
         super.tick();
         if (searchRefreshQueued) {
             searchRefreshQueued = false;
-            clearAndInit();
+            rebuildWidgets();
             return;
         }
         if (settingsSearchFocused && settingsSearchField != null && getFocused() != settingsSearchField) {
@@ -1780,7 +1780,7 @@ public class AtomicsClientScreen extends Screen {
     }
 
     @Override
-    public boolean mouseClicked(Click click, boolean doubleClick) {
+    public boolean mouseClicked(MouseButtonEvent click, boolean doubleClick) {
         if (settingsSearchField != null && settingsSearchField.isMouseOver(click.x(), click.y())) {
             settingsSearchFocused = true;
             focusSettingsSearchField();
@@ -1795,36 +1795,36 @@ public class AtomicsClientScreen extends Screen {
     }
 
     @Override
-    public boolean keyPressed(KeyInput keyInput) {
+    public boolean keyPressed(KeyEvent keyInput) {
         if (settingsSearchFocused && settingsSearchField != null && settingsSearchField.keyPressed(keyInput)) {
             return true;
         }
         if (listeningKeyBinding != null) {
             int key = keyInput.key();
             if (key == GLFW.GLFW_KEY_ESCAPE) {
-                status = Text.literal("Keybind change cancelled").formatted(Formatting.YELLOW);
+                status = Component.literal("Keybind change cancelled").withStyle(ChatFormatting.YELLOW);
                 listeningKeyBinding = null;
                 listeningKeyLabel = null;
-                clearAndInit();
+                rebuildWidgets();
                 return true;
             }
 
-            InputUtil.Key boundKey = key == GLFW.GLFW_KEY_BACKSPACE || key == GLFW.GLFW_KEY_DELETE
-                    ? InputUtil.UNKNOWN_KEY
-                    : InputUtil.fromKeyCode(keyInput);
+            InputConstants.Key boundKey = key == GLFW.GLFW_KEY_BACKSPACE || key == GLFW.GLFW_KEY_DELETE
+                    ? InputConstants.UNKNOWN
+                    : InputConstants.getKey(keyInput);
             AtomicsClient.setKeyBinding(listeningKeyBinding, boundKey);
             String label = listeningKeyLabel == null ? "Keybind" : listeningKeyLabel;
-            status = Text.literal(label + " set to " + AtomicsClient.keyBindingName(listeningKeyBinding)).formatted(Formatting.GREEN);
+            status = Component.literal(label + " set to " + AtomicsClient.keyBindingName(listeningKeyBinding)).withStyle(ChatFormatting.GREEN);
             listeningKeyBinding = null;
             listeningKeyLabel = null;
-            clearAndInit();
+            rebuildWidgets();
             return true;
         }
         return super.keyPressed(keyInput);
     }
 
     @Override
-    public boolean charTyped(CharInput charInput) {
+    public boolean charTyped(CharacterEvent charInput) {
         if (settingsSearchFocused && settingsSearchField != null && settingsSearchField.charTyped(charInput)) {
             return true;
         }
@@ -1844,14 +1844,14 @@ public class AtomicsClientScreen extends Screen {
     public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
         if (mouseX >= leftX && mouseX <= leftX + leftWidth && mouseY >= contentTop && mouseY <= contentBottom && maxScroll > 0) {
             scrollOffset = Math.max(0, Math.min(maxScroll, scrollOffset - (int) (verticalAmount * 24)));
-            clearAndInit();
+            rebuildWidgets();
             return true;
         }
         return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
     }
 
     @Override
-    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
+    public void render(GuiGraphics context, int mouseX, int mouseY, float delta) {
         context.fill(0, 0, this.width, this.height, BG);
         context.fill(0, 0, this.width, TOP_BAR_HEIGHT, TOP_BAR);
         context.fill(0, TOP_BAR_HEIGHT, this.width, TOP_BAR_HEIGHT + 1, PANEL_BORDER);
@@ -1863,8 +1863,8 @@ public class AtomicsClientScreen extends Screen {
             context.fill(previewX - 9, contentTop - 8, previewX - 8, contentBottom, ACCENT_SOFT);
         }
 
-        context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("Atomics Client"), this.width / 2, 14, TEXT_MAIN);
-        context.drawCenteredTextWithShadow(this.textRenderer, Text.literal(selectedTab.label + " Settings"), this.width / 2, 28, TEXT_MUTED);
+        context.drawCenteredString(this.font, Component.literal("Atomics Client"), this.width / 2, 14, TEXT_MAIN);
+        context.drawCenteredString(this.font, Component.literal(selectedTab.label + " Settings"), this.width / 2, 28, TEXT_MUTED);
 
         super.render(context, mouseX, mouseY, delta);
 
@@ -1873,9 +1873,9 @@ public class AtomicsClientScreen extends Screen {
             if (label.lineWidth > 0) {
                 context.fill(label.x, label.y, label.x + label.lineWidth, label.y + 1, label.color);
             } else if (label.centered) {
-                context.drawCenteredTextWithShadow(this.textRenderer, Text.literal(label.text), label.x, label.y, textColor(label.color));
+                context.drawCenteredString(this.font, Component.literal(label.text), label.x, label.y, textColor(label.color));
             } else {
-                context.drawTextWithShadow(this.textRenderer, Text.literal(label.text), label.x, label.y, textColor(label.color));
+                context.drawString(this.font, Component.literal(label.text), label.x, label.y, textColor(label.color));
             }
         }
 
@@ -1889,7 +1889,7 @@ public class AtomicsClientScreen extends Screen {
         renderStatus(context);
     }
 
-    private void drawPanel(DrawContext context, int x, int y, int width, int height) {
+    private void drawPanel(GuiGraphics context, int x, int y, int width, int height) {
         context.fill(x, y, x + width, y + height, PANEL);
         context.fill(x, y, x + width, y + 1, PANEL_BORDER);
         context.fill(x, y + height - 1, x + width, y + height, PANEL_BORDER);
@@ -1897,40 +1897,40 @@ public class AtomicsClientScreen extends Screen {
         context.fill(x + width - 1, y, x + width, y + height, PANEL_BORDER);
     }
 
-    private void renderStatus(DrawContext context) {
+    private void renderStatus(GuiGraphics context) {
         String text = status == null ? "" : status.getString();
         if (text.isBlank()) {
-            context.drawTextWithShadow(this.textRenderer, Text.literal("Changes are live. Save to keep them after restart."), OUTER_MARGIN, this.height - 14, TEXT_MUTED);
+            context.drawString(this.font, Component.literal("Changes are live. Save to keep them after restart."), OUTER_MARGIN, this.height - 14, TEXT_MUTED);
             return;
         }
-        int width = this.textRenderer.getWidth(status) + 16;
+        int width = this.font.width(status) + 16;
         int x = OUTER_MARGIN;
         int y = this.height - 24;
         context.fill(x, y, x + width, y + 18, 0xAA10151E);
         context.fill(x, y, x + 3, y + 18, ACCENT);
-        context.drawTextWithShadow(this.textRenderer, status, x + 8, y + 5, TEXT_MAIN);
+        context.drawString(this.font, status, x + 8, y + 5, TEXT_MAIN);
     }
 
-    private void renderPreviewPanel(DrawContext context, int mouseX, int mouseY) {
+    private void renderPreviewPanel(GuiGraphics context, int mouseX, int mouseY) {
         int x = previewX;
         int y = contentTop;
         int w = previewWidth;
         ItemStack previewStack = AtomicsClient.getPreviewTotemStack();
-        context.drawTextWithShadow(this.textRenderer, Text.literal(selectedTab.label + " Preview"), x, y - 2, textColor(0xFFFFFF));
+        context.drawString(this.font, Component.literal(selectedTab.label + " Preview"), x, y - 2, textColor(0xFFFFFF));
         int boxTop = y + 22;
         int boxBottom = contentBottom - 12;
         context.fill(x, boxTop, x + w, boxBottom, 0xAA202020);
-        context.drawStrokedRectangle(x, boxTop, w, boxBottom - boxTop, 0x90FFFFFF);
-        context.drawCenteredTextWithShadow(this.textRenderer, Text.literal(selectedTab.label + " Preview"), x + w / 2, boxTop + 14, textColor(0xFFFFFF));
+        context.renderOutline(x, boxTop, w, boxBottom - boxTop, 0x90FFFFFF);
+        context.drawCenteredString(this.font, Component.literal(selectedTab.label + " Preview"), x + w / 2, boxTop + 14, textColor(0xFFFFFF));
 
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         if (client.player != null && selectedTab == Tab.TOTEM) {
             int entityLeft = x + 18;
             int entityTop = boxTop + 54;
             int entityRight = x + w / 2 + 18;
             int entityBottom = boxBottom - 28;
             int entitySize = Math.max(38, Math.min(52, (entityBottom - entityTop) / 5));
-            InventoryScreen.drawEntity(context, entityLeft, entityTop, entityRight, entityBottom, entitySize, 0.06f, mouseX, mouseY, client.player);
+            InventoryScreen.renderEntityInInventoryFollowsMouse(context, entityLeft, entityTop, entityRight, entityBottom, entitySize, 0.06f, mouseX, mouseY, client.player);
 
             int itemX = x + w * 3 / 4;
             int startY = boxTop + 76;
@@ -1939,11 +1939,11 @@ public class AtomicsClientScreen extends Screen {
             renderTotemSizePreview(context, previewStack, "Held Totem", itemX, startY + gap, handScaleEnabled ? handScale : 1.0f);
             renderTotemSizePreview(context, previewStack, "Dropped Totem", itemX, startY + gap * 2, droppedScaleEnabled ? droppedScale : 1.0f);
         } else {
-            context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("Preview will appear here"), x + w / 2, boxTop + (boxBottom - boxTop) / 2, textColor(0xAAAAAA));
+            context.drawCenteredString(this.font, Component.literal("Preview will appear here"), x + w / 2, boxTop + (boxBottom - boxTop) / 2, textColor(0xAAAAAA));
         }
     }
 
-    private void renderStatsDashboard(DrawContext context) {
+    private void renderStatsDashboard(GuiGraphics context) {
         int x = leftX;
         int y = statsDashboardY;
         if (y < 0) {
@@ -1951,7 +1951,7 @@ public class AtomicsClientScreen extends Screen {
         }
         int w = leftWidth;
 
-        context.drawTextWithShadow(this.textRenderer, Text.literal("Stats"), x, y - 2, textColor(0xFFFFFF));
+        context.drawString(this.font, Component.literal("Stats"), x, y - 2, textColor(0xFFFFFF));
         y += 20;
 
         StatsTimeframe numbersTimeframe = getStatsTimeframe(statsNumbersTimeframe);
@@ -1959,7 +1959,7 @@ public class AtomicsClientScreen extends Screen {
         y = renderCounterPanel(context, numbersTimeframe.label + " Stats", numbersTimeframe.counters, x, y, w, numbersTimeframe.signed) + 14;
 
         if (y >= contentTop && y <= contentBottom - 10) {
-            context.drawTextWithShadow(this.textRenderer, Text.literal("Line Graph Fields"), x, y + 4, textColor(0xFFFFFF));
+            context.drawString(this.font, Component.literal("Line Graph Fields"), x, y + 4, textColor(0xFFFFFF));
         }
         y += 18;
         y += (BUTTON_HEIGHT + 6) * 2 + 8;
@@ -1970,11 +1970,11 @@ public class AtomicsClientScreen extends Screen {
         renderCounterGraphPanel(context, barTimeframe.label + " Bar Graph", barTimeframe.counters, x, y, w);
     }
 
-    private int renderCounterPanel(DrawContext context, String title, PvpStatsManager.Counters counters, int x, int y, int width) {
+    private int renderCounterPanel(GuiGraphics context, String title, PvpStatsManager.Counters counters, int x, int y, int width) {
         return renderCounterPanel(context, title, counters, x, y, width, false);
     }
 
-    private int renderCounterPanel(DrawContext context, String title, PvpStatsManager.Counters counters, int x, int y, int width, boolean signed) {
+    private int renderCounterPanel(GuiGraphics context, String title, PvpStatsManager.Counters counters, int x, int y, int width, boolean signed) {
         String prefix = signed ? "+" : "";
         String[] lines = new String[]{
                 "Kills: " + prefix + counters.kills + "|55FF88",
@@ -1989,7 +1989,7 @@ public class AtomicsClientScreen extends Screen {
         return renderTextPanel(context, title, lines, x, y, width);
     }
 
-    private int renderCounterGraphPanel(DrawContext context, String title, PvpStatsManager.Counters counters, int x, int y, int width) {
+    private int renderCounterGraphPanel(GuiGraphics context, String title, PvpStatsManager.Counters counters, int x, int y, int width) {
         GraphBar[] bars = new GraphBar[]{
                 new GraphBar("Kills", counters.kills, 0x55FF88),
                 new GraphBar("Deaths", counters.deaths, 0xFF7777),
@@ -2013,7 +2013,7 @@ public class AtomicsClientScreen extends Screen {
         context.fill(x, visibleTop, x + width, visibleBottom, 0xAA202020);
         drawClippedPanelBorder(context, x, y, width, height, visibleTop, visibleBottom, 0x70FFFFFF);
         if (y + padding >= contentTop && y + padding <= bottom) {
-            context.drawTextWithShadow(this.textRenderer, Text.literal(title), x + padding, y + padding, textColor(0xFFFFFF));
+            context.drawString(this.font, Component.literal(title), x + padding, y + padding, textColor(0xFFFFFF));
         }
 
         int labelW = 54;
@@ -2026,10 +2026,10 @@ public class AtomicsClientScreen extends Screen {
             if (rowY < contentTop || rowY + 12 > bottom) continue;
 
             int fillW = Math.round(barW * Math.min(1.0f, Math.max(0.0f, bar.value) / getGraphBarMax(bar)));
-            context.drawTextWithShadow(this.textRenderer, Text.literal(bar.label), x + padding, rowY, textColor(0xD8D8D8));
+            context.drawString(this.font, Component.literal(bar.label), x + padding, rowY, textColor(0xD8D8D8));
             context.fill(barX, rowY + 2, barX + barW, rowY + 11, 0x66000000);
             context.fill(barX, rowY + 2, barX + fillW, rowY + 11, textColor(bar.color));
-            context.drawTextWithShadow(this.textRenderer, Text.literal(formatGraphValue(bar.value)), barX + barW + 6, rowY, textColor(0xD8D8D8));
+            context.drawString(this.font, Component.literal(formatGraphValue(bar.value)), barX + barW + 6, rowY, textColor(0xD8D8D8));
         }
 
         return y + height;
@@ -2049,7 +2049,7 @@ public class AtomicsClientScreen extends Screen {
         return BUTTON_HEIGHT + 4 + (open ? BUTTON_HEIGHT + 6 : 0);
     }
 
-    private int renderSessionLineGraphPanel(DrawContext context, String title, List<PvpStatsManager.SessionSnapshot> history, int x, int y, int width) {
+    private int renderSessionLineGraphPanel(GuiGraphics context, String title, List<PvpStatsManager.SessionSnapshot> history, int x, int y, int width) {
         HistoryMetric[] metrics = getHistoryMetrics();
         int height = historyLineGraphPanelHeight();
         int bottom = contentBottom - 10;
@@ -2065,7 +2065,7 @@ public class AtomicsClientScreen extends Screen {
         int padding = 8;
         if (y + padding >= contentTop && y + padding <= bottom) {
             String count = history.size() == 1 ? "1 session" : history.size() + " sessions";
-            context.drawTextWithShadow(this.textRenderer, Text.literal(title + " - " + count), x + padding, y + padding, textColor(0xFFFFFF));
+            context.drawString(this.font, Component.literal(title + " - " + count), x + padding, y + padding, textColor(0xFFFFFF));
         }
 
         int graphX = x + padding + 28;
@@ -2090,7 +2090,7 @@ public class AtomicsClientScreen extends Screen {
         if (history.isEmpty() || activeCount == 0) {
             int messageY = graphTop + graphH / 2 - 4;
             if (messageY >= contentTop && messageY <= bottom) {
-                context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("No selected session data yet"), graphX + graphW / 2, messageY, textColor(0xAAAAAA));
+                context.drawCenteredString(this.font, Component.literal("No selected session data yet"), graphX + graphW / 2, messageY, textColor(0xAAAAAA));
             }
         } else {
             float max = 0.0f;
@@ -2126,14 +2126,14 @@ public class AtomicsClientScreen extends Screen {
         int legendY = graphBottom + 14;
         for (HistoryMetric metric : metrics) {
             if (!metric.visible) continue;
-            int labelW = this.textRenderer.getWidth(metric.label) + 18;
+            int labelW = this.font.width(metric.label) + 18;
             if (legendX + labelW > x + width - padding) {
                 legendX = x + padding;
                 legendY += 13;
             }
             if (legendY >= contentTop && legendY <= bottom) {
                 fillContent(context, legendX, legendY + 3, legendX + 9, legendY + 8, textColor(metric.color));
-                context.drawTextWithShadow(this.textRenderer, Text.literal(metric.label), legendX + 13, legendY, textColor(0xD8D8D8));
+                context.drawString(this.font, Component.literal(metric.label), legendX + 13, legendY, textColor(0xD8D8D8));
             }
             legendX += labelW + 8;
         }
@@ -2154,7 +2154,7 @@ public class AtomicsClientScreen extends Screen {
         };
     }
 
-    private void drawGraphLine(DrawContext context, int x1, int y1, int x2, int y2, int color) {
+    private void drawGraphLine(GuiGraphics context, int x1, int y1, int x2, int y2, int color) {
         int steps = Math.max(Math.abs(x2 - x1), Math.abs(y2 - y1));
         if (steps <= 0) {
             fillContent(context, x1, y1, x1 + 1, y1 + 1, textColor(color));
@@ -2168,7 +2168,7 @@ public class AtomicsClientScreen extends Screen {
         }
     }
 
-    private void fillContent(DrawContext context, int x1, int y1, int x2, int y2, int color) {
+    private void fillContent(GuiGraphics context, int x1, int y1, int x2, int y2, int color) {
         int top = Math.max(y1, contentTop);
         int bottom = Math.min(y2, contentBottom - 10);
         if (x2 <= x1 || bottom <= top) return;
@@ -2187,7 +2187,7 @@ public class AtomicsClientScreen extends Screen {
         return 230;
     }
 
-    private int renderTextPanel(DrawContext context, String title, String[] lines, int x, int y, int width) {
+    private int renderTextPanel(GuiGraphics context, String title, String[] lines, int x, int y, int width) {
         int padding = 8;
         int lineHeight = 13;
         int height = padding * 2 + 14 + lines.length * lineHeight;
@@ -2200,19 +2200,19 @@ public class AtomicsClientScreen extends Screen {
         context.fill(x, visibleTop, x + width, visibleBottom, 0xAA202020);
         drawClippedPanelBorder(context, x, y, width, height, visibleTop, visibleBottom, 0x70FFFFFF);
         if (y + padding >= contentTop && y + padding <= bottom) {
-            context.drawTextWithShadow(this.textRenderer, Text.literal(title), x + padding, y + padding, textColor(0xFFFFFF));
+            context.drawString(this.font, Component.literal(title), x + padding, y + padding, textColor(0xFFFFFF));
         }
         for (int i = 0; i < lines.length; i++) {
             int textY = y + padding + 16 + i * lineHeight;
             if (textY >= contentTop && textY <= bottom) {
                 StyledLine line = parseStyledLine(lines[i]);
-                context.drawTextWithShadow(this.textRenderer, Text.literal(line.text), x + padding, textY, textColor(line.color));
+                context.drawString(this.font, Component.literal(line.text), x + padding, textY, textColor(line.color));
             }
         }
         return y + height;
     }
 
-    private void drawClippedPanelBorder(DrawContext context, int x, int y, int width, int height, int visibleTop, int visibleBottom, int color) {
+    private void drawClippedPanelBorder(GuiGraphics context, int x, int y, int width, int height, int visibleTop, int visibleBottom, int color) {
         if (y >= visibleTop && y < visibleBottom) {
             context.fill(x, y, x + width, y + 1, color);
         }
@@ -2224,13 +2224,13 @@ public class AtomicsClientScreen extends Screen {
         context.fill(x + width - 1, visibleTop, x + width, visibleBottom, color);
     }
 
-    private void renderTotemSizePreview(DrawContext context, ItemStack stack, String label, int centerX, int centerY, float scale) {
+    private void renderTotemSizePreview(GuiGraphics context, ItemStack stack, String label, int centerX, int centerY, float scale) {
         String display = label + "  " + formatDecimal(scale, 2) + "x";
-        context.drawCenteredTextWithShadow(this.textRenderer, Text.literal(display), centerX, centerY - 22, textColor(0xFFFFFF));
+        context.drawCenteredString(this.font, Component.literal(display), centerX, centerY - 22, textColor(0xFFFFFF));
         renderScaledItem(context, stack, centerX, centerY, scale);
     }
 
-    private void renderScrollBar(DrawContext context) {
+    private void renderScrollBar(GuiGraphics context) {
         if (maxScroll <= 0) return;
         int barX = leftX + leftWidth + 4;
         int trackTop = contentTop;
@@ -2242,14 +2242,14 @@ public class AtomicsClientScreen extends Screen {
         context.fill(barX, thumbY, barX + 4, thumbY + thumbH, 0xCCFFFFFF);
     }
 
-    private void renderScaledItem(DrawContext context, ItemStack stack, int centerX, int centerY, float scale) {
+    private void renderScaledItem(GuiGraphics context, ItemStack stack, int centerX, int centerY, float scale) {
         float clampedScale = Math.max(0.01f, Math.min(3.0f, scale));
         float itemSize = 16.0f * clampedScale;
-        var matrices = context.getMatrices();
+        var matrices = context.pose();
         matrices.pushMatrix();
         matrices.translate(centerX - itemSize / 2.0f, centerY - itemSize / 2.0f);
         matrices.scale(clampedScale, clampedScale);
-        context.drawItem(stack, 0, 0);
+        context.renderItem(stack, 0, 0);
         if (totemOverlayEnabled) {
             int[] rgb = hueAdjustmentToRgb(totemOverlayHue);
             int color = colorWithAlpha(rgb[0], rgb[1], rgb[2], totemOverlayAlpha);
@@ -2259,11 +2259,11 @@ public class AtomicsClientScreen extends Screen {
     }
 
     @Override
-    public boolean shouldPause() { return false; }
+    public boolean isPauseScreen() { return false; }
 
     @Override
-    public void close() {
-        if (this.client != null) this.client.setScreen(parent);
+    public void onClose() {
+        if (this.minecraft != null) this.minecraft.setScreen(parent);
     }
 
     private int getParticleCount() {
@@ -2466,8 +2466,8 @@ public class AtomicsClientScreen extends Screen {
         };
     }
 
-    private static Text rowText(String label, String value) { return Text.literal(label + ": " + value); }
-    private static Text graphToggleText(String label, boolean visible) { return Text.literal(label + " " + (visible ? "ON" : "OFF")); }
+    private static Component rowText(String label, String value) { return Component.literal(label + ": " + value); }
+    private static Component graphToggleText(String label, boolean visible) { return Component.literal(label + " " + (visible ? "ON" : "OFF")); }
     private static int[] hueAdjustmentToRgb(float hueAdjustment) {
         float hue = ((hueAdjustment % 360.0f) + 360.0f) % 360.0f;
         java.awt.Color color = java.awt.Color.getHSBColor(hue / 360.0f, 1.0f, 1.0f);
@@ -2540,20 +2540,20 @@ public class AtomicsClientScreen extends Screen {
         Tab(String label, boolean hasPreview) { this.label = label; this.hasPreview = hasPreview; }
     }
 
-    private class TabButtonWidget extends ClickableWidget {
+    private class TabButtonWidget extends AbstractWidget {
         private final String label;
         private final boolean selected;
         private final Runnable action;
 
         private TabButtonWidget(int x, int y, int width, int height, String label, boolean selected, Runnable action) {
-            super(x, y, width, height, Text.literal(label));
+            super(x, y, width, height, Component.literal(label));
             this.label = label;
             this.selected = selected;
             this.action = action;
         }
 
         @Override
-        protected void renderWidget(DrawContext context, int mouseX, int mouseY, float delta) {
+        protected void renderWidget(GuiGraphics context, int mouseX, int mouseY, float delta) {
             int x = getX();
             int y = getY();
             int bg = selected ? 0xFF3A2415 : isHovered() ? 0xDD2C1D13 : 0xAA1D130D;
@@ -2566,34 +2566,34 @@ public class AtomicsClientScreen extends Screen {
             if (selected) {
                 context.fill(x + 5, y + height - 4, x + width - 5, y + height - 2, ACCENT);
             }
-            context.drawCenteredTextWithShadow(textRenderer, Text.literal(label), x + width / 2, y + 8, selected ? TEXT_MAIN : TEXT_MUTED);
+            context.drawCenteredString(font, Component.literal(label), x + width / 2, y + 8, selected ? TEXT_MAIN : TEXT_MUTED);
         }
 
         @Override
-        public void onClick(net.minecraft.client.gui.Click click, boolean doubleClick) {
+        public void onClick(net.minecraft.client.input.MouseButtonEvent click, boolean doubleClick) {
             action.run();
         }
 
         @Override
-        protected void appendClickableNarrations(net.minecraft.client.gui.screen.narration.NarrationMessageBuilder builder) {
-            appendDefaultNarrations(builder);
+        protected void updateWidgetNarration(net.minecraft.client.gui.narration.NarrationElementOutput builder) {
+            defaultButtonNarrationText(builder);
         }
     }
 
-    private class SectionHeaderWidget extends ClickableWidget {
+    private class SectionHeaderWidget extends AbstractWidget {
         private final String title;
         private final boolean collapsed;
         private final Runnable action;
 
         private SectionHeaderWidget(int x, int y, int width, int height, String title, boolean collapsed, Runnable action) {
-            super(x, y, width, height, Text.literal(title));
+            super(x, y, width, height, Component.literal(title));
             this.title = title;
             this.collapsed = collapsed;
             this.action = action;
         }
 
         @Override
-        protected void renderWidget(DrawContext context, int mouseX, int mouseY, float delta) {
+        protected void renderWidget(GuiGraphics context, int mouseX, int mouseY, float delta) {
             int x = getX();
             int y = getY();
             int bg = collapsed ? 0xAA121821 : 0xCC1B2430;
@@ -2607,30 +2607,30 @@ public class AtomicsClientScreen extends Screen {
 
             String marker = collapsed ? "+" : "-";
             context.fill(x + 10, y + 6, x + 20, y + 16, collapsed ? 0x553F4654 : ACCENT_SOFT);
-            context.drawCenteredTextWithShadow(textRenderer, Text.literal(marker), x + 15, y + 7, collapsed ? TEXT_MUTED : TEXT_MAIN);
-            context.drawTextWithShadow(textRenderer, Text.literal(title), x + 28, y + 7, TEXT_MAIN);
-            context.drawTextWithShadow(textRenderer, Text.literal(collapsed ? "collapsed" : "expanded"), x + width - textRenderer.getWidth(collapsed ? "collapsed" : "expanded") - 10, y + 7, TEXT_MUTED);
+            context.drawCenteredString(font, Component.literal(marker), x + 15, y + 7, collapsed ? TEXT_MUTED : TEXT_MAIN);
+            context.drawString(font, Component.literal(title), x + 28, y + 7, TEXT_MAIN);
+            context.drawString(font, Component.literal(collapsed ? "collapsed" : "expanded"), x + width - font.width(collapsed ? "collapsed" : "expanded") - 10, y + 7, TEXT_MUTED);
         }
 
         @Override
-        public void onClick(net.minecraft.client.gui.Click click, boolean doubleClick) {
+        public void onClick(net.minecraft.client.input.MouseButtonEvent click, boolean doubleClick) {
             action.run();
         }
 
         @Override
-        protected void appendClickableNarrations(net.minecraft.client.gui.screen.narration.NarrationMessageBuilder builder) {
-            appendDefaultNarrations(builder);
+        protected void updateWidgetNarration(net.minecraft.client.gui.narration.NarrationElementOutput builder) {
+            defaultButtonNarrationText(builder);
         }
     }
 
-    private class DropdownButtonWidget extends ClickableWidget {
+    private class DropdownButtonWidget extends AbstractWidget {
         private final String label;
         private final String value;
         private final boolean open;
         private final Runnable action;
 
         private DropdownButtonWidget(int x, int y, int width, int height, String label, String value, boolean open, Runnable action) {
-            super(x, y, width, height, Text.literal(label));
+            super(x, y, width, height, Component.literal(label));
             this.label = label;
             this.value = value;
             this.open = open;
@@ -2638,7 +2638,7 @@ public class AtomicsClientScreen extends Screen {
         }
 
         @Override
-        protected void renderWidget(DrawContext context, int mouseX, int mouseY, float delta) {
+        protected void renderWidget(GuiGraphics context, int mouseX, int mouseY, float delta) {
             int x = getX();
             int y = getY();
             int bg = isHovered() ? 0xDD202A36 : 0xCC18202B;
@@ -2650,18 +2650,18 @@ public class AtomicsClientScreen extends Screen {
 
             String marker = open ? "^" : "v";
             String right = value + "  " + marker;
-            context.drawTextWithShadow(textRenderer, Text.literal(label), x + 8, y + 7, TEXT_MAIN);
-            context.drawTextWithShadow(textRenderer, Text.literal(right), x + width - textRenderer.getWidth(right) - 8, y + 7, open ? ACCENT : TEXT_MUTED);
+            context.drawString(font, Component.literal(label), x + 8, y + 7, TEXT_MAIN);
+            context.drawString(font, Component.literal(right), x + width - font.width(right) - 8, y + 7, open ? ACCENT : TEXT_MUTED);
         }
 
         @Override
-        public void onClick(net.minecraft.client.gui.Click click, boolean doubleClick) {
+        public void onClick(net.minecraft.client.input.MouseButtonEvent click, boolean doubleClick) {
             action.run();
         }
 
         @Override
-        protected void appendClickableNarrations(net.minecraft.client.gui.screen.narration.NarrationMessageBuilder builder) {
-            appendDefaultNarrations(builder);
+        protected void updateWidgetNarration(net.minecraft.client.gui.narration.NarrationElementOutput builder) {
+            defaultButtonNarrationText(builder);
         }
     }
 
@@ -2690,7 +2690,7 @@ public class AtomicsClientScreen extends Screen {
     @FunctionalInterface private interface IntSetter { void set(int value); }
     @FunctionalInterface private interface DoubleSetter { void set(double value); }
 
-    private class ValueSlider extends SliderWidget {
+    private class ValueSlider extends AbstractSliderButton {
         private final String label;
         private final double min;
         private final double max;
@@ -2699,7 +2699,7 @@ public class AtomicsClientScreen extends Screen {
         private final DoubleFunction<String> formatter;
 
         private ValueSlider(String label, int x, int y, int width, double initialValue, double min, double max, double step, DoubleConsumer setter, DoubleFunction<String> formatter) {
-            super(x, y, width, BUTTON_HEIGHT, Text.empty(), 0.0);
+            super(x, y, width, BUTTON_HEIGHT, Component.empty(), 0.0);
             this.label = label;
             this.min = min;
             this.max = max;
@@ -2709,7 +2709,7 @@ public class AtomicsClientScreen extends Screen {
             setActualValue(initialValue);
         }
 
-        @Override protected void updateMessage() { setMessage(Text.literal(label + "        " + formatter.apply(getActualValue()))); }
+        @Override protected void updateMessage() { setMessage(Component.literal(label + "        " + formatter.apply(getActualValue()))); }
         @Override protected void applyValue() { setter.accept(getActualValue()); if (!initializing) changed(); }
         private void setActualValue(double actualValue) { this.value = normalize(actualValue); applyValue(); updateMessage(); }
         private double getActualValue() { return snap(min + this.value * (max - min)); }

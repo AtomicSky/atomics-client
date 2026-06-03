@@ -1,21 +1,9 @@
 package com.atomics.client.mixin;
 
 import com.atomics.client.AtomicsClient;
+import com.atomics.client.ClientFeatureManager;
 import com.atomics.client.config.TpsConfig;
 import com.atomics.client.render.FoodOverlayTextureCache;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gl.RenderPipelines;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.hud.InGameHud;
-import net.minecraft.component.DataComponentTypes;
-import net.minecraft.component.type.FoodComponent;
-import net.minecraft.entity.effect.StatusEffects;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.item.Items;
-import net.minecraft.item.ItemStack;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.util.Identifier;
-import net.minecraft.world.rule.GameRules;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
@@ -23,19 +11,33 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import java.util.Random;
+import net.minecraft.client.DeltaTracker;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Gui;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.renderer.RenderPipelines;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.resources.Identifier;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.effect.MobEffects;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.food.FoodProperties;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.gamerules.GameRules;
 
-@Mixin(InGameHud.class)
+@Mixin(Gui.class)
 public abstract class InGameHudMixin {
-    private static final Identifier HEART_CONTAINER_TEXTURE = Identifier.ofVanilla("hud/heart/container");
-    private static final Identifier HEART_CONTAINER_BLINKING_TEXTURE = Identifier.ofVanilla("hud/heart/container_blinking");
-    private static final Identifier HEART_HARDCORE_CONTAINER_TEXTURE = Identifier.ofVanilla("hud/heart/container_hardcore");
-    private static final Identifier HEART_HARDCORE_CONTAINER_BLINKING_TEXTURE = Identifier.ofVanilla("hud/heart/container_hardcore_blinking");
-    private static final Identifier FOOD_EMPTY_HUNGER_TEXTURE = Identifier.ofVanilla("hud/food_empty_hunger");
-    private static final Identifier FOOD_HALF_HUNGER_TEXTURE = Identifier.ofVanilla("hud/food_half_hunger");
-    private static final Identifier FOOD_FULL_HUNGER_TEXTURE = Identifier.ofVanilla("hud/food_full_hunger");
-    private static final Identifier FOOD_EMPTY_TEXTURE = Identifier.ofVanilla("hud/food_empty");
-    private static final Identifier FOOD_HALF_TEXTURE = Identifier.ofVanilla("hud/food_half");
-    private static final Identifier FOOD_FULL_TEXTURE = Identifier.ofVanilla("hud/food_full");
+    private static final Identifier HEART_CONTAINER_TEXTURE = Identifier.withDefaultNamespace("hud/heart/container");
+    private static final Identifier HEART_CONTAINER_BLINKING_TEXTURE = Identifier.withDefaultNamespace("hud/heart/container_blinking");
+    private static final Identifier HEART_HARDCORE_CONTAINER_TEXTURE = Identifier.withDefaultNamespace("hud/heart/container_hardcore");
+    private static final Identifier HEART_HARDCORE_CONTAINER_BLINKING_TEXTURE = Identifier.withDefaultNamespace("hud/heart/container_hardcore_blinking");
+    private static final Identifier FOOD_EMPTY_HUNGER_TEXTURE = Identifier.withDefaultNamespace("hud/food_empty_hunger");
+    private static final Identifier FOOD_HALF_HUNGER_TEXTURE = Identifier.withDefaultNamespace("hud/food_half_hunger");
+    private static final Identifier FOOD_FULL_HUNGER_TEXTURE = Identifier.withDefaultNamespace("hud/food_full_hunger");
+    private static final Identifier FOOD_EMPTY_TEXTURE = Identifier.withDefaultNamespace("hud/food_empty");
+    private static final Identifier FOOD_HALF_TEXTURE = Identifier.withDefaultNamespace("hud/food_half");
+    private static final Identifier FOOD_FULL_TEXTURE = Identifier.withDefaultNamespace("hud/food_full");
     private static final float APPLESKIN_MAX_FLASH_ALPHA = 0.65f;
     private static final int HEART_NORMAL = 0;
     private static final int HEART_POISONED = 1;
@@ -48,24 +50,29 @@ public abstract class InGameHudMixin {
     private static int atomics_client$lastFlashTick = Integer.MIN_VALUE;
 
     @Shadow
-    public abstract int getTicks();
+    public abstract int getGuiTicks();
 
-    @Inject(method = "renderHealthBar", at = @At("HEAD"), cancellable = true)
-    private void atomics_client$renderPreciseHealthBar(DrawContext context, PlayerEntity player, int x, int y, int rowHeight, int regeneratingHeartIndex, float maxHealth, int currentHealth, int renderHealth, int absorption, boolean blinking, CallbackInfo ci) {
+    @Inject(method = "render", at = @At("TAIL"))
+    private void atomics_client$renderHud(GuiGraphics context, DeltaTracker tickCounter, CallbackInfo ci) {
+        ClientFeatureManager.renderHud(context);
+    }
+
+    @Inject(method = "renderHearts", at = @At("HEAD"), cancellable = true)
+    private void atomics_client$renderPreciseHealthBar(GuiGraphics context, Player player, int x, int y, int rowHeight, int regeneratingHeartIndex, float maxHealth, int currentHealth, int renderHealth, int absorption, boolean blinking, CallbackInfo ci) {
         TpsConfig cfg = AtomicsClient.CONFIG;
         if (cfg == null || !cfg.enabled || cfg.visual == null || !cfg.visual.partialStatusIconsEnabled || player == null) {
             return;
         }
 
         ci.cancel();
-        boolean hardcore = player.getEntityWorld().getLevelProperties().isHardcore();
+        boolean hardcore = player.level().getLevelData().isHardcore();
         int heartVariant = atomics_client$heartVariant(player);
         int healthHearts = (int) Math.ceil(maxHealth / 2.0f);
         int absorptionHearts = (int) Math.ceil(absorption / 2.0f);
         int totalHearts = healthHearts + absorptionHearts;
         int healthAndAbsorption = (int) Math.ceil(player.getHealth() + player.getAbsorptionAmount());
 
-        ATOMICS_CLIENT_RANDOM.setSeed(getTicks() * 312871L);
+        ATOMICS_CLIENT_RANDOM.setSeed(getGuiTicks() * 312871L);
         for (int heart = totalHearts - 1; heart >= 0; heart--) {
             int row = heart / 10;
             int column = heart % 10;
@@ -98,23 +105,23 @@ public abstract class InGameHudMixin {
     }
 
     @Inject(method = "renderFood", at = @At("TAIL"))
-    private void atomics_client$renderFoodPreviewOverlay(DrawContext context, PlayerEntity player, int top, int right, CallbackInfo ci) {
+    private void atomics_client$renderFoodPreviewOverlay(GuiGraphics context, Player player, int top, int right, CallbackInfo ci) {
         TpsConfig cfg = AtomicsClient.CONFIG;
         if (cfg == null || !cfg.enabled || cfg.visual == null || !cfg.visual.foodOverlayEnabled || player == null) {
             return;
         }
 
-        boolean hunger = player.hasStatusEffect(StatusEffects.HUNGER);
+        boolean hunger = player.hasEffect(MobEffects.HUNGER);
         Identifier emptyTexture = hunger ? FOOD_EMPTY_HUNGER_TEXTURE : FOOD_EMPTY_TEXTURE;
         Identifier halfTexture = hunger ? FOOD_HALF_HUNGER_TEXTURE : FOOD_HALF_TEXTURE;
         Identifier fullTexture = hunger ? FOOD_FULL_HUNGER_TEXTURE : FOOD_FULL_TEXTURE;
 
-        int currentFood = player.getHungerManager().getFoodLevel();
-        float currentSaturation = player.getHungerManager().getSaturationLevel();
+        int currentFood = player.getFoodData().getFoodLevel();
+        float currentSaturation = player.getFoodData().getSaturationLevel();
         atomics_client$drawSaturationOverlay(context, currentSaturation, 0.0f, player, right, top, 1.0f, emptyTexture);
 
         HeldFood heldFood = atomics_client$getHeldFood(player);
-        FoodComponent foodComponent = heldFood == null ? null : heldFood.foodComponent();
+        FoodProperties foodComponent = heldFood == null ? null : heldFood.foodComponent();
         if (foodComponent == null || (foodComponent.nutrition() <= 0 && foodComponent.saturation() <= 0.0f)) {
             return;
         }
@@ -136,7 +143,7 @@ public abstract class InGameHudMixin {
         }
     }
 
-    private void atomics_client$drawHungerOverlay(DrawContext context, int foodRestored, int currentFood, PlayerEntity player, int right, int top, float alpha, Identifier emptyTexture, Identifier halfTexture, Identifier fullTexture) {
+    private void atomics_client$drawHungerOverlay(GuiGraphics context, int foodRestored, int currentFood, Player player, int right, int top, float alpha, Identifier emptyTexture, Identifier halfTexture, Identifier fullTexture) {
         if (foodRestored <= 0) {
             return;
         }
@@ -156,7 +163,7 @@ public abstract class InGameHudMixin {
         }
     }
 
-    private void atomics_client$drawSaturationOverlay(DrawContext context, float currentSaturation, float saturationRestored, PlayerEntity player, int right, int top, float alpha, Identifier outlineTexture) {
+    private void atomics_client$drawSaturationOverlay(GuiGraphics context, float currentSaturation, float saturationRestored, Player player, int right, int top, float alpha, Identifier outlineTexture) {
         if (currentSaturation + saturationRestored < 0.0f) {
             return;
         }
@@ -179,14 +186,14 @@ public abstract class InGameHudMixin {
         }
     }
 
-    private static int atomics_client$heartVariant(PlayerEntity player) {
-        if (player.hasStatusEffect(StatusEffects.POISON)) {
+    private static int atomics_client$heartVariant(Player player) {
+        if (player.hasEffect(MobEffects.POISON)) {
             return HEART_POISONED;
         }
-        if (player.hasStatusEffect(StatusEffects.WITHER)) {
+        if (player.hasEffect(MobEffects.WITHER)) {
             return HEART_WITHERED;
         }
-        if (player.isFrozen()) {
+        if (player.isFullyFrozen()) {
             return HEART_FROZEN;
         }
         return HEART_NORMAL;
@@ -209,14 +216,14 @@ public abstract class InGameHudMixin {
         };
         String hardcorePart = hardcore ? "hardcore_" : "";
         String blinkingPart = blinking ? "_blinking" : "";
-        return Identifier.ofVanilla("hud/heart/" + variantPrefix + hardcorePart + "full" + blinkingPart);
+        return Identifier.withDefaultNamespace("hud/heart/" + variantPrefix + hardcorePart + "full" + blinkingPart);
     }
 
-    private static void atomics_client$drawHeartWhole(DrawContext context, Identifier texture, int x, int y) {
-        context.drawGuiTexture(RenderPipelines.GUI_TEXTURED, texture, x, y, 9, 9);
+    private static void atomics_client$drawHeartWhole(GuiGraphics context, Identifier texture, int x, int y) {
+        context.blitSprite(RenderPipelines.GUI_TEXTURED, texture, x, y, 9, 9);
     }
 
-    private static void atomics_client$drawHeartPartial(DrawContext context, Identifier texture, int x, int y, float fill) {
+    private static void atomics_client$drawHeartPartial(GuiGraphics context, Identifier texture, int x, int y, float fill) {
         if (fill <= 0.0f) {
             return;
         }
@@ -227,40 +234,40 @@ public abstract class InGameHudMixin {
             return;
         }
 
-        context.drawGuiTexture(RenderPipelines.GUI_TEXTURED, texture, 9, 9, 0, 0, x, y, width, 9);
+        context.blitSprite(RenderPipelines.GUI_TEXTURED, texture, 9, 9, 0, 0, x, y, width, 9);
     }
 
-    private static void atomics_client$drawFoodOverlayIcon(DrawContext context, Identifier vanillaSpriteId, int x, int y, int color) {
+    private static void atomics_client$drawFoodOverlayIcon(GuiGraphics context, Identifier vanillaSpriteId, int x, int y, int color) {
         atomics_client$drawFoodOverlayIcon(context, vanillaSpriteId, x, y, 9, color);
     }
 
-    private static void atomics_client$drawFoodBarIcon(DrawContext context, Identifier vanillaSpriteId, int x, int y, int color) {
-        context.drawGuiTexture(RenderPipelines.GUI_TEXTURED, vanillaSpriteId, x, y, 9, 9, color);
+    private static void atomics_client$drawFoodBarIcon(GuiGraphics context, Identifier vanillaSpriteId, int x, int y, int color) {
+        context.blitSprite(RenderPipelines.GUI_TEXTURED, vanillaSpriteId, x, y, 9, 9, color);
     }
 
-    private static void atomics_client$drawFoodOverlayIcon(DrawContext context, Identifier vanillaSpriteId, int x, int y, int width, int color) {
+    private static void atomics_client$drawFoodOverlayIcon(GuiGraphics context, Identifier vanillaSpriteId, int x, int y, int width, int color) {
         Identifier shiftedTexture = FoodOverlayTextureCache.get(vanillaSpriteId);
         if (shiftedTexture == null) {
-            context.drawGuiTexture(RenderPipelines.GUI_TEXTURED, vanillaSpriteId, x, y, 9, 9, color);
+            context.blitSprite(RenderPipelines.GUI_TEXTURED, vanillaSpriteId, x, y, 9, 9, color);
             return;
         }
         int visibleWidth = Math.max(0, Math.min(9, width));
         int xOffset = 9 - visibleWidth;
-        context.drawTexture(RenderPipelines.GUI_TEXTURED, shiftedTexture, x + xOffset, y, xOffset, 0.0f, visibleWidth, 9, 9, 9, color);
+        context.blit(RenderPipelines.GUI_TEXTURED, shiftedTexture, x + xOffset, y, xOffset, 0.0f, visibleWidth, 9, 9, 9, color);
     }
 
-    private int atomics_client$foodIconYOffset(PlayerEntity player, int icon) {
-        int currentFood = player.getHungerManager().getFoodLevel();
-        if (player.getHungerManager().getSaturationLevel() > 0.0f) {
+    private int atomics_client$foodIconYOffset(Player player, int icon) {
+        int currentFood = player.getFoodData().getFoodLevel();
+        if (player.getFoodData().getSaturationLevel() > 0.0f) {
             return 0;
         }
 
         int divisor = currentFood * 3 + 1;
-        if (divisor <= 0 || getTicks() % divisor != 0) {
+        if (divisor <= 0 || getGuiTicks() % divisor != 0) {
             return 0;
         }
 
-        ATOMICS_CLIENT_RANDOM.setSeed(getTicks() * 312871L);
+        ATOMICS_CLIENT_RANDOM.setSeed(getGuiTicks() * 312871L);
         for (int i = 0; i <= icon; i++) {
             int yOffset = ATOMICS_CLIENT_RANDOM.nextInt(3) - 1;
             if (i == icon) {
@@ -290,36 +297,36 @@ public abstract class InGameHudMixin {
         return 0;
     }
 
-    private static HeldFood atomics_client$getHeldFood(PlayerEntity player) {
-        HeldFood mainHandFood = atomics_client$getFood(player.getMainHandStack());
+    private static HeldFood atomics_client$getHeldFood(Player player) {
+        HeldFood mainHandFood = atomics_client$getFood(player.getMainHandItem());
         if (mainHandFood != null) {
             return mainHandFood;
         }
-        return atomics_client$getFood(player.getOffHandStack());
+        return atomics_client$getFood(player.getOffhandItem());
     }
 
     private static HeldFood atomics_client$getFood(ItemStack stack) {
-        FoodComponent foodComponent = stack == null || stack.isEmpty() ? null : stack.get(DataComponentTypes.FOOD);
+        FoodProperties foodComponent = stack == null || stack.isEmpty() ? null : stack.get(DataComponents.FOOD);
         return foodComponent == null ? null : new HeldFood(stack, foodComponent);
     }
 
     private static boolean atomics_client$isGoldenApple(ItemStack stack) {
-        return stack != null && (stack.isOf(Items.GOLDEN_APPLE) || stack.isOf(Items.ENCHANTED_GOLDEN_APPLE));
+        return stack != null && (stack.is(Items.GOLDEN_APPLE) || stack.is(Items.ENCHANTED_GOLDEN_APPLE));
     }
 
-    private static boolean atomics_client$hasNaturalRegeneration(PlayerEntity player) {
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client != null && client.getServer() != null) {
-            ServerWorld serverWorld = client.getServer().getWorld(player.getEntityWorld().getRegistryKey());
+    private static boolean atomics_client$hasNaturalRegeneration(Player player) {
+        Minecraft client = Minecraft.getInstance();
+        if (client != null && client.getSingleplayerServer() != null) {
+            ServerLevel serverWorld = client.getSingleplayerServer().getLevel(player.level().dimension());
             if (serverWorld != null) {
-                return Boolean.TRUE.equals(serverWorld.getGameRules().getValue(GameRules.NATURAL_HEALTH_REGENERATION));
+                return Boolean.TRUE.equals(serverWorld.getGameRules().get(GameRules.NATURAL_HEALTH_REGENERATION));
             }
         }
         return true;
     }
 
     private float atomics_client$automaticAlpha(float maxAlpha) {
-        int ticks = getTicks();
+        int ticks = getGuiTicks();
         if (ticks != atomics_client$lastFlashTick) {
             atomics_client$lastFlashTick = ticks;
             if (atomics_client$unclampedFlashAlpha >= 1.5f) {
@@ -339,6 +346,6 @@ public abstract class InGameHudMixin {
         return (a << 24) | 0xFFFFFF;
     }
 
-    private record HeldFood(ItemStack stack, FoodComponent foodComponent) {
+    private record HeldFood(ItemStack stack, FoodProperties foodComponent) {
     }
 }

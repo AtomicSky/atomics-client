@@ -1,11 +1,11 @@
 package com.atomics.client.mixin;
 
-import net.minecraft.util.math.ColorHelper;
+import net.minecraft.util.ARGB;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.ModifyArg;
 
-@Mixin(targets = "net.minecraft.client.render.OutlineVertexConsumerProvider$OutlineVertexConsumer", priority = 900)
+@Mixin(targets = "net.minecraft.client.renderer.OutlineBufferSource$EntityOutlineGenerator", priority = 900)
 public class OutlineVertexConsumerCompatMixin {
     @ModifyArg(
             method = "vertex(FFFIFFIII)V",
@@ -19,6 +19,6 @@ public class OutlineVertexConsumerCompatMixin {
             remap = false
     )
     private int atomics_client$convertVulkanOutlineColor(int color) {
-        return ColorHelper.toAbgr(color);
+        return ARGB.toABGR(color);
     }
 }

@@ -1,6 +1,6 @@
 # Atomics Client
 
-A Fabric **Minecraft 1.21.11 / Java 21** client mod scaffold for insanely customizable totem pop visuals.
+A Forge **Minecraft 1.21.11 / Java 21** client mod scaffold for customizable totem pop visuals.
 
 ## Features included
 
@@ -14,17 +14,14 @@ A Fabric **Minecraft 1.21.11 / Java 21** client mod scaffold for insanely custom
 
 ## Build target
 
-Fabric's 1.21.11 migration note says 1.21.11 should use Loom 1.14 and Fabric Loader 0.18.1+.
-This project uses:
+This project uses Forge 61.1.8 with ForgeGradle 7 and Mojang's official mappings:
 
 ```properties
 minecraft_version=1.21.11
-yarn_mappings=1.21.11+build.1
-loader_version=0.18.1
-fabric_version=0.140.0+1.21.11
+forge_version=1.21.11-61.1.8
 ```
 
-If Gradle says one of those dependency versions does not exist, open `gradle.properties` and replace it with the exact newest version from Fabric's version pages.
+If Gradle says the Forge version does not exist, open `gradle.properties` and replace it with an available Minecraft 1.21.11 Forge build.
 
 ## How to build
 
@@ -99,33 +96,34 @@ Example things you can change:
 
 The included temporary entity system is command-based because this is a client visual mod.
 That means it needs singleplayer cheats or server permission to run `/summon` and `/kill` commands.
-If you want this to work on public servers with no permissions, the better design is rendering fake client-only visuals instead of real entities.
+For public servers without those permissions, render fake client-only visuals instead of real entities.
 
 ## Files to edit most often
 
 - `src/main/resources/assets/atomics_client/textures/item/custom_totem.png`
-- `src/main/java/com/atomics/atomicsclient/config/TpsConfig.java`
+- `src/main/java/com/atomics/client/config/TpsConfig.java`
 - `.minecraft/config/atomics_client.json`
 
 ## Mixin warning
 
-Minecraft 1.21.11 is still obfuscated, and exact Yarn method names can shift by build.
+Minecraft 1.21.11 is still obfuscated, and mapped method signatures can shift between game versions.
 If the mod fails at runtime, check these mixins first:
 
-- `ClientPlayNetworkHandlerMixin` — totem pop packet detection
-- `HeldItemRendererMixin` — in-hand totem scaling
-- `GameRendererMixin` — pop overlay scale
+- `ClientPlayNetworkHandlerMixin` - totem pop packet detection
+- `HeldItemRendererMixin` - in-hand totem scaling
+- `GameRendererMixin` - pop overlay scale
 
-The particle/sound config is the most stable part. The overlay and hand scaling are the most mapping-sensitive parts.
+The particle and sound config is the most stable part. The overlay and hand scaling are the most mapping-sensitive parts.
 
 ## GUI Studio Update
 
 Press **O** in-game to open Atomics Client. You can change the key in:
 
-Options → Controls → Atomics Client → Open Atomics Client
+Options -> Controls -> Atomics Client -> Open Atomics Client
 
 The screen lets you edit:
-- enable/disable the mod
+
+- enable or disable the mod
 - particle id, shape, count, spread, and speed
 - sound id, volume, pitch, and delay
 - temporary entity command and lifetime
@@ -135,4 +133,4 @@ The screen lets you edit:
 
 Click **Preview Now** to test the effect on yourself. Click **Save** to write changes to `config/atomics_client.json`.
 
-Temporary entity commands require command permission/cheats because the client sends the command as your player.
+Temporary entity commands require command permission or cheats because the client sends the command as your player.

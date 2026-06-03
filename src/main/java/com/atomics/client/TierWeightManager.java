@@ -5,14 +5,6 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.util.Formatting;
-import net.minecraft.util.Identifier;
-import net.minecraft.text.MutableText;
-import net.minecraft.text.StyleSpriteSource;
-import net.minecraft.text.Text;
-
 import java.io.IOException;
 import java.net.URI;
 import java.net.URLEncoder;
@@ -33,6 +25,13 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import net.minecraft.ChatFormatting;
+import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.FontDescription;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.resources.Identifier;
+import net.minecraft.world.entity.player.Player;
 
 public final class TierWeightManager {
     private static final HttpClient HTTP = HttpClient.newBuilder()
@@ -46,7 +45,7 @@ public final class TierWeightManager {
     private static final Map<String, Map<String, String>> MODE_TITLE_CACHE = new ConcurrentHashMap<>();
     private static final Pattern NUMERIC_TIER_PATTERN = Pattern.compile("[1-5]");
     private static final int HEADER_ORANGE = 0xFF9A2E;
-    private static final StyleSpriteSource.Font TIER_TAGGER_ICON_FONT = new StyleSpriteSource.Font(Identifier.of(AtomicsClient.MOD_ID, "tiertagger_icons"));
+    private static final FontDescription.Resource TIER_TAGGER_ICON_FONT = new FontDescription.Resource(Identifier.fromNamespaceAndPath(AtomicsClient.MOD_ID, "tiertagger_icons"));
     private static final ProviderEndpoint[] PROVIDER_ENDPOINTS = new ProviderEndpoint[] {
             new ProviderEndpoint("MCTiers", "https://mctiers.com/api", "/v2/profile/by-name/", "/v2/mode/list", TierSchema.MCTIERS),
             new ProviderEndpoint("PvPTiers", "https://api.skypractice.xyz/api/metatl", "/profile/by-name/", "/mode/list", TierSchema.SKY)
@@ -55,7 +54,7 @@ public final class TierWeightManager {
     private TierWeightManager() {
     }
 
-    public static float getAdjustment(PlayerEntity localPlayer, PlayerEntity opponent, float scale) {
+    public static float getAdjustment(Player localPlayer, Player opponent, float scale) {
         if (localPlayer == null || opponent == null || scale <= 0.0f) return 0.0f;
 
         TierProfile local = getOrRequest(localPlayer.getName().getString());
@@ -68,7 +67,7 @@ public final class TierWeightManager {
         return Math.max(-14.0f, Math.min(14.0f, diff * scale));
     }
 
-    public static Text getNameSuffix(PlayerEntity player) {
+    public static Component getNameSuffix(Player player) {
         if (!shouldShowNameSuffix(player)) {
             return null;
         }
@@ -84,23 +83,23 @@ public final class TierWeightManager {
             return null;
         }
         String format = TpsConfig.normalizeOpponentStatsNametagFormat(AtomicsClient.CONFIG.pvp.opponentStatsNametagFormat);
-        MutableText result = Text.empty();
+        MutableComponent result = Component.empty();
         if (TpsConfig.OPPONENT_STATS_NAMETAG_ICON_TIER.equals(format)) {
             String icon = modeIcon(bestLine.mode());
             if (!icon.isBlank()) {
-                result.append(Text.literal(icon).styled(style -> style.withFont(TIER_TAGGER_ICON_FONT)));
+                result.append(Component.literal(icon).withStyle(style -> style.withFont(TIER_TAGGER_ICON_FONT)));
             }
         } else if (TpsConfig.OPPONENT_STATS_NAMETAG_MODE_TIER.equals(format)) {
             String mode = compactMode(bestLine.mode());
             if (!mode.isBlank()) {
-                result.append(Text.literal(mode + " ").formatted(gameModeColor(bestLine.mode())));
+                result.append(Component.literal(mode + " ").withStyle(gameModeColor(bestLine.mode())));
             }
         }
-        result.append(Text.literal(tier).withColor(tierTaggerColor(tier)));
+        result.append(Component.literal(tier).withColor(tierTaggerColor(tier)));
         return result;
     }
 
-    private static boolean shouldShowNameSuffix(PlayerEntity player) {
+    private static boolean shouldShowNameSuffix(Player player) {
         return player != null
                 && !isLocalPlayer(player)
                 && AtomicsClient.CONFIG != null
@@ -111,7 +110,7 @@ public final class TierWeightManager {
 
     public static void sendOpponentInfoChat(String username) {
         String cleanedUsername = cleanUsername(username);
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         if (!shouldSendOpponentInfo(client, cleanedUsername)) {
             return;
         }
@@ -125,7 +124,7 @@ public final class TierWeightManager {
         }
 
         requestProfile(cleanedUsername).thenAccept(profile -> {
-            MinecraftClient callbackClient = MinecraftClient.getInstance();
+            Minecraft callbackClient = Minecraft.getInstance();
             if (callbackClient == null) {
                 return;
             }
@@ -171,21 +170,21 @@ public final class TierWeightManager {
         return cached != null && now - cached.timeMs < (cached.profile.hasData() ? CACHE_TTL_MS : FAILED_TTL_MS);
     }
 
-    private static void sendProfileChat(MinecraftClient client, String username, TierProfile profile) {
+    private static void sendProfileChat(Minecraft client, String username, TierProfile profile) {
         if (client == null || client.player == null) {
             return;
         }
 
-        client.player.sendMessage(Text.literal("Opponent Stats:").styled(style -> style.withColor(HEADER_ORANGE).withBold(true)), false);
+        client.player.displayClientMessage(Component.literal("Opponent Stats:").withStyle(style -> style.withColor(HEADER_ORANGE).withBold(true)), false);
         if (profile == null || !profile.hasData()) {
-            client.player.sendMessage(Text.literal("No tier data found").formatted(Formatting.GRAY), false);
+            client.player.displayClientMessage(Component.literal("No tier data found").withStyle(ChatFormatting.GRAY), false);
             return;
         }
 
         List<TierProviderStats> providers = profile.providers();
         if (providers == null || providers.isEmpty()) {
             String detail = profile.summary().isBlank() ? String.format(Locale.US, "%.0f", profile.score()) : profile.summary();
-            client.player.sendMessage(tierLineText("Overall", detail), false);
+            client.player.displayClientMessage(tierLineText("Overall", detail), false);
             return;
         }
 
@@ -193,14 +192,14 @@ public final class TierWeightManager {
             if (provider == null || provider.lines().isEmpty()) {
                 continue;
             }
-            client.player.sendMessage(Text.literal(provider.name() + ":").formatted(Formatting.BOLD), false);
+            client.player.displayClientMessage(Component.literal(provider.name() + ":").withStyle(ChatFormatting.BOLD), false);
             for (TierLine line : provider.lines()) {
-                client.player.sendMessage(tierLineText(line.mode(), line.tier()), false);
+                client.player.displayClientMessage(tierLineText(line.mode(), line.tier()), false);
             }
         }
     }
 
-    private static boolean shouldSendOpponentInfo(MinecraftClient client, String username) {
+    private static boolean shouldSendOpponentInfo(Minecraft client, String username) {
         return client != null
                 && client.player != null
                 && username != null
@@ -569,11 +568,11 @@ public final class TierWeightManager {
         providerLines.computeIfAbsent(providerName, ignored -> new ArrayList<>()).add(new TierLine(mode, line.tier()));
     }
 
-    private static MutableText tierLineText(String mode, String tier) {
+    private static MutableComponent tierLineText(String mode, String tier) {
         String displayMode = mode == null || mode.isBlank() ? "Overall" : mode;
         String displayTier = tier == null || tier.isBlank() ? "Unknown" : tier;
-        MutableText text = Text.literal(displayMode + ": ").formatted(gameModeColor(displayMode), Formatting.BOLD);
-        text.append(Text.literal(displayTier).formatted(tierColor(displayTier), Formatting.BOLD));
+        MutableComponent text = Component.literal(displayMode + ": ").withStyle(gameModeColor(displayMode), ChatFormatting.BOLD);
+        text.append(Component.literal(displayTier).withStyle(tierColor(displayTier), ChatFormatting.BOLD));
         return text;
     }
 
@@ -634,19 +633,19 @@ public final class TierWeightManager {
         };
     }
 
-    private static Formatting gameModeColor(String mode) {
+    private static ChatFormatting gameModeColor(String mode) {
         String key = normalizeModeKey(mode);
         return switch (key) {
-            case "crystal", "cpvp" -> Formatting.LIGHT_PURPLE;
-            case "sword", "swordpvp" -> Formatting.AQUA;
-            case "axe", "axepvp" -> Formatting.RED;
-            case "uhc" -> Formatting.GOLD;
-            case "smp", "survival" -> Formatting.GREEN;
-            case "nethpot", "netheritepot", "pot", "potpvp" -> Formatting.DARK_PURPLE;
-            case "diamond", "dia", "diapot" -> Formatting.BLUE;
-            case "mace" -> Formatting.YELLOW;
-            case "bow" -> Formatting.DARK_GREEN;
-            default -> Formatting.WHITE;
+            case "crystal", "cpvp" -> ChatFormatting.LIGHT_PURPLE;
+            case "sword", "swordpvp" -> ChatFormatting.AQUA;
+            case "axe", "axepvp" -> ChatFormatting.RED;
+            case "uhc" -> ChatFormatting.GOLD;
+            case "smp", "survival" -> ChatFormatting.GREEN;
+            case "nethpot", "netheritepot", "pot", "potpvp" -> ChatFormatting.DARK_PURPLE;
+            case "diamond", "dia", "diapot" -> ChatFormatting.BLUE;
+            case "mace" -> ChatFormatting.YELLOW;
+            case "bow" -> ChatFormatting.DARK_GREEN;
+            default -> ChatFormatting.WHITE;
         };
     }
 
@@ -713,14 +712,14 @@ public final class TierWeightManager {
         };
     }
 
-    private static Formatting tierColor(String tier) {
+    private static ChatFormatting tierColor(String tier) {
         String normalized = tier == null ? "" : tier.toUpperCase(Locale.ROOT);
-        if (normalized.startsWith("HT1") || normalized.startsWith("LT1")) return Formatting.RED;
-        if (normalized.startsWith("HT2") || normalized.startsWith("LT2")) return Formatting.GOLD;
-        if (normalized.startsWith("HT3") || normalized.startsWith("LT3")) return Formatting.YELLOW;
-        if (normalized.startsWith("HT4") || normalized.startsWith("LT4")) return Formatting.GREEN;
-        if (normalized.startsWith("HT5") || normalized.startsWith("LT5")) return Formatting.GRAY;
-        return Formatting.WHITE;
+        if (normalized.startsWith("HT1") || normalized.startsWith("LT1")) return ChatFormatting.RED;
+        if (normalized.startsWith("HT2") || normalized.startsWith("LT2")) return ChatFormatting.GOLD;
+        if (normalized.startsWith("HT3") || normalized.startsWith("LT3")) return ChatFormatting.YELLOW;
+        if (normalized.startsWith("HT4") || normalized.startsWith("LT4")) return ChatFormatting.GREEN;
+        if (normalized.startsWith("HT5") || normalized.startsWith("LT5")) return ChatFormatting.GRAY;
+        return ChatFormatting.WHITE;
     }
 
     private static String extractTierLabel(String raw) {
@@ -820,9 +819,9 @@ public final class TierWeightManager {
                 : mode.toLowerCase(Locale.ROOT).replace(" ", "").replace("_", "").replace("-", "");
     }
 
-    private static boolean isLocalPlayer(PlayerEntity player) {
-        MinecraftClient client = MinecraftClient.getInstance();
-        return client.player != null && player.getUuid().equals(client.player.getUuid());
+    private static boolean isLocalPlayer(Player player) {
+        Minecraft client = Minecraft.getInstance();
+        return client.player != null && player.getUUID().equals(client.player.getUUID());
     }
 
     private static String joinSummaries(Set<String> summaries) {

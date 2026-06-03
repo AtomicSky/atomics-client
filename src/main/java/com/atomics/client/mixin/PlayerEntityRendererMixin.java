@@ -2,32 +2,32 @@ package com.atomics.client.mixin;
 
 import com.atomics.client.AtomicsClient;
 import com.atomics.client.access.PlayerOverlayRenderStateAccess;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.entity.player.AvatarRenderer;
+import net.minecraft.client.renderer.entity.state.AvatarRenderState;
+import net.minecraft.util.ARGB;
+import net.minecraft.world.entity.Avatar;
+import net.minecraft.world.entity.player.Player;
 import com.atomics.client.ClientFeatureManager;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.render.entity.PlayerEntityRenderer;
-import net.minecraft.client.render.entity.state.PlayerEntityRenderState;
-import net.minecraft.entity.PlayerLikeEntity;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.util.math.ColorHelper;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-@Mixin(PlayerEntityRenderer.class)
+@Mixin(AvatarRenderer.class)
 public class PlayerEntityRendererMixin {
-    @Inject(method = "updateRenderState", at = @At("TAIL"))
-    private void atomics_client$addWinOddsToNametag(PlayerLikeEntity player, PlayerEntityRenderState state, float tickProgress, CallbackInfo ci) {
-        if (player instanceof PlayerEntity playerEntity) {
+    @Inject(method = "extractRenderState", at = @At("TAIL"))
+    private void atomics_client$addWinOddsToNametag(Avatar player, AvatarRenderState state, float tickProgress, CallbackInfo ci) {
+        if (player instanceof Player playerEntity) {
             PlayerOverlayRenderStateAccess access = (PlayerOverlayRenderStateAccess) state;
             int color = AtomicsClient.getPlayerFriendFoeOverlayColor(playerEntity);
             int style = AtomicsClient.getPlayerFriendFoeOverlayStyle(playerEntity);
             access.atomics_client$setFriendFoeOverlayColor(color);
             access.atomics_client$setFriendFoeOverlayStyle(style);
             if (color != -1 && AtomicsClient.usesFriendFoeOutline(style)) {
-                MinecraftClient client = MinecraftClient.getInstance();
-                state.outlineColor = client.player != null && client.player.canSee(playerEntity)
-                        ? ColorHelper.fullAlpha(color)
+                Minecraft client = Minecraft.getInstance();
+                state.outlineColor = client.player != null && client.player.hasLineOfSight(playerEntity)
+                        ? ARGB.opaque(color)
                         : 0;
             }
         } else {
@@ -36,10 +36,10 @@ public class PlayerEntityRendererMixin {
             access.atomics_client$setFriendFoeOverlayStyle(0);
         }
 
-        if (!(player instanceof PlayerEntity playerEntity) || state.displayName == null) {
+        if (!(player instanceof Player playerEntity) || state.nameTag == null) {
             return;
         }
 
-        state.displayName = ClientFeatureManager.customizePlayerNametag(playerEntity, state.displayName);
+        state.nameTag = ClientFeatureManager.customizePlayerNametag(playerEntity, state.nameTag);
     }
 }

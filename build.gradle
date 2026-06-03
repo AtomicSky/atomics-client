@@ -1,6 +1,8 @@
 plugins {
-    id 'fabric-loom' version '1.14-SNAPSHOT'
-    id 'maven-publish'
+    id 'java'
+    id 'idea'
+    id 'eclipse'
+    id 'net.minecraftforge.gradle' version '[7.0.3,8)'
 }
 
 version = project.mod_version
@@ -8,30 +10,49 @@ group = project.maven_group
 
 base { archivesName = project.archives_base_name }
 
-repositories {
-    maven {
-        name = "Terraformers"
-        url = "https://maven.terraformersmc.com/"
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(21)
+    withSourcesJar()
+}
+
+minecraft {
+    mappings channel: 'official', version: project.minecraft_version
+
+    runs {
+        configureEach {
+            workingDir = layout.projectDirectory.dir('run')
+            args "--mixin.config=${project.mod_id}.mixins.json"
+            systemProperty 'eventbus.api.strictRuntimeChecks', 'true'
+            systemProperty 'forge.enabledGameTestNamespaces', project.mod_id
+        }
+
+        register('client')
     }
 }
 
+repositories {
+    minecraft.mavenizer(it)
+    maven fg.forgeMaven
+    maven fg.minecraftLibsMaven
+    mavenCentral()
+}
+
 dependencies {
-    minecraft "com.mojang:minecraft:${project.minecraft_version}"
-    mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
-    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
-    modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
-    modCompileOnly "com.terraformersmc:modmenu:${project.modmenu_version}"
+    implementation minecraft.dependency("net.minecraftforge:forge:${project.forge_version}")
+    annotationProcessor 'net.minecraftforge:eventbus-validator:7.0.1'
 }
 
 processResources {
     inputs.property "version", project.version
-    filesMatching("fabric.mod.json") { expand "version": project.version }
+    filesMatching("META-INF/mods.toml") { expand "version": project.version }
 }
 
-java {
-    withSourcesJar()
-    sourceCompatibility = JavaVersion.VERSION_21
-    targetCompatibility = JavaVersion.VERSION_21
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
 }
 
-tasks.withType(JavaCompile).configureEach { options.release = 21 }
+tasks.named('jar', Jar) {
+    manifest {
+        attributes['MixinConfigs'] = "${project.mod_id}.mixins.json"
+    }
+}
