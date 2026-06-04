@@ -30,8 +30,8 @@ import net.minecraft.world.phys.Vec3;
 
 public final class ClientFeatureManager {
     private static final long REACH_DISPLAY_MS = 1400L;
-    private static final float ZOOM_MIN = 1.5f;
-    private static final float ZOOM_MAX = 8.0f;
+    private static final float ZOOM_MIN = TpsConfig.MIN_ZOOM_MULTIPLIER;
+    private static final float ZOOM_MAX = TpsConfig.MAX_ZOOM_MULTIPLIER;
     private static final float ZOOM_SCROLL_STEP = 0.25f;
     private static final int ARMOR_HUD_EMPTY_OFFHAND_SHIFT = 28;
     private static final Identifier HOTBAR_SPRITE_TEXTURE = Identifier.withDefaultNamespace("textures/gui/sprites/hud/hotbar.png");
@@ -45,6 +45,8 @@ public final class ClientFeatureManager {
     private static boolean timeChangerApplied;
     private static float currentZoomMultiplier = 1.0f;
     private static float targetZoomMultiplier = 1.0f;
+    private static float zoomSessionMultiplier = 1.0f;
+    private static boolean zoomSessionActive;
     private static long lastZoomUpdateNanos;
     private static long lastZoomFeedbackMillis;
     private static long lastArmorWarningMillis;
@@ -299,11 +301,12 @@ public final class ClientFeatureManager {
             return false;
         }
 
-        cfg.visual.zoomMultiplier = clampFloat((float) (cfg.visual.zoomMultiplier + verticalAmount * ZOOM_SCROLL_STEP), ZOOM_MIN, ZOOM_MAX);
+        ensureZoomSessionStarted(cfg);
+        zoomSessionMultiplier = clampFloat((float) (zoomSessionMultiplier + verticalAmount * ZOOM_SCROLL_STEP), ZOOM_MIN, ZOOM_MAX);
         if (client.player != null) {
             long now = System.currentTimeMillis();
             if (now - lastZoomFeedbackMillis > 70L) {
-                AtomicsClient.sendClientMessage(client.player, Component.literal("Zoom: " + String.format(Locale.US, "%.2fx", cfg.visual.zoomMultiplier)).withStyle(ChatFormatting.AQUA), true);
+                AtomicsClient.sendClientMessage(client.player, Component.literal("Zoom: " + String.format(Locale.US, "%.2fx", zoomSessionMultiplier)).withStyle(ChatFormatting.AQUA), true);
                 lastZoomFeedbackMillis = now;
             }
         }
@@ -620,9 +623,14 @@ public final class ClientFeatureManager {
     }
 
     private static void updateZoom(TpsConfig cfg) {
-        targetZoomMultiplier = cfg != null && cfg.visual.zoomEnabled && AtomicsClient.isZoomKeyPressed()
-                ? clampFloat(cfg.visual.zoomMultiplier, ZOOM_MIN, ZOOM_MAX)
-                : 1.0f;
+        if (cfg != null && cfg.visual.zoomEnabled && AtomicsClient.isZoomKeyPressed()) {
+            ensureZoomSessionStarted(cfg);
+            targetZoomMultiplier = zoomSessionMultiplier;
+        } else {
+            zoomSessionActive = false;
+            zoomSessionMultiplier = 1.0f;
+            targetZoomMultiplier = 1.0f;
+        }
         if (targetZoomMultiplier == 1.0f && currentZoomMultiplier == 1.0f) {
             lastZoomUpdateNanos = 0L;
             return;
@@ -635,6 +643,13 @@ public final class ClientFeatureManager {
         currentZoomMultiplier += (targetZoomMultiplier - currentZoomMultiplier) * amount;
         if (Math.abs(targetZoomMultiplier - currentZoomMultiplier) < 0.01f) {
             currentZoomMultiplier = targetZoomMultiplier;
+        }
+    }
+
+    private static void ensureZoomSessionStarted(TpsConfig cfg) {
+        if (!zoomSessionActive) {
+            zoomSessionMultiplier = clampFloat(cfg.visual.zoomMultiplier, ZOOM_MIN, ZOOM_MAX);
+            zoomSessionActive = true;
         }
     }
 

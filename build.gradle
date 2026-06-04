@@ -6,7 +6,17 @@ plugins {
 version = project.mod_version
 group = project.maven_group
 
-base { archivesName = project.archives_base_name }
+base {
+    archivesName = "atomicsclient-fabric-${project.minecraft_version}-V${project.mod_version}"
+}
+
+tasks.withType(org.gradle.api.tasks.bundling.AbstractArchiveTask).configureEach {
+    archiveVersion = ''
+}
+
+if (project.hasProperty('atomics_build_dir')) {
+    layout.buildDirectory = file(project.property('atomics_build_dir'))
+}
 
 repositories {
     maven {
