@@ -14,6 +14,7 @@ import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.Entity;
 import com.atomics.client.AtomicsClient;
+import com.atomics.client.PvpNametagStatsManager;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -29,7 +30,9 @@ public class ClientPlayNetworkHandlerMixin {
             return;
         }
         Entity entity = packet.getEntity(client.level);
-        if (packet.getEventId() == 30 && entity == client.player) {
+        if (packet.getEventId() == 35) {
+            PvpNametagStatsManager.recordTotemPop(entity);
+        } else if (packet.getEventId() == 30 && entity == client.player) {
             AtomicsClient.recordLocalShieldDisabled();
         }
     }
