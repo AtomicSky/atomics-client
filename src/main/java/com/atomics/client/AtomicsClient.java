@@ -162,6 +162,7 @@ public class AtomicsClient {
     }
 
     private static void onRenderHud(RenderGuiEvent.Post event) {
+        FoodOverlayRenderer.render(event.getGuiGraphics());
         ClientFeatureManager.renderHud(event.getGuiGraphics());
     }
 

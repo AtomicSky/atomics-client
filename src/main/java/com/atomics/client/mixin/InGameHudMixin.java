@@ -33,9 +33,6 @@ public class InGameHudMixin {
         if (cfg.visual.partialStatusIconsEnabled) {
             atomics_client$renderPartialHeartMarker(context, player, top);
         }
-        if (cfg.visual.foodOverlayEnabled) {
-            atomics_client$renderFoodOverlay(context, player, top);
-        }
     }
 
     private static void atomics_client$renderPartialHeartMarker(GuiGraphics context, Player player, int top) {
