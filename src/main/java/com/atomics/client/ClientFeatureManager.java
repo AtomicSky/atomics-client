@@ -32,7 +32,7 @@ public final class ClientFeatureManager {
     private static final long REACH_DISPLAY_MS = 1400L;
     private static final float ZOOM_MIN = TpsConfig.MIN_ZOOM_MULTIPLIER;
     private static final float ZOOM_MAX = TpsConfig.MAX_ZOOM_MULTIPLIER;
-    private static final float ZOOM_SCROLL_STEP = 0.25f;
+    private static final double ZOOM_SCROLL_FACTOR = 1.25;
     private static final int ARMOR_HUD_EMPTY_OFFHAND_SHIFT = 28;
     private static final Identifier HOTBAR_SPRITE_TEXTURE = Identifier.withDefaultNamespace("textures/gui/sprites/hud/hotbar.png");
 
@@ -302,7 +302,7 @@ public final class ClientFeatureManager {
         }
 
         ensureZoomSessionStarted(cfg);
-        zoomSessionMultiplier = clampFloat((float) (zoomSessionMultiplier + verticalAmount * ZOOM_SCROLL_STEP), ZOOM_MIN, ZOOM_MAX);
+        zoomSessionMultiplier = adjustZoomByScroll(zoomSessionMultiplier, verticalAmount);
         if (client.player != null) {
             long now = System.currentTimeMillis();
             if (now - lastZoomFeedbackMillis > 70L) {
@@ -651,6 +651,14 @@ public final class ClientFeatureManager {
             zoomSessionMultiplier = clampFloat(cfg.visual.zoomMultiplier, ZOOM_MIN, ZOOM_MAX);
             zoomSessionActive = true;
         }
+    }
+
+    private static float adjustZoomByScroll(float currentMultiplier, double verticalAmount) {
+        double factor = Math.pow(ZOOM_SCROLL_FACTOR, Math.abs(verticalAmount));
+        double adjusted = verticalAmount > 0.0
+                ? currentMultiplier * factor
+                : currentMultiplier / factor;
+        return clampFloat((float) adjusted, ZOOM_MIN, ZOOM_MAX);
     }
 
     private static void applyFullBrightIfNeeded(Minecraft client) {
