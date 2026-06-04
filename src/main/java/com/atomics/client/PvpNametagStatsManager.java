@@ -5,6 +5,11 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.text.Text;
+import net.minecraft.scoreboard.ReadableScoreboardScore;
+import net.minecraft.scoreboard.Scoreboard;
+import net.minecraft.scoreboard.ScoreboardCriterion;
+import net.minecraft.scoreboard.ScoreboardDisplaySlot;
+import net.minecraft.scoreboard.ScoreboardObjective;
 import net.minecraft.util.Formatting;
 
 import java.util.HashMap;
@@ -74,8 +79,8 @@ public final class PvpNametagStatsManager {
         int percent;
         if (spectatedOpponent != null) {
             percent = getHealthAndPopWinPercent(
-                    readHealth(player),
-                    readHealth(spectatedOpponent),
+                    readCombatHealth(client, player),
+                    readCombatHealth(client, spectatedOpponent),
                     statsFor(player).totemPops,
                     statsFor(spectatedOpponent).totemPops
             );
@@ -83,7 +88,7 @@ public final class PvpNametagStatsManager {
             if (!isTrackableOpponent(client, player)) {
                 return null;
             }
-            percent = getHealthAndPopWinPercent(readHealth(client.player), readHealth(player), localTotemPops, statsFor(player).totemPops);
+            percent = getHealthAndPopWinPercent(readCombatHealth(client, client.player), readCombatHealth(client, player), localTotemPops, statsFor(player).totemPops);
         }
         return Text.literal(percent + "%").withColor(winPercentColor(percent));
     }
@@ -110,9 +115,42 @@ public final class PvpNametagStatsManager {
         return Math.max(0, Math.min(100, Math.round(localScore * 100.0f / total)));
     }
 
-    private static float readHealth(PlayerEntity player) {
-        return player == null ? 0.0f : player.getHealth() + player.getAbsorptionAmount();
+    private static float readCombatHealth(MinecraftClient client, PlayerEntity player) {
+        Float scoreboardHealth = readBelowNameHealth(client, player);
+        return scoreboardHealth == null ? readHealth(player) : scoreboardHealth + readAbsorption(player);
     }
+
+    private static Float readBelowNameHealth(MinecraftClient client, PlayerEntity player) {
+        if (client == null || client.world == null || player == null) {
+            return null;
+        }
+
+        Scoreboard scoreboard = client.world.getScoreboard();
+        ScoreboardObjective objective = scoreboard.getObjectiveForSlot(ScoreboardDisplaySlot.BELOW_NAME);
+        if (!isHealthObjective(objective)) {
+            return null;
+        }
+
+        ReadableScoreboardScore score = scoreboard.getScore(player, objective);
+        if (score == null || score.getScore() < 0) {
+            return null;
+        }
+        return (float) score.getScore();
+    }
+
+    private static boolean isHealthObjective(ScoreboardObjective objective) {
+        return objective != null
+                && (objective.getCriterion() == ScoreboardCriterion.HEALTH
+                || objective.getRenderType() == ScoreboardCriterion.RenderType.HEARTS);
+    }
+
+    private static float readHealth(PlayerEntity player) {
+        return player == null ? 0.0f : player.getHealth() + readAbsorption(player);
+    }
+    private static float readAbsorption(PlayerEntity player) {
+        return player == null ? 0.0f : player.getAbsorptionAmount();
+    }
+
 
     private static boolean isTrackableOpponent(MinecraftClient client, PlayerEntity other) {
         if (client == null || client.player == null || other == null || isLocalPlayer(other) || other.isSpectator() || other.isDead() || !other.isAlive()) {
