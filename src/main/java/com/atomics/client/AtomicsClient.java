@@ -155,6 +155,7 @@ public class AtomicsClient {
                 }
             }
             TotemPopEffects.tick(client);
+            PvpNametagStatsManager.tick(client);
             DualSpectateCamera.tick(client);
             FreelookManager.tick(client);
             ClientFeatureManager.tick(client);
