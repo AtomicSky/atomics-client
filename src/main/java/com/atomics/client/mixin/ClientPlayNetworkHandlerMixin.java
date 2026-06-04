@@ -5,6 +5,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.client.particle.ParticleEngine;
+import com.atomics.client.PvpNametagStatsManager;
 import net.minecraft.core.particles.ParticleOptions;
 import net.minecraft.network.protocol.game.ClientboundEntityEventPacket;
 import net.minecraft.sounds.SoundEvent;
@@ -26,7 +27,9 @@ public class ClientPlayNetworkHandlerMixin {
             return;
         }
         Entity entity = packet.getEntity(client.level);
-        if (packet.getEventId() == 30 && entity == client.player) {
+        if (packet.getEventId() == 35) {
+            PvpNametagStatsManager.recordTotemPop(entity);
+        } else if (packet.getEventId() == 30 && entity == client.player) {
             AtomicsClient.recordLocalShieldDisabled();
         }
     }

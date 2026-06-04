@@ -62,9 +62,12 @@ public class TpsConfig {
     public static final String FRIEND_FOE_STYLE_OUTLINE_FULL = "outline_full";
     public static final String FRIEND_FOE_STYLE_PULSE = "pulse";
     public static final String DEFAULT_FRIEND_FOE_OVERLAY_STYLE = FRIEND_FOE_STYLE_FULL;
+    public static final String NAMETAG_ITEM_WIN_ODDS = "win_odds";
+    public static final String NAMETAG_ITEM_TOTEM_POPS = "totem_pops";
     public static final String NAMETAG_ITEM_OPPONENT_STATS = "opponent_stats";
     public static final String NAMETAG_ITEM_PING = "ping";
     public static final boolean DEFAULT_PING_NAMETAG_ENABLED = false;
+    public static final boolean DEFAULT_TOTEM_POP_NAMETAG_ENABLED = false;
     public static final boolean DEFAULT_OPPONENT_STATS_NAMETAG_ENABLED = false;
     public static final String OPPONENT_STATS_NAMETAG_ICON_TIER = "icon_tier";
     public static final String OPPONENT_STATS_NAMETAG_TIER = "tier";
@@ -323,11 +326,13 @@ public class TpsConfig {
     }
 
     public static List<String> defaultNametagItemOrder() {
-        return new ArrayList<>(List.of(NAMETAG_ITEM_OPPONENT_STATS, NAMETAG_ITEM_PING));
+        return new ArrayList<>(List.of(NAMETAG_ITEM_WIN_ODDS, NAMETAG_ITEM_TOTEM_POPS, NAMETAG_ITEM_OPPONENT_STATS, NAMETAG_ITEM_PING));
     }
 
     public static boolean isKnownNametagItem(String item) {
-        return NAMETAG_ITEM_OPPONENT_STATS.equals(item)
+        return NAMETAG_ITEM_WIN_ODDS.equals(item)
+                || NAMETAG_ITEM_TOTEM_POPS.equals(item)
+                || NAMETAG_ITEM_OPPONENT_STATS.equals(item)
                 || NAMETAG_ITEM_PING.equals(item);
     }
 
@@ -542,6 +547,8 @@ public class TpsConfig {
     public static final String PVP_HEALTH_MODE_ESTIMATION_ONLY = "estimation_only";
 
     public static class PvpSettings {
+        public boolean winOddsEnabled = true;
+        public boolean totemPopNametagEnabled = DEFAULT_TOTEM_POP_NAMETAG_ENABLED;
         public boolean opponentStatsNametagEnabled = DEFAULT_OPPONENT_STATS_NAMETAG_ENABLED;
         public String opponentStatsNametagFormat = DEFAULT_OPPONENT_STATS_NAMETAG_FORMAT;
         public boolean pingNametagEnabled = DEFAULT_PING_NAMETAG_ENABLED;
