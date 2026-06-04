@@ -157,6 +157,7 @@ public class AtomicsClient implements ClientModInitializer {
                 }
             }
             TotemPopEffects.tick(client);
+            PvpNametagStatsManager.tick(client);
             DualSpectateCamera.tick(client);
             FreelookManager.tick(client);
             ClientFeatureManager.tick(client);

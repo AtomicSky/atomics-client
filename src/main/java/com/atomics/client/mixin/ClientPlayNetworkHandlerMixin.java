@@ -2,6 +2,7 @@ package com.atomics.client.mixin;
 
 import com.atomics.client.TotemPopEffects;
 import com.atomics.client.AtomicsClient;
+import com.atomics.client.PvpNametagStatsManager;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayNetworkHandler;
 import net.minecraft.client.particle.ParticleManager;
@@ -26,7 +27,9 @@ public class ClientPlayNetworkHandlerMixin {
             return;
         }
         Entity entity = packet.getEntity(client.world);
-        if (packet.getStatus() == 30 && entity == client.player) {
+        if (packet.getStatus() == 35) {
+            PvpNametagStatsManager.recordTotemPop(entity);
+        } else if (packet.getStatus() == 30 && entity == client.player) {
             AtomicsClient.recordLocalShieldDisabled();
         }
     }

@@ -81,6 +81,8 @@ public class AtomicsClientScreen extends Screen {
     private boolean shieldWarningOverlayEnabled;
     private boolean fireOverlayEnabled;
     private boolean emptyBucketOverlayEnabled;
+    private boolean winOddsEnabled;
+    private boolean totemPopNametagEnabled;
     private boolean opponentStatsNametagEnabled;
     private boolean pingNametagEnabled;
     private boolean autoGgEnabled;
@@ -785,6 +787,22 @@ public class AtomicsClientScreen extends Screen {
             }
             y += 10;
         }
+        if (shouldShowFeature("pvp.win_percent", "Win Percent Nametags", "win", "percent", "odds")) {
+            y = addFeatureSection(y, "pvp.win_percent", "Win Percent Nametags");
+            if (!isFeatureCollapsed("pvp.win_percent")) {
+                addToggle(leftX, y, controlWidth, "Show Win Percent On Nametags", winOddsEnabled, true, () -> winOddsEnabled, value -> winOddsEnabled = value, true); y += ROW_HEIGHT;
+            }
+            y += 10;
+        }
+
+        if (shouldShowFeature("pvp.totem_pop_counter", "Totem Pop Counter", "totem", "pops", "counter")) {
+            y = addFeatureSection(y, "pvp.totem_pop_counter", "Totem Pop Counter");
+            if (!isFeatureCollapsed("pvp.totem_pop_counter")) {
+                addToggle(leftX, y, controlWidth, "Show Totem Pops On Nametags", totemPopNametagEnabled, TpsConfig.DEFAULT_TOTEM_POP_NAMETAG_ENABLED, () -> totemPopNametagEnabled, value -> totemPopNametagEnabled = value, true); y += ROW_HEIGHT;
+            }
+            y += 10;
+        }
+
         if (shouldShowFeature("pvp.ping_nametags", "Ping Nametags", "ping", "latency", "ms")) {
             y = addFeatureSection(y, "pvp.ping_nametags", "Ping Nametags");
             if (!isFeatureCollapsed("pvp.ping_nametags")) {
@@ -1137,6 +1155,8 @@ public class AtomicsClientScreen extends Screen {
         shieldUpRotY = cfg.misc.shieldUpRotY;
         shieldUpRotZ = cfg.misc.shieldUpRotZ;
         fireOverlayHeight = cfg.misc.fireOverlayHeight;
+        winOddsEnabled = cfg.pvp.winOddsEnabled;
+        totemPopNametagEnabled = cfg.pvp.totemPopNametagEnabled;
         opponentStatsNametagEnabled = cfg.pvp.opponentStatsNametagEnabled;
         opponentStatsNametagFormat = TpsConfig.normalizeOpponentStatsNametagFormat(cfg.pvp.opponentStatsNametagFormat);
         pingNametagEnabled = cfg.pvp.pingNametagEnabled;
@@ -1310,6 +1330,8 @@ public class AtomicsClientScreen extends Screen {
         shieldUpRotY = TpsConfig.DEFAULT_SHIELD_UP_ROT_Y;
         shieldUpRotZ = TpsConfig.DEFAULT_SHIELD_UP_ROT_Z;
         fireOverlayHeight = TpsConfig.DEFAULT_FIRE_OVERLAY_HEIGHT;
+        winOddsEnabled = true;
+        totemPopNametagEnabled = TpsConfig.DEFAULT_TOTEM_POP_NAMETAG_ENABLED;
         opponentStatsNametagEnabled = TpsConfig.DEFAULT_OPPONENT_STATS_NAMETAG_ENABLED;
         opponentStatsNametagFormat = TpsConfig.DEFAULT_OPPONENT_STATS_NAMETAG_FORMAT;
         pingNametagEnabled = TpsConfig.DEFAULT_PING_NAMETAG_ENABLED;
@@ -1434,6 +1456,8 @@ public class AtomicsClientScreen extends Screen {
         cfg.misc.shieldUpRotY = shieldUpRotY;
         cfg.misc.shieldUpRotZ = shieldUpRotZ;
         cfg.misc.fireOverlayHeight = fireOverlayHeight;
+        cfg.pvp.winOddsEnabled = winOddsEnabled;
+        cfg.pvp.totemPopNametagEnabled = totemPopNametagEnabled;
         cfg.pvp.opponentStatsNametagEnabled = opponentStatsNametagEnabled;
         cfg.pvp.opponentStatsNametagFormat = TpsConfig.normalizeOpponentStatsNametagFormat(opponentStatsNametagFormat);
         cfg.pvp.pingNametagEnabled = pingNametagEnabled;
@@ -1873,6 +1897,12 @@ public class AtomicsClientScreen extends Screen {
     }
 
     private boolean isNametagItemEnabled(String item) {
+        if (TpsConfig.NAMETAG_ITEM_WIN_ODDS.equals(item)) {
+            return winOddsEnabled;
+        }
+        if (TpsConfig.NAMETAG_ITEM_TOTEM_POPS.equals(item)) {
+            return totemPopNametagEnabled;
+        }
         if (TpsConfig.NAMETAG_ITEM_OPPONENT_STATS.equals(item)) {
             return opponentStatsNametagEnabled;
         }
@@ -1947,6 +1977,8 @@ public class AtomicsClientScreen extends Screen {
     }
     private static String nametagItemLabel(String value) {
         return switch (value) {
+            case TpsConfig.NAMETAG_ITEM_WIN_ODDS -> "Win Percent";
+            case TpsConfig.NAMETAG_ITEM_TOTEM_POPS -> "Totem Pops";
             case TpsConfig.NAMETAG_ITEM_OPPONENT_STATS -> "Opponent Stats";
             case TpsConfig.NAMETAG_ITEM_PING -> "Ping";
             default -> "Unknown";
