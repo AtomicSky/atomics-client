@@ -1,6 +1,5 @@
 package com.atomics.client.gui;
 
-import com.atomics.client.PvpStatsManager;
 import com.atomics.client.TotemPopEffects;
 import com.atomics.client.AtomicsClient;
 import com.atomics.client.DualSpectateCamera;
@@ -52,7 +51,6 @@ public class AtomicsClientScreen extends Screen {
     private static final int ACCENT_SOFT = 0x55FF7A21;
     private static final int TEXT_MAIN = 0xFFFFF2E4;
     private static final int TEXT_MUTED = 0xFFCDB59C;
-    private static final String[] STATS_TIMEFRAME_IDS = {"session", "daily", "weekly", "monthly", "all_time"};
 
     private final Screen parent;
     private final List<DrawLabel> labels = new ArrayList<>();
@@ -83,18 +81,6 @@ public class AtomicsClientScreen extends Screen {
     private boolean shieldWarningOverlayEnabled;
     private boolean fireOverlayEnabled;
     private boolean emptyBucketOverlayEnabled;
-    private boolean sessionStatsEnabled;
-    private boolean allTimeStatsEnabled;
-    private boolean statsGraphKillsVisible;
-    private boolean statsGraphDeathsVisible;
-    private boolean statsGraphTotemPopsVisible;
-    private boolean statsGraphAttackClicksVisible;
-    private boolean statsGraphHitsLandedVisible;
-    private boolean statsGraphDamageTakenVisible;
-    private boolean statsGraphKdRatioVisible;
-    private boolean statsGraphAccuracyVisible;
-    private boolean winOddsEnabled;
-    private boolean totemPopNametagEnabled;
     private boolean opponentStatsNametagEnabled;
     private boolean pingNametagEnabled;
     private boolean autoGgEnabled;
@@ -125,8 +111,6 @@ public class AtomicsClientScreen extends Screen {
     private final List<String> nametagItemOrder = new ArrayList<>();
     private final List<String> nametagItemsBeforeName = new ArrayList<>();
     private String opponentStatsNametagFormat;
-    private String statsNumbersTimeframe;
-    private String statsBarGraphTimeframe;
     private String friendFoeOverlayStyle;
     private String dualSpectatePlayerOne;
     private String dualSpectatePlayerTwo;
@@ -179,8 +163,6 @@ public class AtomicsClientScreen extends Screen {
     private boolean initializing;
     private boolean settingsSearchFocused;
     private boolean searchRefreshQueued;
-    private boolean statsNumbersDropdownOpen;
-    private boolean statsBarGraphDropdownOpen;
     private KeyBinding listeningKeyBinding;
     private String listeningKeyLabel;
     private final List<String> collapsedSections = new ArrayList<>();
@@ -197,7 +179,6 @@ public class AtomicsClientScreen extends Screen {
     private int leftWidth;
     private int previewX;
     private int previewWidth;
-    private int statsDashboardY = -1;
 
     public AtomicsClientScreen(Screen parent) {
         super(Text.literal("Atomics Client"));
@@ -208,7 +189,6 @@ public class AtomicsClientScreen extends Screen {
     protected void init() {
         initializing = true;
         labels.clear();
-        statsDashboardY = -1;
         if (!stateLoaded) loadStateFromConfig();
 
         contentTop = TOP_BAR_HEIGHT + 8;
@@ -296,8 +276,6 @@ public class AtomicsClientScreen extends Screen {
         addDrawableChild(new TabButtonWidget(x, y, w, h, tab.label, selectedTab == tab, () -> {
             selectedTab = tab;
             scrollOffset = 0;
-            statsNumbersDropdownOpen = false;
-            statsBarGraphDropdownOpen = false;
             clearAndInit();
         }));
     }
@@ -580,7 +558,6 @@ public class AtomicsClientScreen extends Screen {
             y = addFeatureSection(y, "keybinds.general", "General");
             if (!isFeatureCollapsed("keybinds.general")) {
                 addKeybindButton(leftX, y, controlWidth, "Open Menu", AtomicsClient.getOpenStudioKeyBinding()); y += ROW_HEIGHT;
-                addKeybindButton(leftX, y, controlWidth, "Reset Totem Counter", AtomicsClient.getResetTotemCounterKeyBinding()); y += ROW_HEIGHT;
                 addKeybindButton(leftX, y, controlWidth, "Zoom", AtomicsClient.getZoomKeyBinding()); y += ROW_HEIGHT;
                 addKeybindButton(leftX, y, controlWidth, "Freelook", AtomicsClient.getFreelookKeyBinding()); y += ROW_HEIGHT;
             }
@@ -761,31 +738,6 @@ public class AtomicsClientScreen extends Screen {
     private int buildStatsDashboard(int y) {
         int controlWidth = leftWidth - RESET_WIDTH - 6;
         int startY = y;
-
-        if (shouldShowFeature("pvp.session_stats", "Session Stats", "stats", "session")) {
-            y = addFeatureSection(y, "pvp.session_stats", "Session Stats");
-            if (!isFeatureCollapsed("pvp.session_stats")) {
-                addToggle(leftX, y, controlWidth, "Enable Session Stats", sessionStatsEnabled, true, () -> sessionStatsEnabled, value -> sessionStatsEnabled = value, true); y += ROW_HEIGHT;
-                if (sessionStatsEnabled) {
-                    labels.add(new DrawLabel("Tracked in the dashboard below.", leftX + 8, y + 4, 0xAAAAAA));
-                    y += 22;
-                }
-            }
-            y += 10;
-        }
-
-        if (shouldShowFeature("pvp.all_time_stats", "All Time Stats", "stats", "all time")) {
-            y = addFeatureSection(y, "pvp.all_time_stats", "All Time Stats");
-            if (!isFeatureCollapsed("pvp.all_time_stats")) {
-                addToggle(leftX, y, controlWidth, "Enable All Time Stats", allTimeStatsEnabled, true, () -> allTimeStatsEnabled, value -> allTimeStatsEnabled = value, true); y += ROW_HEIGHT;
-                if (allTimeStatsEnabled) {
-                    labels.add(new DrawLabel("Tracked in the dashboard below and saved to config/atomics_client.json.", leftX + 8, y + 4, 0xAAAAAA));
-                    y += 22;
-                }
-            }
-            y += 10;
-        }
-
         if (shouldShowFeature("tools.armor_hud", "Armor HUD", "armor", "durability", "dura", "warning", "low armor")) {
             y = addFeatureSection(y, "tools.armor_hud", "Armor HUD");
             if (!isFeatureCollapsed("tools.armor_hud")) {
@@ -833,27 +785,6 @@ public class AtomicsClientScreen extends Screen {
             }
             y += 10;
         }
-
-        if (shouldShowFeature("pvp.opponent_odds", "Opponent Odds", "win odds", "nametags")) {
-            y = addFeatureSection(y, "pvp.opponent_odds", "Opponent Odds");
-            if (!isFeatureCollapsed("pvp.opponent_odds")) {
-                addToggle(leftX, y, controlWidth, "Show Win Odds On Nametags", winOddsEnabled, true, () -> winOddsEnabled, value -> winOddsEnabled = value, false); y += ROW_HEIGHT;
-                labels.add(new DrawLabel("Displays only the win percentage. HP and pop counts stay separate.", leftX + 8, y + 4, 0xAAAAAA));
-                y += 22;
-            }
-            y += 10;
-        }
-
-        if (shouldShowFeature("pvp.totem_pop_counter", "Totem Pop Counter", "totem pops", "pop count", "nametags")) {
-            y = addFeatureSection(y, "pvp.totem_pop_counter", "Totem Pop Counter");
-            if (!isFeatureCollapsed("pvp.totem_pop_counter")) {
-                addToggle(leftX, y, controlWidth, "Show Totem Pops On Nametags", totemPopNametagEnabled, TpsConfig.DEFAULT_TOTEM_POP_NAMETAG_ENABLED, () -> totemPopNametagEnabled, value -> totemPopNametagEnabled = value, true); y += ROW_HEIGHT;
-                labels.add(new DrawLabel("Tracks opponent pops as its own movable nametag item.", leftX + 8, y + 4, 0xAAAAAA));
-                y += 22;
-            }
-            y += 10;
-        }
-
         if (shouldShowFeature("pvp.ping_nametags", "Ping Nametags", "ping", "latency", "ms")) {
             y = addFeatureSection(y, "pvp.ping_nametags", "Ping Nametags");
             if (!isFeatureCollapsed("pvp.ping_nametags")) {
@@ -897,98 +828,12 @@ public class AtomicsClientScreen extends Screen {
             }
             y += 10;
         }
-
-        if (selectedTab != Tab.SEARCH && shouldShowFeature("stats.dashboard", "Stats Dashboard", "history", "graph", "kills", "deaths", "accuracy")) {
-            y = addFeatureSection(y, "stats.dashboard", "Stats Dashboard");
-            if (!isFeatureCollapsed("stats.dashboard")) {
-                statsDashboardY = y;
-                y += 20;
-                y = addStatsTimeframeDropdown(y, "Numbers Timeframe", statsNumbersTimeframe, value -> statsNumbersTimeframe = value, true);
-                y += statsCounterPanelHeight() + 14;
-                y += 18;
-                y = addHistoryGraphToggles(y);
-                y += 8;
-                y += historyLineGraphPanelHeight() + 14;
-                y = addStatsTimeframeDropdown(y, "Bar Graph Timeframe", statsBarGraphTimeframe, value -> statsBarGraphTimeframe = value, false);
-                y += statsBarGraphPanelHeight();
-            }
-            y += 10;
-        }
-
         if (selectedTab != Tab.SEARCH && !normalizeSearch(settingsSearch).isEmpty() && y == startY) {
             labels.add(new DrawLabel("No settings matched the search.", leftX + 8, y + 8, 0xCCCCCC));
             y += 34;
         }
         return y;
     }
-
-    private int addStatsTimeframeDropdown(int y, String label, String selected, Consumer<String> setter, boolean numbersDropdown) {
-        boolean open = numbersDropdown ? statsNumbersDropdownOpen : statsBarGraphDropdownOpen;
-        if (isWidgetVisible(y)) {
-            addDrawableChild(new DropdownButtonWidget(leftX, y, leftWidth, BUTTON_HEIGHT, label, statsTimeframeLabel(selected), open, () -> {
-                if (numbersDropdown) {
-                    statsNumbersDropdownOpen = !statsNumbersDropdownOpen;
-                    statsBarGraphDropdownOpen = false;
-                } else {
-                    statsBarGraphDropdownOpen = !statsBarGraphDropdownOpen;
-                    statsNumbersDropdownOpen = false;
-                }
-                clearAndInit();
-            }));
-        }
-        y += BUTTON_HEIGHT + 4;
-
-        if (open) {
-            int optionW = Math.max(80, (leftWidth - 16) / STATS_TIMEFRAME_IDS.length);
-            for (int i = 0; i < STATS_TIMEFRAME_IDS.length; i++) {
-                String option = STATS_TIMEFRAME_IDS[i];
-                int optionX = leftX + i * (optionW + 4);
-                if (isWidgetVisible(y)) {
-                    String marker = normalizeStatsTimeframe(selected).equals(option) ? "* " : "";
-                    addDrawableChild(ButtonWidget.builder(Text.literal(marker + statsTimeframeLabel(option)), b -> {
-                        setter.accept(option);
-                        if (numbersDropdown) {
-                            statsNumbersDropdownOpen = false;
-                        } else {
-                            statsBarGraphDropdownOpen = false;
-                        }
-                        statsGraphChanged();
-                        clearAndInit();
-                    }).dimensions(optionX, y, optionW, BUTTON_HEIGHT).build());
-                }
-            }
-            y += BUTTON_HEIGHT + 6;
-        }
-
-        return y;
-    }
-
-    private int addHistoryGraphToggles(int y) {
-        int gap = 6;
-        int columns = 4;
-        int buttonW = Math.max(70, (leftWidth - gap * (columns - 1)) / columns);
-        addHistoryGraphToggle(leftX, y, buttonW, "Kills", () -> statsGraphKillsVisible, value -> statsGraphKillsVisible = value);
-        addHistoryGraphToggle(leftX + buttonW + gap, y, buttonW, "Deaths", () -> statsGraphDeathsVisible, value -> statsGraphDeathsVisible = value);
-        addHistoryGraphToggle(leftX + (buttonW + gap) * 2, y, buttonW, "Pops", () -> statsGraphTotemPopsVisible, value -> statsGraphTotemPopsVisible = value);
-        addHistoryGraphToggle(leftX + (buttonW + gap) * 3, y, buttonW, "Clicks", () -> statsGraphAttackClicksVisible, value -> statsGraphAttackClicksVisible = value);
-        y += BUTTON_HEIGHT + 6;
-        addHistoryGraphToggle(leftX, y, buttonW, "Hits", () -> statsGraphHitsLandedVisible, value -> statsGraphHitsLandedVisible = value);
-        addHistoryGraphToggle(leftX + buttonW + gap, y, buttonW, "Damage", () -> statsGraphDamageTakenVisible, value -> statsGraphDamageTakenVisible = value);
-        addHistoryGraphToggle(leftX + (buttonW + gap) * 2, y, buttonW, "K/D", () -> statsGraphKdRatioVisible, value -> statsGraphKdRatioVisible = value);
-        addHistoryGraphToggle(leftX + (buttonW + gap) * 3, y, buttonW, "Accuracy", () -> statsGraphAccuracyVisible, value -> statsGraphAccuracyVisible = value);
-        return y + BUTTON_HEIGHT + 6;
-    }
-
-    private void addHistoryGraphToggle(int x, int y, int width, String label, BooleanSupplier getter, ToggleSetter setter) {
-        if (!isWidgetVisible(y)) return;
-        addDrawableChild(ButtonWidget.builder(graphToggleText(label, getter.getAsBoolean()), b -> {
-            boolean newValue = !getter.getAsBoolean();
-            setter.set(newValue);
-            b.setMessage(graphToggleText(label, newValue));
-            statsGraphChanged();
-        }).dimensions(x, y, width, BUTTON_HEIGHT).build());
-    }
-
     private void autofillDualSpectatePlayers() {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client == null || client.world == null || client.player == null) {
@@ -1292,20 +1137,6 @@ public class AtomicsClientScreen extends Screen {
         shieldUpRotY = cfg.misc.shieldUpRotY;
         shieldUpRotZ = cfg.misc.shieldUpRotZ;
         fireOverlayHeight = cfg.misc.fireOverlayHeight;
-        sessionStatsEnabled = cfg.pvp.sessionStatsEnabled;
-        allTimeStatsEnabled = cfg.pvp.allTimeStatsEnabled;
-        statsGraphKillsVisible = cfg.pvp.statsGraphKillsVisible;
-        statsGraphDeathsVisible = cfg.pvp.statsGraphDeathsVisible;
-        statsGraphTotemPopsVisible = cfg.pvp.statsGraphTotemPopsVisible;
-        statsGraphAttackClicksVisible = cfg.pvp.statsGraphAttackClicksVisible;
-        statsGraphHitsLandedVisible = cfg.pvp.statsGraphHitsLandedVisible;
-        statsGraphDamageTakenVisible = cfg.pvp.statsGraphDamageTakenVisible;
-        statsGraphKdRatioVisible = cfg.pvp.statsGraphKdRatioVisible;
-        statsGraphAccuracyVisible = cfg.pvp.statsGraphAccuracyVisible;
-        statsNumbersTimeframe = normalizeStatsTimeframe(cfg.pvp.statsNumbersTimeframe);
-        statsBarGraphTimeframe = normalizeStatsTimeframe(cfg.pvp.statsBarGraphTimeframe);
-        winOddsEnabled = cfg.pvp.winOddsEnabled;
-        totemPopNametagEnabled = cfg.pvp.totemPopNametagEnabled;
         opponentStatsNametagEnabled = cfg.pvp.opponentStatsNametagEnabled;
         opponentStatsNametagFormat = TpsConfig.normalizeOpponentStatsNametagFormat(cfg.pvp.opponentStatsNametagFormat);
         pingNametagEnabled = cfg.pvp.pingNametagEnabled;
@@ -1426,12 +1257,6 @@ public class AtomicsClientScreen extends Screen {
         }
     }
 
-    private void statsGraphChanged() {
-        if (initializing) return;
-        applyToConfig();
-        status = Text.literal("Unsaved changes").formatted(Formatting.YELLOW);
-    }
-
     private void save() {
         try {
             applyToConfig();
@@ -1485,20 +1310,6 @@ public class AtomicsClientScreen extends Screen {
         shieldUpRotY = TpsConfig.DEFAULT_SHIELD_UP_ROT_Y;
         shieldUpRotZ = TpsConfig.DEFAULT_SHIELD_UP_ROT_Z;
         fireOverlayHeight = TpsConfig.DEFAULT_FIRE_OVERLAY_HEIGHT;
-        sessionStatsEnabled = true;
-        allTimeStatsEnabled = true;
-        statsGraphKillsVisible = true;
-        statsGraphDeathsVisible = true;
-        statsGraphTotemPopsVisible = true;
-        statsGraphAttackClicksVisible = true;
-        statsGraphHitsLandedVisible = true;
-        statsGraphDamageTakenVisible = true;
-        statsGraphKdRatioVisible = true;
-        statsGraphAccuracyVisible = true;
-        statsNumbersTimeframe = "session";
-        statsBarGraphTimeframe = "session";
-        winOddsEnabled = true;
-        totemPopNametagEnabled = TpsConfig.DEFAULT_TOTEM_POP_NAMETAG_ENABLED;
         opponentStatsNametagEnabled = TpsConfig.DEFAULT_OPPONENT_STATS_NAMETAG_ENABLED;
         opponentStatsNametagFormat = TpsConfig.DEFAULT_OPPONENT_STATS_NAMETAG_FORMAT;
         pingNametagEnabled = TpsConfig.DEFAULT_PING_NAMETAG_ENABLED;
@@ -1623,21 +1434,6 @@ public class AtomicsClientScreen extends Screen {
         cfg.misc.shieldUpRotY = shieldUpRotY;
         cfg.misc.shieldUpRotZ = shieldUpRotZ;
         cfg.misc.fireOverlayHeight = fireOverlayHeight;
-        cfg.pvp.deathRecapEnabled = false;
-        cfg.pvp.sessionStatsEnabled = sessionStatsEnabled;
-        cfg.pvp.allTimeStatsEnabled = allTimeStatsEnabled;
-        cfg.pvp.statsGraphKillsVisible = statsGraphKillsVisible;
-        cfg.pvp.statsGraphDeathsVisible = statsGraphDeathsVisible;
-        cfg.pvp.statsGraphTotemPopsVisible = statsGraphTotemPopsVisible;
-        cfg.pvp.statsGraphAttackClicksVisible = statsGraphAttackClicksVisible;
-        cfg.pvp.statsGraphHitsLandedVisible = statsGraphHitsLandedVisible;
-        cfg.pvp.statsGraphDamageTakenVisible = statsGraphDamageTakenVisible;
-        cfg.pvp.statsGraphKdRatioVisible = statsGraphKdRatioVisible;
-        cfg.pvp.statsGraphAccuracyVisible = statsGraphAccuracyVisible;
-        cfg.pvp.statsNumbersTimeframe = normalizeStatsTimeframe(statsNumbersTimeframe);
-        cfg.pvp.statsBarGraphTimeframe = normalizeStatsTimeframe(statsBarGraphTimeframe);
-        cfg.pvp.winOddsEnabled = winOddsEnabled;
-        cfg.pvp.totemPopNametagEnabled = totemPopNametagEnabled;
         cfg.pvp.opponentStatsNametagEnabled = opponentStatsNametagEnabled;
         cfg.pvp.opponentStatsNametagFormat = TpsConfig.normalizeOpponentStatsNametagFormat(opponentStatsNametagFormat);
         cfg.pvp.pingNametagEnabled = pingNametagEnabled;
@@ -1879,9 +1675,6 @@ public class AtomicsClientScreen extends Screen {
             }
         }
 
-        if (selectedTab == Tab.STATS) {
-            renderStatsDashboard(context);
-        }
         if (selectedTab.hasPreview) {
             renderPreviewPanel(context, mouseX, mouseY);
         }
@@ -1942,251 +1735,6 @@ public class AtomicsClientScreen extends Screen {
             context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("Preview will appear here"), x + w / 2, boxTop + (boxBottom - boxTop) / 2, textColor(0xAAAAAA));
         }
     }
-
-    private void renderStatsDashboard(DrawContext context) {
-        int x = leftX;
-        int y = statsDashboardY;
-        if (y < 0) {
-            return;
-        }
-        int w = leftWidth;
-
-        context.drawTextWithShadow(this.textRenderer, Text.literal("Stats"), x, y - 2, textColor(0xFFFFFF));
-        y += 20;
-
-        StatsTimeframe numbersTimeframe = getStatsTimeframe(statsNumbersTimeframe);
-        y += statsTimeframeDropdownHeight(statsNumbersDropdownOpen);
-        y = renderCounterPanel(context, numbersTimeframe.label + " Stats", numbersTimeframe.counters, x, y, w, numbersTimeframe.signed) + 14;
-
-        if (y >= contentTop && y <= contentBottom - 10) {
-            context.drawTextWithShadow(this.textRenderer, Text.literal("Line Graph Fields"), x, y + 4, textColor(0xFFFFFF));
-        }
-        y += 18;
-        y += (BUTTON_HEIGHT + 6) * 2 + 8;
-
-        y = renderSessionLineGraphPanel(context, "Last 50 Sessions Line Graph", PvpStatsManager.sessionHistory(), x, y, w) + 14;
-        StatsTimeframe barTimeframe = getStatsTimeframe(statsBarGraphTimeframe);
-        y += statsTimeframeDropdownHeight(statsBarGraphDropdownOpen);
-        renderCounterGraphPanel(context, barTimeframe.label + " Bar Graph", barTimeframe.counters, x, y, w);
-    }
-
-    private int renderCounterPanel(DrawContext context, String title, PvpStatsManager.Counters counters, int x, int y, int width) {
-        return renderCounterPanel(context, title, counters, x, y, width, false);
-    }
-
-    private int renderCounterPanel(DrawContext context, String title, PvpStatsManager.Counters counters, int x, int y, int width, boolean signed) {
-        String prefix = signed ? "+" : "";
-        String[] lines = new String[]{
-                "Kills: " + prefix + counters.kills + "|55FF88",
-                "Deaths: " + prefix + counters.deaths + "|FF7777",
-                "Totem Pops: " + prefix + counters.totemPops + "|FFD75A",
-                "Attack Clicks: " + prefix + counters.attackClicks + "|8EC7FF",
-                "Hits Landed: " + prefix + counters.hitsLanded + "|7CFFDA",
-                "Accuracy: " + formatAccuracy(counters.hitsLanded, counters.attackClicks) + "|CFA6FF",
-                "K/D Ratio: " + formatRatio(counters.kdRatio()) + "|FF8FD4",
-                "Damage Taken: " + prefix + PvpStatsManager.formatOne(counters.damageTaken) + "|FFAA66"
-        };
-        return renderTextPanel(context, title, lines, x, y, width);
-    }
-
-    private int renderCounterGraphPanel(DrawContext context, String title, PvpStatsManager.Counters counters, int x, int y, int width) {
-        GraphBar[] bars = new GraphBar[]{
-                new GraphBar("Kills", counters.kills, 0x55FF88),
-                new GraphBar("Deaths", counters.deaths, 0xFF7777),
-                new GraphBar("Pops", counters.totemPops, 0xFFD75A),
-                new GraphBar("Clicks", counters.attackClicks, 0x8EC7FF),
-                new GraphBar("Hits", counters.hitsLanded, 0x7CFFDA),
-                new GraphBar("K/D", counters.kdRatio(), 0xFF8FD4),
-                new GraphBar("Accuracy", counters.accuracyPercent(), 0xCFA6FF),
-                new GraphBar("Damage", counters.damageTaken, 0xFFAA66)
-        };
-        int padding = 8;
-        int rowHeight = 18;
-        int height = padding * 2 + 18 + bars.length * rowHeight;
-        int bottom = contentBottom - 10;
-        if (y + height < contentTop || y > bottom) {
-            return y + height;
-        }
-
-        int visibleTop = Math.max(y, contentTop);
-        int visibleBottom = Math.min(y + height, bottom);
-        context.fill(x, visibleTop, x + width, visibleBottom, 0xAA202020);
-        drawClippedPanelBorder(context, x, y, width, height, visibleTop, visibleBottom, 0x70FFFFFF);
-        if (y + padding >= contentTop && y + padding <= bottom) {
-            context.drawTextWithShadow(this.textRenderer, Text.literal(title), x + padding, y + padding, textColor(0xFFFFFF));
-        }
-
-        int labelW = 54;
-        int valueW = 54;
-        int barX = x + padding + labelW;
-        int barW = Math.max(24, width - padding * 2 - labelW - valueW);
-        for (int i = 0; i < bars.length; i++) {
-            GraphBar bar = bars[i];
-            int rowY = y + padding + 20 + i * rowHeight;
-            if (rowY < contentTop || rowY + 12 > bottom) continue;
-
-            int fillW = Math.round(barW * Math.min(1.0f, Math.max(0.0f, bar.value) / getGraphBarMax(bar)));
-            context.drawTextWithShadow(this.textRenderer, Text.literal(bar.label), x + padding, rowY, textColor(0xD8D8D8));
-            context.fill(barX, rowY + 2, barX + barW, rowY + 11, 0x66000000);
-            context.fill(barX, rowY + 2, barX + fillW, rowY + 11, textColor(bar.color));
-            context.drawTextWithShadow(this.textRenderer, Text.literal(formatGraphValue(bar.value)), barX + barW + 6, rowY, textColor(0xD8D8D8));
-        }
-
-        return y + height;
-    }
-
-    private StatsTimeframe getStatsTimeframe(String key) {
-        return switch (normalizeStatsTimeframe(key)) {
-            case "daily" -> new StatsTimeframe("Today", PvpStatsManager.dailyDifference(), true);
-            case "weekly" -> new StatsTimeframe("This Week", PvpStatsManager.weeklyDifference(), true);
-            case "monthly" -> new StatsTimeframe("This Month", PvpStatsManager.monthlyDifference(), true);
-            case "all_time" -> new StatsTimeframe("All Time", PvpStatsManager.allTime(), false);
-            default -> new StatsTimeframe("Session", PvpStatsManager.session(), false);
-        };
-    }
-
-    private static int statsTimeframeDropdownHeight(boolean open) {
-        return BUTTON_HEIGHT + 4 + (open ? BUTTON_HEIGHT + 6 : 0);
-    }
-
-    private int renderSessionLineGraphPanel(DrawContext context, String title, List<PvpStatsManager.SessionSnapshot> history, int x, int y, int width) {
-        HistoryMetric[] metrics = getHistoryMetrics();
-        int height = historyLineGraphPanelHeight();
-        int bottom = contentBottom - 10;
-        if (y + height < contentTop || y > bottom) {
-            return y + height;
-        }
-
-        int visibleTop = Math.max(y, contentTop);
-        int visibleBottom = Math.min(y + height, bottom);
-        context.fill(x, visibleTop, x + width, visibleBottom, 0xAA202020);
-        drawClippedPanelBorder(context, x, y, width, height, visibleTop, visibleBottom, 0x70FFFFFF);
-
-        int padding = 8;
-        if (y + padding >= contentTop && y + padding <= bottom) {
-            String count = history.size() == 1 ? "1 session" : history.size() + " sessions";
-            context.drawTextWithShadow(this.textRenderer, Text.literal(title + " - " + count), x + padding, y + padding, textColor(0xFFFFFF));
-        }
-
-        int graphX = x + padding + 28;
-        int graphTop = y + padding + 30;
-        int graphW = Math.max(80, width - padding * 2 - 36);
-        int graphH = 140;
-        int graphBottom = graphTop + graphH;
-        fillContent(context, graphX, graphTop, graphX + graphW, graphBottom, 0x55000000);
-        for (int i = 0; i <= 4; i++) {
-            int lineY = graphTop + i * graphH / 4;
-            fillContent(context, graphX, lineY, graphX + graphW, lineY + 1, 0x40FFFFFF);
-        }
-        for (int i = 0; i <= 4; i++) {
-            int lineX = graphX + i * graphW / 4;
-            fillContent(context, lineX, graphTop, lineX + 1, graphBottom, 0x25FFFFFF);
-        }
-
-        int activeCount = 0;
-        for (HistoryMetric metric : metrics) {
-            if (metric.visible) activeCount++;
-        }
-        if (history.isEmpty() || activeCount == 0) {
-            int messageY = graphTop + graphH / 2 - 4;
-            if (messageY >= contentTop && messageY <= bottom) {
-                context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("No selected session data yet"), graphX + graphW / 2, messageY, textColor(0xAAAAAA));
-            }
-        } else {
-            float max = 0.0f;
-            for (HistoryMetric metric : metrics) {
-                if (!metric.visible) continue;
-                for (PvpStatsManager.SessionSnapshot snapshot : history) {
-                    max = Math.max(max, metric.value.get(snapshot));
-                }
-            }
-            if (max <= 0.0f || !Float.isFinite(max)) {
-                max = 1.0f;
-            }
-
-            for (HistoryMetric metric : metrics) {
-                if (!metric.visible) continue;
-                int previousX = -1;
-                int previousY = -1;
-                for (int i = 0; i < history.size(); i++) {
-                    float value = Math.max(0.0f, metric.value.get(history.get(i)));
-                    int pointX = history.size() <= 1 ? graphX + graphW / 2 : graphX + i * graphW / (history.size() - 1);
-                    int pointY = graphBottom - Math.round(Math.min(1.0f, value / max) * graphH);
-                    if (previousX >= 0) {
-                        drawGraphLine(context, previousX, previousY, pointX, pointY, metric.color);
-                    }
-                    fillContent(context, pointX - 1, pointY - 1, pointX + 2, pointY + 2, textColor(metric.color));
-                    previousX = pointX;
-                    previousY = pointY;
-                }
-            }
-        }
-
-        int legendX = x + padding;
-        int legendY = graphBottom + 14;
-        for (HistoryMetric metric : metrics) {
-            if (!metric.visible) continue;
-            int labelW = this.textRenderer.getWidth(metric.label) + 18;
-            if (legendX + labelW > x + width - padding) {
-                legendX = x + padding;
-                legendY += 13;
-            }
-            if (legendY >= contentTop && legendY <= bottom) {
-                fillContent(context, legendX, legendY + 3, legendX + 9, legendY + 8, textColor(metric.color));
-                context.drawTextWithShadow(this.textRenderer, Text.literal(metric.label), legendX + 13, legendY, textColor(0xD8D8D8));
-            }
-            legendX += labelW + 8;
-        }
-
-        return y + height;
-    }
-
-    private HistoryMetric[] getHistoryMetrics() {
-        return new HistoryMetric[]{
-                new HistoryMetric("Kills", 0x55FF88, statsGraphKillsVisible, PvpStatsManager.SessionSnapshot::kills),
-                new HistoryMetric("Deaths", 0xFF7777, statsGraphDeathsVisible, PvpStatsManager.SessionSnapshot::deaths),
-                new HistoryMetric("Pops", 0xFFD75A, statsGraphTotemPopsVisible, PvpStatsManager.SessionSnapshot::totemPops),
-                new HistoryMetric("Clicks", 0x8EC7FF, statsGraphAttackClicksVisible, PvpStatsManager.SessionSnapshot::attackClicks),
-                new HistoryMetric("Hits", 0x7CFFDA, statsGraphHitsLandedVisible, PvpStatsManager.SessionSnapshot::hitsLanded),
-                new HistoryMetric("Damage", 0xFFAA66, statsGraphDamageTakenVisible, PvpStatsManager.SessionSnapshot::damageTaken),
-                new HistoryMetric("K/D", 0xFF8FD4, statsGraphKdRatioVisible, PvpStatsManager.SessionSnapshot::kdRatio),
-                new HistoryMetric("Accuracy", 0xCFA6FF, statsGraphAccuracyVisible, PvpStatsManager.SessionSnapshot::accuracyPercent)
-        };
-    }
-
-    private void drawGraphLine(DrawContext context, int x1, int y1, int x2, int y2, int color) {
-        int steps = Math.max(Math.abs(x2 - x1), Math.abs(y2 - y1));
-        if (steps <= 0) {
-            fillContent(context, x1, y1, x1 + 1, y1 + 1, textColor(color));
-            return;
-        }
-        for (int i = 0; i <= steps; i++) {
-            float t = i / (float) steps;
-            int x = Math.round(x1 + (x2 - x1) * t);
-            int y = Math.round(y1 + (y2 - y1) * t);
-            fillContent(context, x, y, x + 2, y + 2, textColor(color));
-        }
-    }
-
-    private void fillContent(DrawContext context, int x1, int y1, int x2, int y2, int color) {
-        int top = Math.max(y1, contentTop);
-        int bottom = Math.min(y2, contentBottom - 10);
-        if (x2 <= x1 || bottom <= top) return;
-        context.fill(x1, top, x2, bottom, color);
-    }
-
-    private static int statsCounterPanelHeight() {
-        return 8 * 2 + 14 + 8 * 13;
-    }
-
-    private static int statsBarGraphPanelHeight() {
-        return 8 * 2 + 18 + 8 * 18;
-    }
-
-    private static int historyLineGraphPanelHeight() {
-        return 230;
-    }
-
     private int renderTextPanel(DrawContext context, String title, String[] lines, int x, int y, int width) {
         int padding = 8;
         int lineHeight = 13;
@@ -2325,12 +1873,6 @@ public class AtomicsClientScreen extends Screen {
     }
 
     private boolean isNametagItemEnabled(String item) {
-        if (TpsConfig.NAMETAG_ITEM_WIN_ODDS.equals(item)) {
-            return winOddsEnabled;
-        }
-        if (TpsConfig.NAMETAG_ITEM_TOTEM_POPS.equals(item)) {
-            return totemPopNametagEnabled;
-        }
         if (TpsConfig.NAMETAG_ITEM_OPPONENT_STATS.equals(item)) {
             return opponentStatsNametagEnabled;
         }
@@ -2403,29 +1945,8 @@ public class AtomicsClientScreen extends Screen {
         }
         return normalized;
     }
-
-    private static String normalizeStatsTimeframe(String value) {
-        if (value == null) return "session";
-        for (String id : STATS_TIMEFRAME_IDS) {
-            if (id.equals(value)) return id;
-        }
-        return "session";
-    }
-
-    private static String statsTimeframeLabel(String value) {
-        return switch (normalizeStatsTimeframe(value)) {
-            case "daily" -> "Today";
-            case "weekly" -> "Weekly";
-            case "monthly" -> "Monthly";
-            case "all_time" -> "All Time";
-            default -> "Session";
-        };
-    }
-
     private static String nametagItemLabel(String value) {
         return switch (value) {
-            case TpsConfig.NAMETAG_ITEM_WIN_ODDS -> "Win Odds";
-            case TpsConfig.NAMETAG_ITEM_TOTEM_POPS -> "Totem Pops";
             case TpsConfig.NAMETAG_ITEM_OPPONENT_STATS -> "Opponent Stats";
             case TpsConfig.NAMETAG_ITEM_PING -> "Ping";
             default -> "Unknown";
@@ -2486,41 +2007,6 @@ public class AtomicsClientScreen extends Screen {
     private static String formatDegrees(double value) { return String.format(Locale.US, "%+.0f°", value); }
     private static String formatPercent(double value) { return String.format(Locale.US, "%.0f%%", value * 100.0); }
     private static String formatDecimal(double value, int decimals) { return String.format(Locale.US, "%." + decimals + "f", value); }
-    private static String formatAccuracy(int hits, int clicks) {
-        if (clicks <= 0) return "0.0%";
-        return String.format(Locale.US, "%.1f%%", hits * 100.0 / clicks);
-    }
-    private static String formatRatio(float value) { return String.format(Locale.US, "%.2f", value); }
-    private static String formatGraphValue(float value) {
-        return Math.abs(value - Math.round(value)) < 0.05f
-                ? Integer.toString(Math.round(value))
-                : PvpStatsManager.formatOne(value);
-    }
-    private static float getGraphBarMax(GraphBar bar) {
-        if ("Accuracy".equals(bar.label)) return 100.0f;
-        if ("K/D".equals(bar.label)) return niceGraphMax(bar.value, 5.0f);
-        return niceGraphMax(bar.value, 10.0f);
-    }
-    private static float niceGraphMax(float value, float fallback) {
-        if (!Float.isFinite(value) || value <= 0.0f) return fallback;
-        if (value <= 5.0f) return 5.0f;
-        if (value <= 10.0f) return 10.0f;
-        if (value <= 25.0f) return 25.0f;
-        if (value <= 50.0f) return 50.0f;
-        if (value <= 100.0f) return 100.0f;
-
-        float magnitude = (float) Math.pow(10.0, Math.floor(Math.log10(value)));
-        float scaled = value / magnitude;
-        float niceScaled;
-        if (scaled <= 2.0f) {
-            niceScaled = 2.0f;
-        } else if (scaled <= 5.0f) {
-            niceScaled = 5.0f;
-        } else {
-            niceScaled = 10.0f;
-        }
-        return niceScaled * magnitude;
-    }
     private static StyledLine parseStyledLine(String value) {
         int separator = value.lastIndexOf('|');
         if (separator < 0 || separator == value.length() - 1) {
@@ -2534,7 +2020,7 @@ public class AtomicsClientScreen extends Screen {
     }
 
     private enum Tab {
-        TOTEM("Totem", true), PVP("Combat", false), STATS("HUD & Stats", false), TOOLS("View", false), MISC("Items", false), KEYBINDS("Controls", false), SEARCH("Find", false);
+        TOTEM("Totem", true), PVP("Combat", false), STATS("HUD", false), TOOLS("View", false), MISC("Items", false), KEYBINDS("Controls", false), SEARCH("Find", false);
         private final String label;
         private final boolean hasPreview;
         Tab(String label, boolean hasPreview) { this.label = label; this.hasPreview = hasPreview; }
@@ -2674,17 +2160,6 @@ public class AtomicsClientScreen extends Screen {
 
     private record StyledLine(String text, int color) {
     }
-
-    private record GraphBar(String label, float value, int color) {
-    }
-
-    private record StatsTimeframe(String label, PvpStatsManager.Counters counters, boolean signed) {
-    }
-
-    private record HistoryMetric(String label, int color, boolean visible, HistoryValue value) {
-    }
-
-    @FunctionalInterface private interface HistoryValue { float get(PvpStatsManager.SessionSnapshot snapshot); }
 
     @FunctionalInterface private interface ToggleSetter { void set(boolean value); }
     @FunctionalInterface private interface IntSetter { void set(int value); }

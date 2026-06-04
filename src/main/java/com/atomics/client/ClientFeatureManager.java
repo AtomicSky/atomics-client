@@ -237,12 +237,6 @@ public final class ClientFeatureManager {
     }
 
     private static Text getNametagItemText(String itemId, PlayerEntity player, TpsConfig cfg) {
-        if (TpsConfig.NAMETAG_ITEM_WIN_ODDS.equals(itemId)) {
-            return PvpStatsManager.getWinOddsNameSuffix(player);
-        }
-        if (TpsConfig.NAMETAG_ITEM_TOTEM_POPS.equals(itemId)) {
-            return PvpStatsManager.getTotemPopNameSuffix(player);
-        }
         if (TpsConfig.NAMETAG_ITEM_OPPONENT_STATS.equals(itemId)) {
             return TierWeightManager.getNameSuffix(player);
         }

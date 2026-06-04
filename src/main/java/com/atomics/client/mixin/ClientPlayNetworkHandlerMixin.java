@@ -1,7 +1,6 @@
 package com.atomics.client.mixin;
 
 import com.atomics.client.TotemPopEffects;
-import com.atomics.client.PvpStatsManager;
 import com.atomics.client.AtomicsClient;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayNetworkHandler;
@@ -9,9 +8,6 @@ import net.minecraft.client.particle.ParticleManager;
 import net.minecraft.client.world.ClientWorld;
 import net.minecraft.entity.Entity;
 import net.minecraft.network.packet.s2c.play.EntityStatusS2CPacket;
-import net.minecraft.network.packet.s2c.play.GameMessageS2CPacket;
-import net.minecraft.network.packet.s2c.play.HealthUpdateS2CPacket;
-import net.minecraft.network.packet.s2c.play.ProfilelessChatMessageS2CPacket;
 import net.minecraft.particle.ParticleEffect;
 import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvent;
@@ -24,43 +20,16 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(ClientPlayNetworkHandler.class)
 public class ClientPlayNetworkHandlerMixin {
     @Inject(method = "onEntityStatus", at = @At("HEAD"))
-    private void atomics_client$recordConfirmedHit(EntityStatusS2CPacket packet, CallbackInfo ci) {
+    private void atomics_client$recordShieldDisabled(EntityStatusS2CPacket packet, CallbackInfo ci) {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.world == null) {
             return;
         }
         Entity entity = packet.getEntity(client.world);
-        if (packet.getStatus() == 2) {
-            PvpStatsManager.recordEntityHurt(entity);
-        } else if (packet.getStatus() == 3) {
-            // Some servers disable death messages or otherwise skip the normal client-side death path.
-            // The entity-status death packet still arrives, so use it as a fallback.
-            PvpStatsManager.recordDeathStatus(entity);
-        } else if (packet.getStatus() == 30 && entity == client.player) {
+        if (packet.getStatus() == 30 && entity == client.player) {
             AtomicsClient.recordLocalShieldDisabled();
-        } else if (packet.getStatus() == 35) {
-            PvpStatsManager.recordTotemPop(entity);
         }
     }
-
-    @Inject(method = "onHealthUpdate", at = @At("HEAD"))
-    private void atomics_client$recordLocalDeathFromHealthPacket(HealthUpdateS2CPacket packet, CallbackInfo ci) {
-        if (packet.getHealth() <= 0.0f) {
-            PvpStatsManager.recordLocalDeathFromHealthPacket();
-        }
-    }
-
-    @Inject(method = "onGameMessage", at = @At("HEAD"))
-    private void atomics_client$recordOutcomeFromGameMessage(GameMessageS2CPacket packet, CallbackInfo ci) {
-        PvpStatsManager.recordOutcomeFromServerMessage(packet.content());
-    }
-
-    @Inject(method = "onProfilelessChatMessage", at = @At("HEAD"))
-    private void atomics_client$recordOutcomeFromProfilelessChat(ProfilelessChatMessageS2CPacket packet, CallbackInfo ci) {
-        PvpStatsManager.recordOutcomeFromServerMessage(packet.message());
-    }
-
-
     @Redirect(
             method = "onEntityStatus",
             at = @At(

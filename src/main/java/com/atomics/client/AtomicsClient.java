@@ -47,7 +47,6 @@ public class AtomicsClient implements ClientModInitializer {
     public static TpsConfig CONFIG;
     private static KeyBinding.Category keyCategory;
     private static KeyBinding openStudioKey;
-    private static KeyBinding resetTotemCounterKey;
     private static KeyBinding zoomKey;
     private static KeyBinding freelookKey;
     private static KeyBinding toggleAutoGgKey;
@@ -85,12 +84,6 @@ public class AtomicsClient implements ClientModInitializer {
                     keyCategory
             ));
 
-            resetTotemCounterKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
-                    "key.atomics_client.reset_totem_counter",
-                    InputUtil.Type.KEYSYM,
-                    GLFW.GLFW_KEY_F9,
-                    keyCategory
-            ));
 
             zoomKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
                     "key.atomics_client.zoom",
@@ -135,9 +128,7 @@ public class AtomicsClient implements ClientModInitializer {
             while (openStudioKey != null && openStudioKey.wasPressed()) {
                 client.setScreen(new AtomicsClientScreen(client.currentScreen));
             }
-            while (resetTotemCounterKey != null && resetTotemCounterKey.wasPressed()) {
-                PvpStatsManager.resetTotemCounters();
-            }
+
             while (toggleAutoGgKey != null && toggleAutoGgKey.wasPressed()) {
                 toggleAutoGg(client);
             }
@@ -166,7 +157,6 @@ public class AtomicsClient implements ClientModInitializer {
                 }
             }
             TotemPopEffects.tick(client);
-            PvpStatsManager.tick(client);
             DualSpectateCamera.tick(client);
             FreelookManager.tick(client);
             ClientFeatureManager.tick(client);
@@ -222,9 +212,6 @@ public class AtomicsClient implements ClientModInitializer {
         return openStudioKey;
     }
 
-    public static KeyBinding getResetTotemCounterKeyBinding() {
-        return resetTotemCounterKey;
-    }
 
     public static KeyBinding getZoomKeyBinding() {
         return zoomKey;
@@ -430,7 +417,6 @@ public class AtomicsClient implements ClientModInitializer {
 
     public static void onTotemPop(Entity entity) {
         if (CONFIG == null || !CONFIG.enabled || entity == null) return;
-        PvpStatsManager.recordTotemPop(entity);
         TotemPopEffects.play(entity);
     }
 

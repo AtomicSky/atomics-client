@@ -2,7 +2,6 @@ package com.atomics.client.mixin;
 
 import com.atomics.client.AtomicsClient;
 import com.atomics.client.ClientFeatureManager;
-import com.atomics.client.PvpStatsManager;
 import net.minecraft.client.network.ClientPlayerInteractionManager;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.PlayerEntity;
@@ -21,6 +20,5 @@ public class ClientPlayerInteractionManagerMixin {
             return;
         }
         ClientFeatureManager.onReachAttack(player, target);
-        PvpStatsManager.recordAttackTarget(target);
     }
 }
