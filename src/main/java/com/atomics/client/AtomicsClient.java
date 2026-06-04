@@ -44,7 +44,6 @@ public class AtomicsClient {
     public static TpsConfig CONFIG;
     private static final String KEY_CATEGORY = "key.category.atomics_client.main";
     private static KeyMapping openStudioKey;
-    private static KeyMapping resetTotemCounterKey;
     private static KeyMapping zoomKey;
     private static KeyMapping freelookKey;
     private static KeyMapping toggleAutoGgKey;
@@ -84,13 +83,6 @@ public class AtomicsClient {
                     "key.atomics_client.open_gui",
                     InputConstants.Type.KEYSYM,
                     GLFW.GLFW_KEY_O,
-                    KEY_CATEGORY
-            ));
-
-            resetTotemCounterKey = register(event, new KeyMapping(
-                    "key.atomics_client.reset_totem_counter",
-                    InputConstants.Type.KEYSYM,
-                    GLFW.GLFW_KEY_F9,
                     KEY_CATEGORY
             ));
 
@@ -135,9 +127,6 @@ public class AtomicsClient {
         while (openStudioKey != null && openStudioKey.consumeClick()) {
                 client.setScreen(new AtomicsClientScreen(client.screen));
             }
-            while (resetTotemCounterKey != null && resetTotemCounterKey.consumeClick()) {
-                PvpStatsManager.resetTotemCounters();
-            }
             while (toggleAutoGgKey != null && toggleAutoGgKey.consumeClick()) {
                 toggleAutoGg(client);
             }
@@ -166,7 +155,6 @@ public class AtomicsClient {
                 }
             }
             TotemPopEffects.tick(client);
-            PvpStatsManager.tick(client);
             DualSpectateCamera.tick(client);
             FreelookManager.tick(client);
             ClientFeatureManager.tick(client);
@@ -220,10 +208,6 @@ public class AtomicsClient {
 
     public static KeyMapping getOpenStudioKeyBinding() {
         return openStudioKey;
-    }
-
-    public static KeyMapping getResetTotemCounterKeyBinding() {
-        return resetTotemCounterKey;
     }
 
     public static KeyMapping getZoomKeyBinding() {
@@ -430,7 +414,6 @@ public class AtomicsClient {
 
     public static void onTotemPop(Entity entity) {
         if (CONFIG == null || !CONFIG.enabled || entity == null) return;
-        PvpStatsManager.recordTotemPop(entity);
         TotemPopEffects.play(entity);
     }
 
