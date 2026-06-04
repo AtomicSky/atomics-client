@@ -1,7 +1,7 @@
 package com.atomics.client.mixin;
 
 import com.atomics.client.access.ItemEntityRenderStateAccess;
-import net.minecraft.client.render.entity.state.ItemEntityRenderState;
+import net.minecraft.client.renderer.entity.state.ItemEntityRenderState;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 

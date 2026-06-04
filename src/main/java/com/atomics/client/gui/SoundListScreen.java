@@ -2,20 +2,20 @@ package com.atomics.client.gui;
 
 import com.atomics.client.AtomicsClient;
 import com.atomics.client.config.TpsConfig;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
 import java.util.ArrayList;
+import net.minecraft.ChatFormatting;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.chat.Component;
 
 public class SoundListScreen extends Screen {
     private final Screen parent;
     private int scroll;
-    private Text status = Text.empty();
+    private Component status = Component.empty();
 
-    public SoundListScreen(Screen parent) { super(Text.literal("Totem Pop Sounds")); this.parent = parent; }
+    public SoundListScreen(Screen parent) { super(Component.literal("Totem Pop Sounds")); this.parent = parent; }
 
     @Override
     protected void init() {
@@ -32,30 +32,30 @@ public class SoundListScreen extends Screen {
             row++;
         }
         int bottom = this.height - 28;
-        addDrawableChild(ButtonWidget.builder(Text.literal("+ Add Sound"), b -> { finalCfg.sounds.sounds.add(TpsConfig.defaultSoundPlay()); status = Text.literal("Added sound").formatted(Formatting.GREEN); clearAndInit(); }).dimensions(24, bottom, 96, 20).build());
-        addDrawableChild(ButtonWidget.builder(Text.literal("Clear All"), b -> { finalCfg.sounds.sounds.clear(); status = Text.literal("Sound list cleared").formatted(Formatting.YELLOW); clearAndInit(); }).dimensions(126, bottom, 90, 20).build());
-        addDrawableChild(ButtonWidget.builder(Text.literal("Done"), b -> close()).dimensions(this.width - 96, bottom, 72, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("+ Add Sound"), b -> { finalCfg.sounds.sounds.add(TpsConfig.defaultSoundPlay()); status = Component.literal("Added sound").withStyle(ChatFormatting.GREEN); rebuildWidgets(); }).bounds(24, bottom, 96, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Clear All"), b -> { finalCfg.sounds.sounds.clear(); status = Component.literal("Sound list cleared").withStyle(ChatFormatting.YELLOW); rebuildWidgets(); }).bounds(126, bottom, 90, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Done"), b -> onClose()).bounds(this.width - 96, bottom, 72, 20).build());
     }
 
     private void addSoundRow(int x, int y, TpsConfig.SoundPlay sound, TpsConfig cfg) {
         int fieldW = Math.max(180, this.width - 376);
-        TextFieldWidget id = new TextFieldWidget(this.textRenderer, x, y + 14, fieldW, 20, Text.literal("Sound ID"));
-        id.setText(sound.sound == null ? "" : sound.sound);
-        id.setChangedListener(v -> sound.sound = v.trim().isEmpty() ? TpsConfig.DEFAULT_SOUND_ID : v.trim());
-        addDrawableChild(id);
-        TextFieldWidget volume = new TextFieldWidget(this.textRenderer, x + fieldW + 8, y + 14, 56, 20, Text.literal("Volume"));
-        volume.setText(Float.toString(sound.volume));
-        volume.setChangedListener(v -> sound.volume = (float) parseDouble(v, sound.volume, 0.0, 5.0));
-        addDrawableChild(volume);
-        TextFieldWidget pitch = new TextFieldWidget(this.textRenderer, x + fieldW + 70, y + 14, 56, 20, Text.literal("Pitch"));
-        pitch.setText(Float.toString(sound.pitch));
-        pitch.setChangedListener(v -> sound.pitch = (float) parseDouble(v, sound.pitch, 0.1, 4.0));
-        addDrawableChild(pitch);
-        TextFieldWidget delay = new TextFieldWidget(this.textRenderer, x + fieldW + 132, y + 14, 56, 20, Text.literal("Delay"));
-        delay.setText(Integer.toString(sound.delayTicks));
-        delay.setChangedListener(v -> sound.delayTicks = parseInt(v, sound.delayTicks, 0, 200));
-        addDrawableChild(delay);
-        addDrawableChild(ButtonWidget.builder(Text.literal("Remove"), b -> { cfg.sounds.sounds.remove(sound); status = Text.literal("Removed sound").formatted(Formatting.RED); clearAndInit(); }).dimensions(x + fieldW + 194, y + 14, 70, 20).build());
+        EditBox id = new EditBox(this.font, x, y + 14, fieldW, 20, Component.literal("Sound ID"));
+        id.setValue(sound.sound == null ? "" : sound.sound);
+        id.setResponder(v -> sound.sound = v.trim().isEmpty() ? TpsConfig.DEFAULT_SOUND_ID : v.trim());
+        addRenderableWidget(id);
+        EditBox volume = new EditBox(this.font, x + fieldW + 8, y + 14, 56, 20, Component.literal("Volume"));
+        volume.setValue(Float.toString(sound.volume));
+        volume.setResponder(v -> sound.volume = (float) parseDouble(v, sound.volume, 0.0, 5.0));
+        addRenderableWidget(volume);
+        EditBox pitch = new EditBox(this.font, x + fieldW + 70, y + 14, 56, 20, Component.literal("Pitch"));
+        pitch.setValue(Float.toString(sound.pitch));
+        pitch.setResponder(v -> sound.pitch = (float) parseDouble(v, sound.pitch, 0.1, 4.0));
+        addRenderableWidget(pitch);
+        EditBox delay = new EditBox(this.font, x + fieldW + 132, y + 14, 56, 20, Component.literal("Delay"));
+        delay.setValue(Integer.toString(sound.delayTicks));
+        delay.setResponder(v -> sound.delayTicks = parseInt(v, sound.delayTicks, 0, 200));
+        addRenderableWidget(delay);
+        addRenderableWidget(Button.builder(Component.literal("Remove"), b -> { cfg.sounds.sounds.remove(sound); status = Component.literal("Removed sound").withStyle(ChatFormatting.RED); rebuildWidgets(); }).bounds(x + fieldW + 194, y + 14, 70, 20).build());
     }
 
     @Override
@@ -63,20 +63,20 @@ public class SoundListScreen extends Screen {
         int size = AtomicsClient.CONFIG == null || AtomicsClient.CONFIG.sounds == null || AtomicsClient.CONFIG.sounds.sounds == null ? 0 : AtomicsClient.CONFIG.sounds.sounds.size();
         int max = Math.max(0, size * 50 - (this.height - 92));
         scroll = Math.max(0, Math.min(max, scroll - (int) (verticalAmount * 24)));
-        clearAndInit();
+        rebuildWidgets();
         return true;
     }
 
     @Override
-    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
+    public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
         context.fill(0, 0, this.width, this.height, 0xE0101010);
-        context.drawCenteredTextWithShadow(this.textRenderer, this.title, this.width / 2, 12, 0xFFFFFF);
-        super.render(context, mouseX, mouseY, delta);
-        context.drawTextWithShadow(this.textRenderer, status, 226, this.height - 22, 0xFFFFFF);
+        context.centeredText(this.font, this.title, this.width / 2, 12, 0xFFFFFF);
+        super.extractRenderState(context, mouseX, mouseY, delta);
+        context.text(this.font, status, 226, this.height - 22, 0xFFFFFF);
     }
 
     @Override
-    public void close() { if (this.client != null) this.client.setScreen(parent); }
+    public void onClose() { if (this.minecraft != null) this.minecraft.setScreen(parent); }
     private static int parseInt(String value, int fallback, int min, int max) { try { return Math.max(min, Math.min(max, Integer.parseInt(value.trim()))); } catch (Exception ignored) { return fallback; } }
     private static double parseDouble(String value, double fallback, double min, double max) { try { return Math.max(min, Math.min(max, Double.parseDouble(value.trim()))); } catch (Exception ignored) { return fallback; } }
 }

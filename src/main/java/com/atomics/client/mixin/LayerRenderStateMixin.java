@@ -1,8 +1,6 @@
 package com.atomics.client.mixin;
 
 import com.atomics.client.render.ItemRenderColorContext;
-import net.minecraft.client.render.item.ItemRenderState;
-import net.minecraft.client.render.model.BakedQuad;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
@@ -12,17 +10,19 @@ import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import net.minecraft.client.resources.model.geometry.BakedQuad;
+import net.minecraft.client.renderer.item.ItemStackRenderState;
 
-@Mixin(ItemRenderState.LayerRenderState.class)
+@Mixin(ItemStackRenderState.LayerRenderState.class)
 public class LayerRenderStateMixin {
     @Unique
     private static final Map<List<BakedQuad>, List<BakedQuad>> atomics_client$tintedQuadCache = new IdentityHashMap<>();
 
     @ModifyArg(
-            method = "render(Lnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/command/OrderedRenderCommandQueue;III)V",
+            method = "submit(Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;III)V",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraft/client/render/command/OrderedRenderCommandQueue;submitItem(Lnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/item/ItemDisplayContext;III[ILjava/util/List;Lnet/minecraft/client/render/RenderLayer;Lnet/minecraft/client/render/item/ItemRenderState$Glint;)V"
+                    target = "Lnet/minecraft/client/renderer/SubmitNodeCollector;submitItem(Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/world/item/ItemDisplayContext;III[ILjava/util/List;Lnet/minecraft/client/renderer/item/ItemStackRenderState$FoilType;)V"
             ),
             index = 5
     )
@@ -31,10 +31,10 @@ public class LayerRenderStateMixin {
     }
 
     @ModifyArg(
-            method = "render(Lnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/command/OrderedRenderCommandQueue;III)V",
+            method = "submit(Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;III)V",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraft/client/render/command/OrderedRenderCommandQueue;submitItem(Lnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/item/ItemDisplayContext;III[ILjava/util/List;Lnet/minecraft/client/render/RenderLayer;Lnet/minecraft/client/render/item/ItemRenderState$Glint;)V"
+                    target = "Lnet/minecraft/client/renderer/SubmitNodeCollector;submitItem(Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/world/item/ItemDisplayContext;III[ILjava/util/List;Lnet/minecraft/client/renderer/item/ItemStackRenderState$FoilType;)V"
             ),
             index = 6
     )
@@ -50,7 +50,7 @@ public class LayerRenderStateMixin {
 
         boolean needsRetint = false;
         for (BakedQuad quad : original) {
-            if (quad.tintIndex() != 0) {
+            if (quad.materialInfo().tintIndex() != 0) {
                 needsRetint = true;
                 break;
             }
@@ -70,9 +70,10 @@ public class LayerRenderStateMixin {
 
     @Unique
     private static BakedQuad atomics_client$withTintIndexZero(BakedQuad quad) {
-        if (quad.tintIndex() == 0) {
+        if (quad.materialInfo().tintIndex() == 0) {
             return quad;
         }
+        BakedQuad.MaterialInfo materialInfo = quad.materialInfo();
         return new BakedQuad(
                 quad.position0(),
                 quad.position1(),
@@ -82,11 +83,15 @@ public class LayerRenderStateMixin {
                 quad.packedUV1(),
                 quad.packedUV2(),
                 quad.packedUV3(),
-                0,
-                quad.face(),
-                quad.sprite(),
-                quad.shade(),
-                quad.lightEmission()
+                quad.direction(),
+                new BakedQuad.MaterialInfo(
+                        materialInfo.sprite(),
+                        materialInfo.layer(),
+                        materialInfo.itemRenderType(),
+                        0,
+                        materialInfo.shade(),
+                        materialInfo.lightEmission()
+                )
         );
     }
 }

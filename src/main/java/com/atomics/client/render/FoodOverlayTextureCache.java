@@ -1,17 +1,16 @@
 package com.atomics.client.render;
 
 import com.atomics.client.AtomicsClient;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.texture.NativeImage;
-import net.minecraft.client.texture.NativeImageBackedTexture;
-import net.minecraft.resource.Resource;
-import net.minecraft.resource.ResourceManager;
-import net.minecraft.util.Identifier;
-
+import com.mojang.blaze3d.platform.NativeImage;
 import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.texture.DynamicTexture;
+import net.minecraft.resources.Identifier;
+import net.minecraft.server.packs.resources.Resource;
+import net.minecraft.server.packs.resources.ResourceManager;
 
 public final class FoodOverlayTextureCache {
     private static final int SATURATION_GRADIENT_START = 0xFF9F8609;
@@ -23,10 +22,10 @@ public final class FoodOverlayTextureCache {
     }
 
     public static void clear() {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         if (client != null) {
             for (Identifier textureId : TEXTURES.values()) {
-                client.getTextureManager().destroyTexture(textureId);
+                client.getTextureManager().release(textureId);
             }
         }
         TEXTURES.clear();
@@ -38,41 +37,41 @@ public final class FoodOverlayTextureCache {
             return cached;
         }
 
-        Identifier textureId = Identifier.of(AtomicsClient.MOD_ID, "generated/food_overlay/" + vanillaSpriteId.getPath().replace('/', '_'));
+        Identifier textureId = Identifier.fromNamespaceAndPath(AtomicsClient.MOD_ID, "generated/food_overlay/" + vanillaSpriteId.getPath().replace('/', '_'));
         NativeImage image = loadYellowOutlineImage(vanillaSpriteId);
         if (image == null) {
             return null;
         }
 
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         if (client == null) {
             image.close();
             return null;
         }
 
-        client.getTextureManager().registerTexture(textureId, new NativeImageBackedTexture(() -> textureId.toString(), image));
+        client.getTextureManager().register(textureId, new DynamicTexture(() -> textureId.toString(), image));
         TEXTURES.put(vanillaSpriteId, textureId);
         return textureId;
     }
 
     private static NativeImage loadYellowOutlineImage(Identifier vanillaSpriteId) {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         ResourceManager resourceManager = client == null ? null : client.getResourceManager();
         if (resourceManager == null) {
             return null;
         }
 
-        Identifier resourceId = Identifier.of(vanillaSpriteId.getNamespace(), "textures/gui/sprites/" + vanillaSpriteId.getPath() + ".png");
+        Identifier resourceId = Identifier.fromNamespaceAndPath(vanillaSpriteId.getNamespace(), "textures/gui/sprites/" + vanillaSpriteId.getPath() + ".png");
         Optional<Resource> resource = resourceManager.getResource(resourceId);
         if (resource.isEmpty()) {
             return null;
         }
 
-        try (InputStream stream = resource.get().getInputStream(); NativeImage source = NativeImage.read(stream)) {
+        try (InputStream stream = resource.get().open(); NativeImage source = NativeImage.read(stream)) {
             NativeImage shifted = new NativeImage(source.getWidth(), source.getHeight(), false);
             for (int y = 0; y < source.getHeight(); y++) {
                 for (int x = 0; x < source.getWidth(); x++) {
-                    shifted.setColorArgb(x, y, yellowOutline(source, x, y));
+                    shifted.setPixel(x, y, yellowOutline(source, x, y));
                 }
             }
             return shifted;
@@ -82,7 +81,7 @@ public final class FoodOverlayTextureCache {
     }
 
     private static int yellowOutline(NativeImage image, int x, int y) {
-        int argb = image.getColorArgb(x, y);
+        int argb = image.getPixel(x, y);
         int alpha = (argb >>> 24) & 255;
         if (alpha < SHAPE_ALPHA_CUTOFF || !isEdgePixel(image, x, y)) {
             return 0;
@@ -121,6 +120,6 @@ public final class FoodOverlayTextureCache {
         if (x < 0 || y < 0 || x >= image.getWidth() || y >= image.getHeight()) {
             return false;
         }
-        return ((image.getColorArgb(x, y) >>> 24) & 255) >= SHAPE_ALPHA_CUTOFF;
+        return ((image.getPixel(x, y) >>> 24) & 255) >= SHAPE_ALPHA_CUTOFF;
     }
 }

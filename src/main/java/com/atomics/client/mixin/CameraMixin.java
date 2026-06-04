@@ -2,10 +2,9 @@ package com.atomics.client.mixin;
 
 import com.atomics.client.DualSpectateCamera;
 import com.atomics.client.FreelookManager;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.render.Camera;
-import net.minecraft.entity.Entity;
-import net.minecraft.world.World;
+import net.minecraft.client.Camera;
+import net.minecraft.client.DeltaTracker;
+import net.minecraft.client.Minecraft;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
@@ -15,23 +14,25 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(Camera.class)
 public class CameraMixin {
     @Shadow
-    private boolean thirdPerson;
+    private boolean detached;
 
-    @Inject(method = "update", at = @At("TAIL"))
-    private void atomics_client$disableVanillaThirdPersonOffset(
-            World world,
-            Entity focusedEntity,
-            boolean thirdPerson,
-            boolean inverseView,
-            float tickProgress,
-            CallbackInfo ci
-    ) {
+    @Inject(
+            method = "update(Lnet/minecraft/client/DeltaTracker;)V",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lnet/minecraft/client/Camera;alignWithEntity(F)V",
+                    shift = At.Shift.AFTER
+            )
+    )
+    private void atomics_client$applyCustomCamera(DeltaTracker deltaTracker, CallbackInfo ci) {
+        Camera camera = (Camera) (Object) this;
+        float tickProgress = camera.getCameraEntityPartialTicks(deltaTracker);
         if (DualSpectateCamera.isActive()) {
-            this.thirdPerson = false;
-            DualSpectateCamera.applyToCamera((Camera) (Object) this, MinecraftClient.getInstance(), tickProgress);
+            this.detached = false;
+            DualSpectateCamera.applyToCamera(camera, Minecraft.getInstance(), tickProgress);
         } else if (FreelookManager.isActive()) {
-            this.thirdPerson = true;
-            FreelookManager.applyToCamera((Camera) (Object) this, focusedEntity, tickProgress);
+            this.detached = true;
+            FreelookManager.applyToCamera(camera, camera.entity(), tickProgress);
         }
     }
 }

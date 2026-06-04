@@ -1,11 +1,11 @@
 package com.atomics.client.mixin;
 
 import com.atomics.client.access.PlayerOverlayRenderStateAccess;
-import net.minecraft.client.render.entity.state.PlayerEntityRenderState;
+import net.minecraft.client.renderer.entity.state.AvatarRenderState;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 
-@Mixin(PlayerEntityRenderState.class)
+@Mixin(AvatarRenderState.class)
 public class PlayerEntityRenderStateMixin implements PlayerOverlayRenderStateAccess {
     @Unique
     private int atomics_client$friendFoeOverlayColor = -1;

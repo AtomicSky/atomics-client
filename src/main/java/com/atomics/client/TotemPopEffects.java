@@ -1,27 +1,26 @@
 package com.atomics.client;
 
 import com.atomics.client.config.TpsConfig;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.entity.Entity;
-import net.minecraft.particle.ParticleEffect;
-import net.minecraft.particle.ParticleType;
-import net.minecraft.registry.Registries;
-import net.minecraft.sound.SoundCategory;
-import net.minecraft.sound.SoundEvent;
-import net.minecraft.util.Identifier;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.random.Random;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import net.minecraft.client.Minecraft;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.particles.ParticleOptions;
+import net.minecraft.core.particles.ParticleType;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.Identifier;
+import net.minecraft.sounds.SoundEvent;
+import net.minecraft.sounds.SoundSource;
+import net.minecraft.util.RandomSource;
+import net.minecraft.world.entity.Entity;
 
 public class TotemPopEffects {
     private static final List<PendingSound> PENDING_SOUNDS = new ArrayList<>();
-    private static final Map<String, ParticleEffect> PARTICLE_CACHE = new HashMap<>();
+    private static final Map<String, ParticleOptions> PARTICLE_CACHE = new HashMap<>();
     private static final Map<String, SoundEvent> SOUND_CACHE = new HashMap<>();
     private static final int SHAPE_RANDOM = 0;
     private static final int SHAPE_SPHERE = 1;
@@ -31,9 +30,9 @@ public class TotemPopEffects {
     private static final int SHAPE_CONE = 5;
 
     public static void play(Entity entity) {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         TpsConfig cfg = AtomicsClient.CONFIG;
-        if (client.world == null || client.player == null || cfg == null) return;
+        if (client.level == null || client.player == null || cfg == null) return;
         if (cfg.utility.onlyForSelf && entity != client.player) return;
 
         spawnParticles(client, entity, cfg);
@@ -41,31 +40,31 @@ public class TotemPopEffects {
     }
 
     public static void playParticles(Entity entity) {
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client.world == null || client.player == null || AtomicsClient.CONFIG == null) return;
+        Minecraft client = Minecraft.getInstance();
+        if (client.level == null || client.player == null || AtomicsClient.CONFIG == null) return;
         if (AtomicsClient.CONFIG.utility.onlyForSelf && entity != client.player) return;
         spawnParticles(client, entity, AtomicsClient.CONFIG);
     }
 
     public static void playSounds(Entity entity) {
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client.world == null || client.player == null || AtomicsClient.CONFIG == null) return;
+        Minecraft client = Minecraft.getInstance();
+        if (client.level == null || client.player == null || AtomicsClient.CONFIG == null) return;
         if (AtomicsClient.CONFIG.utility.onlyForSelf && entity != client.player) return;
         playSounds(client, entity, AtomicsClient.CONFIG);
     }
 
-    private static void spawnParticles(MinecraftClient client, Entity entity, TpsConfig cfg) {
+    private static void spawnParticles(Minecraft client, Entity entity, TpsConfig cfg) {
         if (!cfg.particles.enabled) return;
 
         double x = entity.getX();
-        double y = entity.getY() + entity.getHeight() * 0.55;
+        double y = entity.getY() + entity.getBbHeight() * 0.55;
         double z = entity.getZ();
         List<String> disabledParticles = cfg.particles.disabledParticleIds;
         boolean hasDisabledParticles = disabledParticles != null && !disabledParticles.isEmpty();
 
         for (TpsConfig.ParticleBurst burst : cfg.particles.bursts) {
             if (hasDisabledParticles && disabledParticles.contains(burst.particle)) continue;
-            ParticleEffect effect = getParticleEffect(burst.particle);
+            ParticleOptions effect = getParticleEffect(burst.particle);
             if (effect == null) continue;
 
             int count = Math.max(0, burst.count);
@@ -73,23 +72,23 @@ public class TotemPopEffects {
             double speed = Math.max(0.0, burst.speed);
             ParticleMotion motion = new ParticleMotion();
             for (int i = 0; i < count; i++) {
-                createParticleMotion(client.world.random, burst, shape, speed, i, count, motion);
-                client.particleManager.addParticle(effect, x + motion.x, y + motion.y, z + motion.z, motion.vx, motion.vy, motion.vz);
+                createParticleMotion(client.level.getRandom(), burst, shape, speed, i, count, motion);
+                client.particleEngine.createParticle(effect, x + motion.x, y + motion.y, z + motion.z, motion.vx, motion.vy, motion.vz);
             }
         }
     }
 
-    public static ParticleEffect getParticleEffect(String particleId) {
+    public static ParticleOptions getParticleEffect(String particleId) {
         if (particleId == null || particleId.isBlank()) return null;
         if (PARTICLE_CACHE.containsKey(particleId)) {
             return PARTICLE_CACHE.get(particleId);
         }
 
-        ParticleEffect effect = null;
+        ParticleOptions effect = null;
         Identifier id = Identifier.tryParse(particleId);
         if (id != null) {
-            ParticleType<?> type = Registries.PARTICLE_TYPE.get(id);
-            if (type instanceof ParticleEffect particleEffect) {
+            ParticleType<?> type = BuiltInRegistries.PARTICLE_TYPE.getValue(id);
+            if (type instanceof ParticleOptions particleEffect) {
                 effect = particleEffect;
             }
         }
@@ -109,7 +108,7 @@ public class TotemPopEffects {
         };
     }
 
-    private static void createParticleMotion(Random random, TpsConfig.ParticleBurst burst, int shape, double speed, int index, int count, ParticleMotion motion) {
+    private static void createParticleMotion(RandomSource random, TpsConfig.ParticleBurst burst, int shape, double speed, int index, int count, ParticleMotion motion) {
         switch (shape) {
             case SHAPE_SPHERE -> sphereMotion(random, burst, speed, motion);
             case SHAPE_RING -> ringMotion(random, burst, index, count, speed, motion);
@@ -120,7 +119,7 @@ public class TotemPopEffects {
         }
     }
 
-    private static void randomMotion(Random random, TpsConfig.ParticleBurst burst, double speed, ParticleMotion motion) {
+    private static void randomMotion(RandomSource random, TpsConfig.ParticleBurst burst, double speed, ParticleMotion motion) {
         double x = (random.nextDouble() - 0.5) * burst.spreadX;
         double y = (random.nextDouble() - 0.5) * burst.spreadY;
         double z = (random.nextDouble() - 0.5) * burst.spreadZ;
@@ -130,7 +129,7 @@ public class TotemPopEffects {
         motion.set(x, y, z, vx, vy, vz);
     }
 
-    private static void sphereMotion(Random random, TpsConfig.ParticleBurst burst, double speed, ParticleMotion motion) {
+    private static void sphereMotion(RandomSource random, TpsConfig.ParticleBurst burst, double speed, ParticleMotion motion) {
         double yaw = random.nextDouble() * Math.PI * 2.0;
         double cosPitch = random.nextDouble() * 2.0 - 1.0;
         double sinPitch = Math.sqrt(Math.max(0.0, 1.0 - cosPitch * cosPitch));
@@ -148,7 +147,7 @@ public class TotemPopEffects {
         );
     }
 
-    private static void ringMotion(Random random, TpsConfig.ParticleBurst burst, int index, int count, double speed, ParticleMotion motion) {
+    private static void ringMotion(RandomSource random, TpsConfig.ParticleBurst burst, int index, int count, double speed, ParticleMotion motion) {
         double angle = indexedAngle(random, index, count);
         double dx = Math.cos(angle);
         double dz = Math.sin(angle);
@@ -163,7 +162,7 @@ public class TotemPopEffects {
         );
     }
 
-    private static void spiralMotion(Random random, TpsConfig.ParticleBurst burst, int index, int count, double speed, ParticleMotion motion) {
+    private static void spiralMotion(RandomSource random, TpsConfig.ParticleBurst burst, int index, int count, double speed, ParticleMotion motion) {
         double progress = count <= 1 ? 0.0 : index / (double) (count - 1);
         double angle = progress * Math.PI * 6.0;
         double radius = 0.15 + progress * 0.45;
@@ -179,7 +178,7 @@ public class TotemPopEffects {
         );
     }
 
-    private static void beamMotion(Random random, TpsConfig.ParticleBurst burst, int index, int count, double speed, ParticleMotion motion) {
+    private static void beamMotion(RandomSource random, TpsConfig.ParticleBurst burst, int index, int count, double speed, ParticleMotion motion) {
         double progress = count <= 1 ? 0.0 : index / (double) (count - 1);
         double angle = random.nextDouble() * Math.PI * 2.0;
         double radius = random.nextDouble() * 0.12;
@@ -193,7 +192,7 @@ public class TotemPopEffects {
         );
     }
 
-    private static void coneMotion(Random random, TpsConfig.ParticleBurst burst, double speed, ParticleMotion motion) {
+    private static void coneMotion(RandomSource random, TpsConfig.ParticleBurst burst, double speed, ParticleMotion motion) {
         double angle = random.nextDouble() * Math.PI * 2.0;
         double radius = random.nextDouble() * 0.5;
         double dx = Math.cos(angle) * radius;
@@ -209,16 +208,16 @@ public class TotemPopEffects {
         );
     }
 
-    private static double indexedAngle(Random random, int index, int count) {
+    private static double indexedAngle(RandomSource random, int index, int count) {
         if (count <= 0) return random.nextDouble() * Math.PI * 2.0;
         return (index / (double) count) * Math.PI * 2.0 + random.nextDouble() * 0.08;
     }
 
 
-    private static void playSounds(MinecraftClient client, Entity entity, TpsConfig cfg) {
+    private static void playSounds(Minecraft client, Entity entity, TpsConfig cfg) {
         if (!cfg.sounds.enabled) return;
 
-        BlockPos pos = entity.getBlockPos();
+        BlockPos pos = entity.blockPosition();
         for (TpsConfig.SoundPlay s : cfg.sounds.sounds) {
             int delayTicks = Math.max(0, s.delayTicks);
             if (delayTicks == 0) {
@@ -229,9 +228,9 @@ public class TotemPopEffects {
         }
     }
 
-    public static void tick(MinecraftClient client) {
+    public static void tick(Minecraft client) {
         if (PENDING_SOUNDS.isEmpty()) return;
-        if (client.world == null || client.player == null) {
+        if (client.level == null || client.player == null) {
             PENDING_SOUNDS.clear();
             return;
         }
@@ -247,14 +246,14 @@ public class TotemPopEffects {
         }
     }
 
-    private static void playSound(MinecraftClient client, BlockPos pos, TpsConfig.SoundPlay sound) {
+    private static void playSound(Minecraft client, BlockPos pos, TpsConfig.SoundPlay sound) {
         playSound(client, pos, sound.sound, sound.volume, sound.pitch);
     }
 
-    private static void playSound(MinecraftClient client, BlockPos pos, String soundId, float volume, float pitch) {
+    private static void playSound(Minecraft client, BlockPos pos, String soundId, float volume, float pitch) {
         SoundEvent event = getSoundEvent(soundId);
         if (event == null) return;
-        client.world.playSound(client.player, pos, event, SoundCategory.PLAYERS, volume, pitch);
+        client.level.playSound(client.player, pos, event, SoundSource.PLAYERS, volume, pitch);
     }
 
     private static SoundEvent getSoundEvent(String soundId) {
@@ -266,7 +265,7 @@ public class TotemPopEffects {
         SoundEvent event = null;
         Identifier id = Identifier.tryParse(soundId);
         if (id != null) {
-            event = Registries.SOUND_EVENT.get(id);
+            event = BuiltInRegistries.SOUND_EVENT.getValue(id);
         }
         SOUND_CACHE.put(soundId, event);
         return event;

@@ -3,21 +3,21 @@ package com.atomics.client.mixin;
 import com.atomics.client.AtomicsClient;
 import com.atomics.client.access.ItemRenderStateAccess;
 import com.atomics.client.render.ItemRenderColorContext;
-import net.minecraft.client.item.ItemModelManager;
-import net.minecraft.client.render.item.ItemRenderState;
-import net.minecraft.item.ItemStack;
-import net.minecraft.util.HeldItemContext;
-import net.minecraft.world.World;
+import net.minecraft.client.renderer.item.ItemModelResolver;
+import net.minecraft.client.renderer.item.ItemStackRenderState;
+import net.minecraft.world.entity.ItemOwner;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.ModifyVariable;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-@Mixin(ItemModelManager.class)
+@Mixin(ItemModelResolver.class)
 public class ItemModelManagerMixin {
     @ModifyVariable(
-            method = "clearAndUpdate(Lnet/minecraft/client/render/item/ItemRenderState;Lnet/minecraft/item/ItemStack;Lnet/minecraft/item/ItemDisplayContext;Lnet/minecraft/world/World;Lnet/minecraft/util/HeldItemContext;I)V",
+            method = "updateForTopItem(Lnet/minecraft/client/renderer/item/ItemStackRenderState;Lnet/minecraft/world/item/ItemStack;Lnet/minecraft/world/item/ItemDisplayContext;Lnet/minecraft/world/level/Level;Lnet/minecraft/world/entity/ItemOwner;I)V",
             at = @At("HEAD"),
             argsOnly = true,
             ordinal = 0
@@ -27,10 +27,10 @@ public class ItemModelManagerMixin {
     }
 
     @Inject(
-            method = "clearAndUpdate(Lnet/minecraft/client/render/item/ItemRenderState;Lnet/minecraft/item/ItemStack;Lnet/minecraft/item/ItemDisplayContext;Lnet/minecraft/world/World;Lnet/minecraft/util/HeldItemContext;I)V",
+            method = "updateForTopItem(Lnet/minecraft/client/renderer/item/ItemStackRenderState;Lnet/minecraft/world/item/ItemStack;Lnet/minecraft/world/item/ItemDisplayContext;Lnet/minecraft/world/level/Level;Lnet/minecraft/world/entity/ItemOwner;I)V",
             at = @At("TAIL")
     )
-    private void atomics_client$setColorOverlay(ItemRenderState state, ItemStack stack, net.minecraft.item.ItemDisplayContext displayContext, World world, HeldItemContext heldItemContext, int seed, CallbackInfo ci) {
+    private void atomics_client$setColorOverlay(ItemStackRenderState state, ItemStack stack, net.minecraft.world.item.ItemDisplayContext displayContext, Level world, ItemOwner heldItemContext, int seed, CallbackInfo ci) {
         ItemRenderStateAccess access = (ItemRenderStateAccess) state;
 
         // Store dynamic targets instead of baked values. Minecraft can cache item

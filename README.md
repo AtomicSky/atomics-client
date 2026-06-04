@@ -1,6 +1,6 @@
 # Atomics Client
 
-A Fabric **Minecraft 1.21.11 / Java 21** client mod scaffold for insanely customizable totem pop visuals.
+A Fabric **Minecraft 26.1.2 / Java 25** client mod scaffold for insanely customizable totem pop visuals.
 
 ## Features included
 
@@ -14,14 +14,14 @@ A Fabric **Minecraft 1.21.11 / Java 21** client mod scaffold for insanely custom
 
 ## Build target
 
-Fabric's 1.21.11 migration note says 1.21.11 should use Loom 1.14 and Fabric Loader 0.18.1+.
+Minecraft 26.1+ uses Fabric's non-obfuscated development setup and Java 25.
 This project uses:
 
 ```properties
-minecraft_version=1.21.11
-yarn_mappings=1.21.11+build.1
-loader_version=0.18.1
-fabric_version=0.140.0+1.21.11
+minecraft_version=26.1.2
+loader_version=0.19.2
+loom_version=1.16-SNAPSHOT
+fabric_api_version=0.150.0+26.1.2
 ```
 
 If Gradle says one of those dependency versions does not exist, open `gradle.properties` and replace it with the exact newest version from Fabric's version pages.
@@ -104,17 +104,17 @@ If you want this to work on public servers with no permissions, the better desig
 ## Files to edit most often
 
 - `src/main/resources/assets/atomics_client/textures/item/custom_totem.png`
-- `src/main/java/com/atomics/atomicsclient/config/TpsConfig.java`
+- `src/main/java/com/atomics/client/config/TpsConfig.java`
 - `.minecraft/config/atomics_client.json`
 
 ## Mixin warning
 
-Minecraft 1.21.11 is still obfuscated, and exact Yarn method names can shift by build.
+Minecraft 26.1.2 is non-obfuscated, but renderer and GUI internals are still sensitive to method signature changes.
 If the mod fails at runtime, check these mixins first:
 
-- `ClientPlayNetworkHandlerMixin` — totem pop packet detection
-- `HeldItemRendererMixin` — in-hand totem scaling
-- `GameRendererMixin` — pop overlay scale
+- `ClientPlayNetworkHandlerMixin` - totem pop packet detection
+- `HeldItemRendererMixin` - in-hand totem scaling
+- `GameRendererMixin` - pop overlay scale
 
 The particle/sound config is the most stable part. The overlay and hand scaling are the most mapping-sensitive parts.
 
@@ -122,7 +122,7 @@ The particle/sound config is the most stable part. The overlay and hand scaling 
 
 Press **O** in-game to open Atomics Client. You can change the key in:
 
-Options → Controls → Atomics Client → Open Atomics Client
+Options -> Controls -> Atomics Client -> Open Atomics Client
 
 The screen lets you edit:
 - enable/disable the mod

@@ -4,31 +4,32 @@ import com.atomics.client.config.TpsConfig;
 import com.atomics.client.gui.AtomicsClientScreen;
 import com.atomics.client.render.FoodOverlayTextureCache;
 import com.atomics.client.render.PlayerOverlayColorContext;
+import com.mojang.blaze3d.platform.InputConstants;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
-import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
-import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
+import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
+import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
+import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
 import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
 import net.fabricmc.fabric.api.resource.SimpleSynchronousResourceReloadListener;
 import net.fabricmc.loader.api.FabricLoader;
-import net.minecraft.component.DataComponentTypes;
-import net.minecraft.component.type.BlocksAttacksComponent;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.option.KeyBinding;
-import net.minecraft.client.util.InputUtil;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.registry.Registries;
-import net.minecraft.resource.ResourceManager;
-import net.minecraft.resource.ResourceType;
-import net.minecraft.util.hit.EntityHitResult;
-import net.minecraft.util.Identifier;
-import net.minecraft.util.math.Box;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.client.KeyMapping;
+import net.minecraft.client.Minecraft;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.Identifier;
+import net.minecraft.server.packs.PackType;
+import net.minecraft.server.packs.resources.ResourceManager;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.item.component.BlocksAttacks;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.EntityHitResult;
+import net.minecraft.world.phys.Vec3;
 import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -45,19 +46,19 @@ public class AtomicsClient implements ClientModInitializer {
     private static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
     public static TpsConfig CONFIG;
-    private static KeyBinding.Category keyCategory;
-    private static KeyBinding openStudioKey;
-    private static KeyBinding resetTotemCounterKey;
-    private static KeyBinding zoomKey;
-    private static KeyBinding freelookKey;
-    private static KeyBinding toggleAutoGgKey;
-    private static KeyBinding toggleDualSpectateKey;
-    private static KeyBinding toggleFullBrightKey;
-    private static KeyBinding toggleTimeChangerKey;
-    private static KeyBinding toggleProjectileTrailKey;
-    private static KeyBinding toggleStreamerModeKey;
-    private static KeyBinding cycleFriendFoeKey;
-    private static final List<KeyBinding> macroKeys = new ArrayList<>();
+    private static KeyMapping.Category keyCategory;
+    private static KeyMapping openStudioKey;
+    private static KeyMapping resetTotemCounterKey;
+    private static KeyMapping zoomKey;
+    private static KeyMapping freelookKey;
+    private static KeyMapping toggleAutoGgKey;
+    private static KeyMapping toggleDualSpectateKey;
+    private static KeyMapping toggleFullBrightKey;
+    private static KeyMapping toggleTimeChangerKey;
+    private static KeyMapping toggleProjectileTrailKey;
+    private static KeyMapping toggleStreamerModeKey;
+    private static KeyMapping cycleFriendFoeKey;
+    private static final List<KeyMapping> macroKeys = new ArrayList<>();
     private static String cachedReplacementItemId;
     private static Item cachedReplacementItem;
     private static long lastLocalShieldDisabledMillis;
@@ -71,37 +72,38 @@ public class AtomicsClient implements ClientModInitializer {
     private static int cachedFriendFoeOverlayStyle = PlayerOverlayColorContext.STYLE_FULL;
     private static int cachedFriendOverlayColor = -1;
     private static int cachedFoeOverlayColor = -1;
+    private static boolean itemStackCreationWarningLogged;
 
     @Override
     public void onInitializeClient() {
         CONFIG = TpsConfig.load().normalize();
 
         try {
-            keyCategory = KeyBinding.Category.create(Identifier.of(MOD_ID, "main"));
-            openStudioKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+            keyCategory = KeyMapping.Category.register(Identifier.fromNamespaceAndPath(MOD_ID, "main"));
+            openStudioKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                     "key.atomics_client.open_gui",
-                    InputUtil.Type.KEYSYM,
+                    InputConstants.Type.KEYSYM,
                     GLFW.GLFW_KEY_O,
                     keyCategory
             ));
 
-            resetTotemCounterKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+            resetTotemCounterKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                     "key.atomics_client.reset_totem_counter",
-                    InputUtil.Type.KEYSYM,
+                    InputConstants.Type.KEYSYM,
                     GLFW.GLFW_KEY_F9,
                     keyCategory
             ));
 
-            zoomKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+            zoomKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                     "key.atomics_client.zoom",
-                    InputUtil.Type.KEYSYM,
+                    InputConstants.Type.KEYSYM,
                     GLFW.GLFW_KEY_C,
                     keyCategory
             ));
 
-            freelookKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+            freelookKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                     "key.atomics_client.freelook",
-                    InputUtil.Type.KEYSYM,
+                    InputConstants.Type.KEYSYM,
                     GLFW.GLFW_KEY_LEFT_ALT,
                     keyCategory
             ));
@@ -119,49 +121,49 @@ public class AtomicsClient implements ClientModInitializer {
             LOGGER.error("Failed to register keybindings", e);
         }
 
-        ResourceManagerHelper.get(ResourceType.CLIENT_RESOURCES).registerReloadListener(new SimpleSynchronousResourceReloadListener() {
+        ResourceManagerHelper.get(PackType.CLIENT_RESOURCES).registerReloadListener(new SimpleSynchronousResourceReloadListener() {
             @Override
             public Identifier getFabricId() {
-                return Identifier.of(MOD_ID, "food_overlay_textures");
+                return Identifier.fromNamespaceAndPath(MOD_ID, "food_overlay_textures");
             }
 
             @Override
-            public void reload(ResourceManager manager) {
+            public void onResourceManagerReload(ResourceManager manager) {
                 FoodOverlayTextureCache.clear();
             }
         });
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            while (openStudioKey != null && openStudioKey.wasPressed()) {
-                client.setScreen(new AtomicsClientScreen(client.currentScreen));
+            while (openStudioKey != null && openStudioKey.consumeClick()) {
+                client.setScreen(new AtomicsClientScreen(client.screen));
             }
-            while (resetTotemCounterKey != null && resetTotemCounterKey.wasPressed()) {
+            while (resetTotemCounterKey != null && resetTotemCounterKey.consumeClick()) {
                 PvpStatsManager.resetTotemCounters();
             }
-            while (toggleAutoGgKey != null && toggleAutoGgKey.wasPressed()) {
+            while (toggleAutoGgKey != null && toggleAutoGgKey.consumeClick()) {
                 toggleAutoGg(client);
             }
-            while (toggleDualSpectateKey != null && toggleDualSpectateKey.wasPressed()) {
+            while (toggleDualSpectateKey != null && toggleDualSpectateKey.consumeClick()) {
                 toggleDualSpectate(client);
             }
-            while (toggleFullBrightKey != null && toggleFullBrightKey.wasPressed()) {
+            while (toggleFullBrightKey != null && toggleFullBrightKey.consumeClick()) {
                 toggleFullBright(client);
             }
-            while (toggleTimeChangerKey != null && toggleTimeChangerKey.wasPressed()) {
+            while (toggleTimeChangerKey != null && toggleTimeChangerKey.consumeClick()) {
                 toggleTimeChanger(client);
             }
-            while (toggleProjectileTrailKey != null && toggleProjectileTrailKey.wasPressed()) {
+            while (toggleProjectileTrailKey != null && toggleProjectileTrailKey.consumeClick()) {
                 toggleProjectileTrail(client);
             }
-            while (toggleStreamerModeKey != null && toggleStreamerModeKey.wasPressed()) {
+            while (toggleStreamerModeKey != null && toggleStreamerModeKey.consumeClick()) {
                 toggleStreamerMode(client);
             }
-            while (cycleFriendFoeKey != null && cycleFriendFoeKey.wasPressed()) {
+            while (cycleFriendFoeKey != null && cycleFriendFoeKey.consumeClick()) {
                 cycleLookedAtPlayerFriendFoe(client);
             }
             for (int i = 0; i < macroKeys.size(); i++) {
-                KeyBinding macroKey = macroKeys.get(i);
-                while (macroKey != null && macroKey.wasPressed()) {
+                KeyMapping macroKey = macroKeys.get(i);
+                while (macroKey != null && macroKey.consumeClick()) {
                     ClientFeatureManager.runMacro(client, i);
                 }
             }
@@ -172,13 +174,17 @@ public class AtomicsClient implements ClientModInitializer {
             ClientFeatureManager.tick(client);
         });
 
-        HudRenderCallback.EVENT.register((context, tickCounter) -> ClientFeatureManager.renderHud(context));
+        HudElementRegistry.attachElementAfter(
+                VanillaHudElements.HOTBAR,
+                Identifier.fromNamespaceAndPath(MOD_ID, "hud"),
+                (context, tickCounter) -> ClientFeatureManager.renderHud(context)
+        );
     }
 
-    private static KeyBinding registerUnboundKey(String translationKey) {
-        return KeyBindingHelper.registerKeyBinding(new KeyBinding(
+    private static KeyMapping registerUnboundKey(String translationKey) {
+        return KeyMappingHelper.registerKeyMapping(new KeyMapping(
                 translationKey,
-                InputUtil.Type.KEYSYM,
+                InputConstants.Type.KEYSYM,
                 GLFW.GLFW_KEY_UNKNOWN,
                 keyCategory
         ));
@@ -188,9 +194,9 @@ public class AtomicsClient implements ClientModInitializer {
         if (keyCategory == null) return;
         while (macroKeys.size() < count) {
             int index = macroKeys.size();
-            macroKeys.add(KeyBindingHelper.registerKeyBinding(new KeyBinding(
+            macroKeys.add(KeyMappingHelper.registerKeyMapping(new KeyMapping(
                     "key.atomics_client.macro_" + (index + 1),
-                    InputUtil.Type.KEYSYM,
+                    InputConstants.Type.KEYSYM,
                     GLFW.GLFW_KEY_UNKNOWN,
                     keyCategory
             )));
@@ -198,7 +204,18 @@ public class AtomicsClient implements ClientModInitializer {
     }
 
     public static boolean isZoomKeyPressed() {
-        return zoomKey != null && zoomKey.isPressed();
+        return zoomKey != null && zoomKey.isDown();
+    }
+
+    public static void sendClientMessage(Player player, net.minecraft.network.chat.Component message, boolean overlay) {
+        if (player == null || message == null) {
+            return;
+        }
+        if (overlay) {
+            player.sendOverlayMessage(message);
+        } else {
+            player.sendSystemMessage(message);
+        }
     }
 
     public static boolean isFreelookEnabled() {
@@ -209,7 +226,7 @@ public class AtomicsClient implements ClientModInitializer {
     }
 
     public static boolean isFreelookKeyPressed() {
-        return freelookKey != null && freelookKey.isPressed();
+        return freelookKey != null && freelookKey.isDown();
     }
 
     public static boolean isFreelookToggleMode() {
@@ -218,51 +235,51 @@ public class AtomicsClient implements ClientModInitializer {
                 && CONFIG.visual.freelookToggleMode;
     }
 
-    public static KeyBinding getOpenStudioKeyBinding() {
+    public static KeyMapping getOpenStudioKeyBinding() {
         return openStudioKey;
     }
 
-    public static KeyBinding getResetTotemCounterKeyBinding() {
+    public static KeyMapping getResetTotemCounterKeyBinding() {
         return resetTotemCounterKey;
     }
 
-    public static KeyBinding getZoomKeyBinding() {
+    public static KeyMapping getZoomKeyBinding() {
         return zoomKey;
     }
 
-    public static KeyBinding getFreelookKeyBinding() {
+    public static KeyMapping getFreelookKeyBinding() {
         return freelookKey;
     }
 
-    public static KeyBinding getToggleAutoGgKeyBinding() {
+    public static KeyMapping getToggleAutoGgKeyBinding() {
         return toggleAutoGgKey;
     }
 
-    public static KeyBinding getToggleDualSpectateKeyBinding() {
+    public static KeyMapping getToggleDualSpectateKeyBinding() {
         return toggleDualSpectateKey;
     }
 
-    public static KeyBinding getToggleFullBrightKeyBinding() {
+    public static KeyMapping getToggleFullBrightKeyBinding() {
         return toggleFullBrightKey;
     }
 
-    public static KeyBinding getToggleTimeChangerKeyBinding() {
+    public static KeyMapping getToggleTimeChangerKeyBinding() {
         return toggleTimeChangerKey;
     }
 
-    public static KeyBinding getToggleProjectileTrailKeyBinding() {
+    public static KeyMapping getToggleProjectileTrailKeyBinding() {
         return toggleProjectileTrailKey;
     }
 
-    public static KeyBinding getToggleStreamerModeKeyBinding() {
+    public static KeyMapping getToggleStreamerModeKeyBinding() {
         return toggleStreamerModeKey;
     }
 
-    public static KeyBinding getCycleFriendFoeKeyBinding() {
+    public static KeyMapping getCycleFriendFoeKeyBinding() {
         return cycleFriendFoeKey;
     }
 
-    public static KeyBinding getMacroKeyBinding(int index) {
+    public static KeyMapping getMacroKeyBinding(int index) {
         return index >= 0 && index < macroKeys.size() ? macroKeys.get(index) : null;
     }
 
@@ -270,70 +287,70 @@ public class AtomicsClient implements ClientModInitializer {
         return macroKeys.size();
     }
 
-    public static void setKeyBinding(KeyBinding keyBinding, InputUtil.Key key) {
+    public static void setKeyBinding(KeyMapping keyBinding, InputConstants.Key key) {
         if (keyBinding == null || key == null) {
             return;
         }
-        keyBinding.setBoundKey(key);
-        KeyBinding.updateKeysByCode();
-        MinecraftClient client = MinecraftClient.getInstance();
+        keyBinding.setKey(key);
+        KeyMapping.resetMapping();
+        Minecraft client = Minecraft.getInstance();
         if (client != null && client.options != null) {
-            client.options.write();
+            client.options.save();
         }
     }
 
-    public static String keyBindingName(KeyBinding keyBinding) {
+    public static String keyBindingName(KeyMapping keyBinding) {
         if (keyBinding == null || keyBinding.isUnbound()) {
             return "Unbound";
         }
-        return keyBinding.getBoundKeyLocalizedText().getString();
+        return keyBinding.getTranslatedKeyMessage().getString();
     }
 
-    private static void toggleAutoGg(MinecraftClient client) {
+    private static void toggleAutoGg(Minecraft client) {
         if (CONFIG == null) return;
         CONFIG.pvp.autoGgEnabled = !CONFIG.pvp.autoGgEnabled;
         sendToggleMessage(client, "Auto GG", CONFIG.pvp.autoGgEnabled);
     }
 
-    private static void toggleDualSpectate(MinecraftClient client) {
+    private static void toggleDualSpectate(Minecraft client) {
         if (CONFIG == null) return;
         CONFIG.pvp.dualSpectateEnabled = !CONFIG.pvp.dualSpectateEnabled;
         sendToggleMessage(client, "Dual Spectate Camera", CONFIG.pvp.dualSpectateEnabled);
     }
 
-    private static void toggleFullBright(MinecraftClient client) {
+    private static void toggleFullBright(Minecraft client) {
         if (CONFIG == null) return;
         CONFIG.visual.fullBrightEnabled = !CONFIG.visual.fullBrightEnabled;
         sendToggleMessage(client, "Full Bright", CONFIG.visual.fullBrightEnabled);
     }
 
-    private static void toggleTimeChanger(MinecraftClient client) {
+    private static void toggleTimeChanger(Minecraft client) {
         if (CONFIG == null) return;
         CONFIG.visual.timeChangerEnabled = !CONFIG.visual.timeChangerEnabled;
         sendToggleMessage(client, "Time Changer", CONFIG.visual.timeChangerEnabled);
     }
 
-    private static void toggleProjectileTrail(MinecraftClient client) {
+    private static void toggleProjectileTrail(Minecraft client) {
         if (CONFIG == null) return;
         CONFIG.visual.projectileTrailEnabled = !CONFIG.visual.projectileTrailEnabled;
         sendToggleMessage(client, "Projectile Trail", CONFIG.visual.projectileTrailEnabled);
     }
 
-    private static void toggleStreamerMode(MinecraftClient client) {
+    private static void toggleStreamerMode(Minecraft client) {
         if (CONFIG == null) return;
         CONFIG.visual.streamerModeEnabled = !CONFIG.visual.streamerModeEnabled;
         sendToggleMessage(client, "Streamer Mode", CONFIG.visual.streamerModeEnabled);
     }
 
-    private static void sendToggleMessage(MinecraftClient client, String label, boolean enabled) {
+    private static void sendToggleMessage(Minecraft client, String label, boolean enabled) {
         saveConfigQuietly();
         if (client != null && client.player != null) {
-            client.player.sendMessage(net.minecraft.text.Text.literal(label + ": " + (enabled ? "ON" : "OFF")), true);
+            AtomicsClient.sendClientMessage(client.player, net.minecraft.network.chat.Component.literal(label + ": " + (enabled ? "ON" : "OFF")), true);
         }
     }
 
-    private static void cycleLookedAtPlayerFriendFoe(MinecraftClient client) {
-        PlayerEntity player = findLookedAtPlayer(client);
+    private static void cycleLookedAtPlayerFriendFoe(Minecraft client) {
+        Player player = findLookedAtPlayer(client);
         if (player == null) {
             sendActionMessage(client, "Look at a player to mark them");
             return;
@@ -371,40 +388,40 @@ public class AtomicsClient implements ClientModInitializer {
         sendActionMessage(client, normalized + ": " + state);
     }
 
-    private static PlayerEntity findLookedAtPlayer(MinecraftClient client) {
-        if (client == null || client.player == null || client.world == null) {
+    private static Player findLookedAtPlayer(Minecraft client) {
+        if (client == null || client.player == null || client.level == null) {
             return null;
         }
 
-        if (client.crosshairTarget instanceof EntityHitResult entityHitResult
-                && entityHitResult.getEntity() instanceof PlayerEntity player
+        if (client.hitResult instanceof EntityHitResult entityHitResult
+                && entityHitResult.getEntity() instanceof Player player
                 && player != client.player) {
             return player;
         }
-        if (client.targetedEntity instanceof PlayerEntity player && player != client.player) {
+        if (client.crosshairPickEntity instanceof Player player && player != client.player) {
             return player;
         }
 
         Entity cameraEntity = client.getCameraEntity() == null ? client.player : client.getCameraEntity();
-        Vec3d start = cameraEntity.getCameraPosVec(1.0f);
-        Vec3d direction = cameraEntity.getRotationVec(1.0f);
+        Vec3 start = cameraEntity.getEyePosition(1.0f);
+        Vec3 direction = cameraEntity.getViewVector(1.0f);
         double range = 96.0;
-        Vec3d end = start.add(direction.multiply(range));
+        Vec3 end = start.add(direction.scale(range));
 
-        PlayerEntity best = null;
+        Player best = null;
         double bestDistanceSq = range * range;
-        for (PlayerEntity candidate : client.world.getPlayers()) {
+        for (Player candidate : client.level.players()) {
             if (candidate == client.player || !candidate.isAlive() || candidate.isSpectator()) {
                 continue;
             }
 
-            Box box = candidate.getBoundingBox().expand(Math.max(0.3, candidate.getTargetingMargin() + 0.25));
-            Optional<Vec3d> hit = box.raycast(start, end);
+            AABB box = candidate.getBoundingBox().inflate(Math.max(0.3, candidate.getPickRadius() + 0.25));
+            Optional<Vec3> hit = box.clip(start, end);
             if (hit.isEmpty()) {
                 continue;
             }
 
-            double distanceSq = start.squaredDistanceTo(hit.get());
+            double distanceSq = start.distanceToSqr(hit.get());
             if (distanceSq < bestDistanceSq) {
                 bestDistanceSq = distanceSq;
                 best = candidate;
@@ -413,9 +430,9 @@ public class AtomicsClient implements ClientModInitializer {
         return best;
     }
 
-    private static void sendActionMessage(MinecraftClient client, String message) {
+    private static void sendActionMessage(Minecraft client, String message) {
         if (client != null && client.player != null) {
-            client.player.sendMessage(net.minecraft.text.Text.literal(message), true);
+            AtomicsClient.sendClientMessage(client.player, net.minecraft.network.chat.Component.literal(message), true);
         }
     }
 
@@ -436,7 +453,7 @@ public class AtomicsClient implements ClientModInitializer {
 
     public static boolean shouldCustomizeTotemPop(Entity entity) {
         if (CONFIG == null || !CONFIG.enabled || entity == null) return false;
-        return !CONFIG.utility.onlyForSelf || entity == net.minecraft.client.MinecraftClient.getInstance().player;
+        return !CONFIG.utility.onlyForSelf || entity == net.minecraft.client.Minecraft.getInstance().player;
     }
 
     public static boolean isTotemPopItemEnabled() {
@@ -464,7 +481,7 @@ public class AtomicsClient implements ClientModInitializer {
     }
 
     public static ItemStack getVisualTotemStack(ItemStack originalStack) {
-        if (originalStack == null || !originalStack.isOf(Items.TOTEM_OF_UNDYING) || !isRetextureEnabled()) {
+        if (originalStack == null || !originalStack.is(Items.TOTEM_OF_UNDYING) || !isRetextureEnabled()) {
             return originalStack;
         }
 
@@ -473,12 +490,27 @@ public class AtomicsClient implements ClientModInitializer {
             return originalStack;
         }
 
-        ItemStack replacementStack = replacement.getDefaultStack();
+        ItemStack replacementStack = createDefaultStackSafely(replacement);
         if (replacementStack.isEmpty()) {
-            replacementStack = new ItemStack(replacement);
+            return originalStack;
         }
         replacementStack.setCount(originalStack.getCount());
         return replacementStack;
+    }
+
+    private static ItemStack createDefaultStackSafely(Item item) {
+        if (item == null || item == Items.AIR) {
+            return ItemStack.EMPTY;
+        }
+        try {
+            return item.getDefaultInstance();
+        } catch (RuntimeException e) {
+            if (!itemStackCreationWarningLogged) {
+                itemStackCreationWarningLogged = true;
+                LOGGER.warn("Unable to create preview item stack before item components are bound", e);
+            }
+            return ItemStack.EMPTY;
+        }
     }
 
     private static Item getReplacementItem() {
@@ -497,7 +529,7 @@ public class AtomicsClient implements ClientModInitializer {
 
         cachedReplacementItemId = itemId;
         Identifier id = Identifier.tryParse(itemId);
-        cachedReplacementItem = id == null ? Items.AIR : Registries.ITEM.get(id);
+        cachedReplacementItem = id == null ? Items.AIR : BuiltInRegistries.ITEM.getValue(id);
         return cachedReplacementItem;
     }
 
@@ -519,7 +551,7 @@ public class AtomicsClient implements ClientModInitializer {
     }
 
     public static void setRenderingLocalPlayerHeldItem(LivingEntity entity) {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         renderingLocalPlayerHeldItem = client != null && entity == client.player;
     }
 
@@ -532,7 +564,7 @@ public class AtomicsClient implements ClientModInitializer {
     }
 
     public static boolean isEmptyBucketOverlayTarget(ItemStack stack) {
-        return stack != null && !stack.isEmpty() && stack.isOf(Items.BUCKET);
+        return stack != null && !stack.isEmpty() && stack.is(Items.BUCKET);
     }
 
     public static int getLiveEmptyBucketOverlayColor() {
@@ -562,7 +594,7 @@ public class AtomicsClient implements ClientModInitializer {
     }
 
     private static boolean isShieldWarningActive() {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         if (client == null || client.player == null) {
             return false;
         }
@@ -572,28 +604,28 @@ public class AtomicsClient implements ClientModInitializer {
             return true;
         }
 
-        ItemStack offHandStack = client.player.getOffHandStack();
-        ItemStack mainHandStack = client.player.getMainHandStack();
-        ItemStack shieldStack = offHandStack.isOf(Items.SHIELD) ? offHandStack : mainHandStack;
-        if (!shieldStack.isOf(Items.SHIELD)) {
-            shieldStack = Items.SHIELD.getDefaultStack();
+        ItemStack offHandStack = client.player.getOffhandItem();
+        ItemStack mainHandStack = client.player.getMainHandItem();
+        ItemStack shieldStack = offHandStack.is(Items.SHIELD) ? offHandStack : mainHandStack;
+        if (!shieldStack.is(Items.SHIELD)) {
+            shieldStack = Items.SHIELD.getDefaultInstance();
         }
 
-        if (client.player.getItemCooldownManager().isCoolingDown(shieldStack)) {
+        if (client.player.getCooldowns().isOnCooldown(shieldStack)) {
             return true;
         }
 
-        if (!client.player.isUsingItem() || !client.player.getActiveItem().isOf(Items.SHIELD)) {
+        if (!client.player.isUsingItem() || !client.player.getUseItem().is(Items.SHIELD)) {
             return false;
         }
 
-        int delayTicks = getShieldBlockDelayTicks(client.player.getActiveItem());
-        return delayTicks > 0 && client.player.getItemUseTime() < delayTicks;
+        int delayTicks = getShieldBlockDelayTicks(client.player.getUseItem());
+        return delayTicks > 0 && client.player.getTicksUsingItem() < delayTicks;
     }
 
     private static int getShieldBlockDelayTicks(ItemStack stack) {
-        BlocksAttacksComponent blocksAttacks = stack == null ? null : stack.get(DataComponentTypes.BLOCKS_ATTACKS);
-        return blocksAttacks == null ? 5 : Math.max(0, blocksAttacks.getBlockDelayTicks());
+        BlocksAttacks blocksAttacks = stack == null ? null : stack.get(DataComponents.BLOCKS_ATTACKS);
+        return blocksAttacks == null ? 5 : Math.max(0, blocksAttacks.blockDelayTicks());
     }
 
     public static int getItemColorOverlay(ItemStack stack) {
@@ -608,7 +640,7 @@ public class AtomicsClient implements ClientModInitializer {
         return -1;
     }
 
-    public static int getPlayerFriendFoeOverlayColor(PlayerEntity player) {
+    public static int getPlayerFriendFoeOverlayColor(Player player) {
         syncFriendFoeCache();
         if (player == null || !cachedFriendFoeOverlayEnabled) {
             return -1;
@@ -629,7 +661,7 @@ public class AtomicsClient implements ClientModInitializer {
         return -1;
     }
 
-    public static int getPlayerFriendFoeOverlayStyle(PlayerEntity player) {
+    public static int getPlayerFriendFoeOverlayStyle(Player player) {
         return getPlayerFriendFoeOverlayColor(player) == -1
                 ? PlayerOverlayColorContext.STYLE_FULL
                 : cachedFriendFoeOverlayStyle;
@@ -640,15 +672,15 @@ public class AtomicsClient implements ClientModInitializer {
                 || style == PlayerOverlayColorContext.STYLE_OUTLINE_FULL;
     }
 
-    public static boolean shouldBlockFriendAttack(PlayerEntity target) {
+    public static boolean shouldBlockFriendAttack(Player target) {
         syncFriendFoeCache();
         return target != null
                 && cachedFriendFoeOverlayEnabled
                 && isFriend(target);
     }
 
-    public static void notifyFriendAttackBlocked(PlayerEntity target) {
-        MinecraftClient client = MinecraftClient.getInstance();
+    public static void notifyFriendAttackBlocked(Player target) {
+        Minecraft client = Minecraft.getInstance();
         if (client == null || client.player == null) {
             return;
         }
@@ -658,16 +690,16 @@ public class AtomicsClient implements ClientModInitializer {
         }
         lastFriendAttackBlockedMillis = now;
         String name = getPlayerProfileName(target);
-        client.player.sendMessage(net.minecraft.text.Text.literal("Blocked attack on friend" + (name == null || name.isBlank() ? "" : ": " + name)), true);
+        AtomicsClient.sendClientMessage(client.player, net.minecraft.network.chat.Component.literal("Blocked attack on friend" + (name == null || name.isBlank() ? "" : ": " + name)), true);
     }
 
-    private static boolean isFriend(PlayerEntity player) {
+    private static boolean isFriend(Player player) {
         String name = getPlayerProfileName(player);
         String normalizedName = normalizeName(name);
         return !normalizedName.isEmpty() && cachedFriendNames.contains(normalizedName);
     }
 
-    private static String getPlayerProfileName(PlayerEntity player) {
+    private static String getPlayerProfileName(Player player) {
         if (player == null) {
             return null;
         }
@@ -792,10 +824,10 @@ public class AtomicsClient implements ClientModInitializer {
         if (stack == null || stack.isEmpty() || CONFIG == null || !CONFIG.enabled) {
             return false;
         }
-        if (stack.isOf(Items.TOTEM_OF_UNDYING)) {
+        if (stack.is(Items.TOTEM_OF_UNDYING)) {
             return true;
         }
-        return stack.isOf(getReplacementItem());
+        return stack.is(getReplacementItem());
     }
 
     public static boolean isTotemHueShiftTarget(ItemStack stack) {
@@ -842,6 +874,7 @@ public class AtomicsClient implements ClientModInitializer {
     }
 
     public static ItemStack getPreviewTotemStack() {
-        return getVisualTotemStack(Items.TOTEM_OF_UNDYING.getDefaultStack());
+        ItemStack vanillaTotem = createDefaultStackSafely(Items.TOTEM_OF_UNDYING);
+        return vanillaTotem.isEmpty() ? ItemStack.EMPTY : getVisualTotemStack(vanillaTotem);
     }
 }
