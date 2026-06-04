@@ -7,6 +7,10 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.TextColor;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.scores.Objective;
+import net.minecraft.world.scores.Score;
+import net.minecraft.world.scores.Scoreboard;
+import net.minecraft.world.scores.criteria.ObjectiveCriteria;
 
 import java.util.HashMap;
 import java.util.Iterator;
@@ -17,6 +21,7 @@ public final class PvpNametagStatsManager {
     private static final double TRACKING_RADIUS = 100.0;
     private static final double TRACKING_RADIUS_SQ = TRACKING_RADIUS * TRACKING_RADIUS;
     private static final float POP_HEALTH_WEIGHT = 20.0f;
+    private static final int BELOW_NAME_SCOREBOARD_SLOT = 2;
     private static final Map<UUID, OpponentStats> OPPONENT_STATS = new HashMap<>();
 
     private static Object activeWorld;
@@ -75,8 +80,8 @@ public final class PvpNametagStatsManager {
         int percent;
         if (spectatedOpponent != null) {
             percent = getHealthAndPopWinPercent(
-                    readHealth(player),
-                    readHealth(spectatedOpponent),
+                    readCombatHealth(client, player),
+                    readCombatHealth(client, spectatedOpponent),
                     statsFor(player).totemPops,
                     statsFor(spectatedOpponent).totemPops
             );
@@ -84,7 +89,7 @@ public final class PvpNametagStatsManager {
             if (!isTrackableOpponent(client, player)) {
                 return null;
             }
-            percent = getHealthAndPopWinPercent(readHealth(client.player), readHealth(player), localTotemPops, statsFor(player).totemPops);
+            percent = getHealthAndPopWinPercent(readCombatHealth(client, client.player), readCombatHealth(client, player), localTotemPops, statsFor(player).totemPops);
         }
         return Component.literal(percent + "%").withStyle(style -> style.withColor(TextColor.fromRgb(winPercentColor(percent))));
     }
@@ -111,8 +116,41 @@ public final class PvpNametagStatsManager {
         return Math.max(0, Math.min(100, Math.round(localScore * 100.0f / total)));
     }
 
+    private static float readCombatHealth(Minecraft client, Player player) {
+        Float scoreboardHealth = readBelowNameHealth(client, player);
+        return scoreboardHealth == null ? readHealth(player) : scoreboardHealth + readAbsorption(player);
+    }
+
+    private static Float readBelowNameHealth(Minecraft client, Player player) {
+        if (client == null || client.level == null || player == null) {
+            return null;
+        }
+
+        Scoreboard scoreboard = client.level.getScoreboard();
+        Objective objective = scoreboard.getDisplayObjective(BELOW_NAME_SCOREBOARD_SLOT);
+        if (!isHealthObjective(objective)) {
+            return null;
+        }
+
+        Score score = scoreboard.getPlayerScores(player.getScoreboardName()).get(objective);
+        if (score == null || score.getScore() < 0) {
+            return null;
+        }
+        return (float) score.getScore();
+    }
+
+    private static boolean isHealthObjective(Objective objective) {
+        return objective != null
+                && (objective.getCriteria() == ObjectiveCriteria.HEALTH
+                || objective.getRenderType() == ObjectiveCriteria.RenderType.HEARTS);
+    }
+
     private static float readHealth(Player player) {
-        return player == null ? 0.0f : player.getHealth() + player.getAbsorptionAmount();
+        return player == null ? 0.0f : player.getHealth() + readAbsorption(player);
+    }
+
+    private static float readAbsorption(Player player) {
+        return player == null ? 0.0f : player.getAbsorptionAmount();
     }
 
     private static boolean isTrackableOpponent(Minecraft client, Player other) {
