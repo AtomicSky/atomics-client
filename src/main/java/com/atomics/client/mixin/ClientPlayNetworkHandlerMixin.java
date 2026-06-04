@@ -13,7 +13,6 @@ import net.minecraft.network.protocol.game.ClientboundSystemChatPacket;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.Entity;
-import com.atomics.client.PvpStatsManager;
 import com.atomics.client.AtomicsClient;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -24,42 +23,16 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(ClientPacketListener.class)
 public class ClientPlayNetworkHandlerMixin {
     @Inject(method = "handleEntityEvent(Lnet/minecraft/network/protocol/game/ClientboundEntityEventPacket;)V", at = @At("HEAD"))
-    private void atomics_client$recordConfirmedHit(ClientboundEntityEventPacket packet, CallbackInfo ci) {
+    private void atomics_client$recordShieldDisabled(ClientboundEntityEventPacket packet, CallbackInfo ci) {
         Minecraft client = Minecraft.getInstance();
         if (client.level == null) {
             return;
         }
         Entity entity = packet.getEntity(client.level);
-        if (packet.getEventId() == 2) {
-            PvpStatsManager.recordEntityHurt(entity);
-        } else if (packet.getEventId() == 3) {
-            // Some servers disable death messages or otherwise skip the normal client-side death path.
-            // The entity-status death packet still arrives, so use it as a fallback.
-            PvpStatsManager.recordDeathStatus(entity);
-        } else if (packet.getEventId() == 30 && entity == client.player) {
+        if (packet.getEventId() == 30 && entity == client.player) {
             AtomicsClient.recordLocalShieldDisabled();
-        } else if (packet.getEventId() == 35) {
-            PvpStatsManager.recordTotemPop(entity);
         }
     }
-
-    @Inject(method = "handleSetHealth(Lnet/minecraft/network/protocol/game/ClientboundSetHealthPacket;)V", at = @At("HEAD"))
-    private void atomics_client$recordLocalDeathFromHealthPacket(ClientboundSetHealthPacket packet, CallbackInfo ci) {
-        if (packet.getHealth() <= 0.0f) {
-            PvpStatsManager.recordLocalDeathFromHealthPacket();
-        }
-    }
-
-    @Inject(method = "handleSystemChat(Lnet/minecraft/network/protocol/game/ClientboundSystemChatPacket;)V", at = @At("HEAD"))
-    private void atomics_client$recordOutcomeFromGameMessage(ClientboundSystemChatPacket packet, CallbackInfo ci) {
-        PvpStatsManager.recordOutcomeFromServerMessage(packet.content());
-    }
-
-    @Inject(method = "handleDisguisedChat(Lnet/minecraft/network/protocol/game/ClientboundDisguisedChatPacket;)V", at = @At("HEAD"))
-    private void atomics_client$recordOutcomeFromProfilelessChat(ClientboundDisguisedChatPacket packet, CallbackInfo ci) {
-        PvpStatsManager.recordOutcomeFromServerMessage(packet.message());
-    }
-
 
     @Redirect(
             method = "handleEntityEvent(Lnet/minecraft/network/protocol/game/ClientboundEntityEventPacket;)V",

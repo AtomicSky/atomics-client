@@ -48,8 +48,7 @@ public class AtomicsClient implements ClientModInitializer {
     public static TpsConfig CONFIG;
     private static KeyMapping.Category keyCategory;
     private static KeyMapping openStudioKey;
-    private static KeyMapping resetTotemCounterKey;
-    private static KeyMapping zoomKey;
+   private static KeyMapping zoomKey;
     private static KeyMapping freelookKey;
     private static KeyMapping toggleAutoGgKey;
     private static KeyMapping toggleDualSpectateKey;
@@ -87,14 +86,7 @@ public class AtomicsClient implements ClientModInitializer {
                     keyCategory
             ));
 
-            resetTotemCounterKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
-                    "key.atomics_client.reset_totem_counter",
-                    InputConstants.Type.KEYSYM,
-                    GLFW.GLFW_KEY_F9,
-                    keyCategory
-            ));
-
-            zoomKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
+           zoomKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                     "key.atomics_client.zoom",
                     InputConstants.Type.KEYSYM,
                     GLFW.GLFW_KEY_C,
@@ -137,10 +129,7 @@ public class AtomicsClient implements ClientModInitializer {
             while (openStudioKey != null && openStudioKey.consumeClick()) {
                 client.setScreen(new AtomicsClientScreen(client.screen));
             }
-            while (resetTotemCounterKey != null && resetTotemCounterKey.consumeClick()) {
-                PvpStatsManager.resetTotemCounters();
-            }
-            while (toggleAutoGgKey != null && toggleAutoGgKey.consumeClick()) {
+           while (toggleAutoGgKey != null && toggleAutoGgKey.consumeClick()) {
                 toggleAutoGg(client);
             }
             while (toggleDualSpectateKey != null && toggleDualSpectateKey.consumeClick()) {
@@ -168,8 +157,7 @@ public class AtomicsClient implements ClientModInitializer {
                 }
             }
             TotemPopEffects.tick(client);
-            PvpStatsManager.tick(client);
-            DualSpectateCamera.tick(client);
+           DualSpectateCamera.tick(client);
             FreelookManager.tick(client);
             ClientFeatureManager.tick(client);
         });
@@ -239,11 +227,7 @@ public class AtomicsClient implements ClientModInitializer {
         return openStudioKey;
     }
 
-    public static KeyMapping getResetTotemCounterKeyBinding() {
-        return resetTotemCounterKey;
-    }
-
-    public static KeyMapping getZoomKeyBinding() {
+   public static KeyMapping getZoomKeyBinding() {
         return zoomKey;
     }
 
@@ -447,8 +431,7 @@ public class AtomicsClient implements ClientModInitializer {
 
     public static void onTotemPop(Entity entity) {
         if (CONFIG == null || !CONFIG.enabled || entity == null) return;
-        PvpStatsManager.recordTotemPop(entity);
-        TotemPopEffects.play(entity);
+       TotemPopEffects.play(entity);
     }
 
     public static boolean shouldCustomizeTotemPop(Entity entity) {

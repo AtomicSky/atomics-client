@@ -2,7 +2,6 @@
   "category.atomics_client.main": "Atomics Client",
   "key.category.atomics_client.main": "Atomics Client",
   "key.atomics_client.open_gui": "Open Atomics Client Menu",
-  "key.atomics_client.reset_totem_counter": "Reset Totem Counter",
   "key.atomics_client.zoom": "Zoom",
   "key.atomics_client.freelook": "Freelook",
   "key.atomics_client.toggle_auto_gg": "Toggle Auto GG",

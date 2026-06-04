@@ -63,12 +63,9 @@ public class TpsConfig {
     public static final String FRIEND_FOE_STYLE_OUTLINE_FULL = "outline_full";
     public static final String FRIEND_FOE_STYLE_PULSE = "pulse";
     public static final String DEFAULT_FRIEND_FOE_OVERLAY_STYLE = FRIEND_FOE_STYLE_FULL;
-    public static final String NAMETAG_ITEM_WIN_ODDS = "win_odds";
-    public static final String NAMETAG_ITEM_TOTEM_POPS = "totem_pops";
     public static final String NAMETAG_ITEM_OPPONENT_STATS = "opponent_stats";
     public static final String NAMETAG_ITEM_PING = "ping";
     public static final boolean DEFAULT_PING_NAMETAG_ENABLED = false;
-    public static final boolean DEFAULT_TOTEM_POP_NAMETAG_ENABLED = false;
     public static final boolean DEFAULT_OPPONENT_STATS_NAMETAG_ENABLED = false;
     public static final String OPPONENT_STATS_NAMETAG_ICON_TIER = "icon_tier";
     public static final String OPPONENT_STATS_NAMETAG_TIER = "tier";
@@ -225,7 +222,6 @@ public class TpsConfig {
             ui.collapsedSections = new ArrayList<>(new LinkedHashSet<>(ui.collapsedSections));
         }
         pvp.spoofedHealthMode = PVP_HEALTH_MODE_PREFER_SRV;
-        pvp.deathRecapEnabled = false;
         if (pvp.dualSpectatePlayerOne == null) pvp.dualSpectatePlayerOne = "";
         if (pvp.dualSpectatePlayerTwo == null) pvp.dualSpectatePlayerTwo = "";
         if (pvp.friendNames == null) pvp.friendNames = new ArrayList<>();
@@ -247,31 +243,9 @@ public class TpsConfig {
         if (pvp.autoGgMessage.length() > 64) pvp.autoGgMessage = pvp.autoGgMessage.substring(0, 64);
         if (pvp.autoGgWinMessage.length() > 64) pvp.autoGgWinMessage = pvp.autoGgWinMessage.substring(0, 64);
         if (pvp.autoGgLoseMessage.length() > 64) pvp.autoGgLoseMessage = pvp.autoGgLoseMessage.substring(0, 64);
-        if (pvp.dailyStatsDate == null) pvp.dailyStatsDate = "";
-        if (pvp.weeklyStatsKey == null) pvp.weeklyStatsKey = "";
-        if (pvp.monthlyStatsKey == null) pvp.monthlyStatsKey = "";
-        if (!isStatsTimeframe(pvp.statsNumbersTimeframe)) pvp.statsNumbersTimeframe = "session";
-        if (!isStatsTimeframe(pvp.statsBarGraphTimeframe)) pvp.statsBarGraphTimeframe = "session";
         pvp.nametagItemOrder = normalizeNametagItems(pvp.nametagItemOrder, false);
         pvp.nametagItemsBeforeName = normalizeNametagItems(pvp.nametagItemsBeforeName, true);
         pvp.opponentStatsNametagFormat = normalizeOpponentStatsNametagFormat(pvp.opponentStatsNametagFormat);
-        if (pvp.statSessions == null) {
-            pvp.statSessions = new ArrayList<>();
-        } else {
-            pvp.statSessions.removeIf(session -> session == null || session.sessionId == null || session.sessionId.isBlank());
-            for (SessionStatsSnapshot session : pvp.statSessions) {
-                if (session.label == null || session.label.isBlank()) session.label = "Session";
-                session.deaths = Math.max(0, session.deaths);
-                session.kills = Math.max(0, session.kills);
-                session.totemPops = Math.max(0, session.totemPops);
-                session.attackClicks = Math.max(0, session.attackClicks);
-                session.hitsLanded = Math.max(0, session.hitsLanded);
-                session.damageTaken = Math.max(0.0f, session.damageTaken);
-            }
-            while (pvp.statSessions.size() > 50) {
-                pvp.statSessions.remove(0);
-            }
-        }
         pvp.dualSpectatePadding = Math.max(1.0f, Math.min(2.5f, pvp.dualSpectatePadding));
         pvp.dualSpectateMinDistance = Math.max(2.0f, Math.min(30.0f, pvp.dualSpectateMinDistance));
         pvp.dualSpectateMaxDistance = Math.max(10.0f, Math.min(160.0f, pvp.dualSpectateMaxDistance));
@@ -350,13 +324,11 @@ public class TpsConfig {
     }
 
     public static List<String> defaultNametagItemOrder() {
-        return new ArrayList<>(List.of(NAMETAG_ITEM_WIN_ODDS, NAMETAG_ITEM_TOTEM_POPS, NAMETAG_ITEM_OPPONENT_STATS, NAMETAG_ITEM_PING));
+        return new ArrayList<>(List.of(NAMETAG_ITEM_OPPONENT_STATS, NAMETAG_ITEM_PING));
     }
 
     public static boolean isKnownNametagItem(String item) {
-        return NAMETAG_ITEM_WIN_ODDS.equals(item)
-                || NAMETAG_ITEM_TOTEM_POPS.equals(item)
-                || NAMETAG_ITEM_OPPONENT_STATS.equals(item)
+        return NAMETAG_ITEM_OPPONENT_STATS.equals(item)
                 || NAMETAG_ITEM_PING.equals(item);
     }
 
@@ -385,15 +357,6 @@ public class TpsConfig {
         }
         return DEFAULT_OPPONENT_STATS_NAMETAG_FORMAT;
     }
-
-    private static boolean isStatsTimeframe(String value) {
-        return "session".equals(value)
-                || "daily".equals(value)
-                || "weekly".equals(value)
-                || "monthly".equals(value)
-                || "all_time".equals(value);
-    }
-
     private static int clampInt(int value, int min, int max) {
         return Math.max(min, Math.min(max, value));
     }
@@ -580,11 +543,6 @@ public class TpsConfig {
     public static final String PVP_HEALTH_MODE_ESTIMATION_ONLY = "estimation_only";
 
     public static class PvpSettings {
-        public boolean deathRecapEnabled = false;
-        public boolean sessionStatsEnabled = true;
-        public boolean allTimeStatsEnabled = true;
-        public boolean winOddsEnabled = true;
-        public boolean totemPopNametagEnabled = DEFAULT_TOTEM_POP_NAMETAG_ENABLED;
         public boolean opponentStatsNametagEnabled = DEFAULT_OPPONENT_STATS_NAMETAG_ENABLED;
         public String opponentStatsNametagFormat = DEFAULT_OPPONENT_STATS_NAMETAG_FORMAT;
         public boolean pingNametagEnabled = DEFAULT_PING_NAMETAG_ENABLED;
@@ -617,62 +575,7 @@ public class TpsConfig {
         public int foeOverlayG = DEFAULT_FOE_OVERLAY_G;
         public int foeOverlayB = DEFAULT_FOE_OVERLAY_B;
         public float foeOverlayAlpha = DEFAULT_FOE_OVERLAY_ALPHA;
-
-        public int allTimeDeaths = 0;
-        public int allTimeKills = 0;
-        public int allTimeTotemPops = 0;
-        public int allTimeAttackClicks = 0;
-        public int allTimeHitsLanded = 0;
-        public float allTimeDamageTaken = 0.0f;
-
-        public String dailyStatsDate = "";
-        public int dailyBaseDeaths = 0;
-        public int dailyBaseKills = 0;
-        public int dailyBaseTotemPops = 0;
-        public int dailyBaseAttackClicks = 0;
-        public int dailyBaseHitsLanded = 0;
-        public float dailyBaseDamageTaken = 0.0f;
-
-        public String weeklyStatsKey = "";
-        public int weeklyBaseDeaths = 0;
-        public int weeklyBaseKills = 0;
-        public int weeklyBaseTotemPops = 0;
-        public int weeklyBaseAttackClicks = 0;
-        public int weeklyBaseHitsLanded = 0;
-        public float weeklyBaseDamageTaken = 0.0f;
-
-        public String monthlyStatsKey = "";
-        public int monthlyBaseDeaths = 0;
-        public int monthlyBaseKills = 0;
-        public int monthlyBaseTotemPops = 0;
-        public int monthlyBaseAttackClicks = 0;
-        public int monthlyBaseHitsLanded = 0;
-        public float monthlyBaseDamageTaken = 0.0f;
-
-        public String statsNumbersTimeframe = "session";
-        public String statsBarGraphTimeframe = "session";
-        public boolean statsGraphKillsVisible = true;
-        public boolean statsGraphDeathsVisible = true;
-        public boolean statsGraphTotemPopsVisible = true;
-        public boolean statsGraphAttackClicksVisible = true;
-        public boolean statsGraphHitsLandedVisible = true;
-        public boolean statsGraphDamageTakenVisible = true;
-        public boolean statsGraphKdRatioVisible = true;
-        public boolean statsGraphAccuracyVisible = true;
-        public List<SessionStatsSnapshot> statSessions = new ArrayList<>();
     }
-
-    public static class SessionStatsSnapshot {
-        public String sessionId = "";
-        public String label = "Session";
-        public int deaths = 0;
-        public int kills = 0;
-        public int totemPops = 0;
-        public int attackClicks = 0;
-        public int hitsLanded = 0;
-        public float damageTaken = 0.0f;
-    }
-
     public static ParticleBurst defaultParticleBurst() {
         return new ParticleBurst(
                 DEFAULT_PARTICLE_ID,
