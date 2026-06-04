@@ -525,7 +525,7 @@ public class AtomicsClientScreen extends Screen {
             if (!isFeatureCollapsed("tools.zoom")) {
                 addToggle(leftX, y, controlWidth, "Enable Zoom", zoomEnabled, TpsConfig.DEFAULT_ZOOM_ENABLED, () -> zoomEnabled, value -> zoomEnabled = value, true); y += ROW_HEIGHT;
                 if (zoomEnabled) {
-                    addDoubleSlider(leftX, y, controlWidth, "Zoom Strength", zoomMultiplier, 1.5, 8.0, 0.1, TpsConfig.DEFAULT_ZOOM_MULTIPLIER, value -> zoomMultiplier = (float) value, value -> formatDecimal(value, 1) + "x"); y += ROW_HEIGHT;
+                    addDoubleSlider(leftX, y, controlWidth, "Zoom Strength", zoomMultiplier, TpsConfig.MIN_ZOOM_MULTIPLIER, TpsConfig.MAX_ZOOM_MULTIPLIER, 0.1, TpsConfig.DEFAULT_ZOOM_MULTIPLIER, value -> zoomMultiplier = (float) value, value -> formatDecimal(value, 1) + "x"); y += ROW_HEIGHT;
                 }
             }
             y += 10;
@@ -1706,7 +1706,7 @@ public class AtomicsClientScreen extends Screen {
         cfg.visual.projectileTrailParticles = new ArrayList<>(List.of(trailBurst));
         cfg.visual.streamerModeEnabled = streamerModeEnabled;
         cfg.visual.zoomEnabled = zoomEnabled;
-        cfg.visual.zoomMultiplier = Math.max(1.5f, Math.min(8.0f, zoomMultiplier));
+        cfg.visual.zoomMultiplier = Math.max(TpsConfig.MIN_ZOOM_MULTIPLIER, Math.min(TpsConfig.MAX_ZOOM_MULTIPLIER, zoomMultiplier));
         cfg.visual.freelookEnabled = freelookEnabled;
         cfg.visual.freelookToggleMode = freelookToggleMode;
         cfg.macros.enabled = chatMacrosEnabled;

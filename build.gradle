@@ -10,7 +10,11 @@ version = project.mod_version
 group = project.mod_group_id
 
 base {
-    archivesName = project.mod_id
+    archivesName = "atomicsclient-forge-${project.minecraft_version}-V${project.mod_version}"
+}
+
+tasks.withType(org.gradle.api.tasks.bundling.AbstractArchiveTask).configureEach {
+    archiveVersion = ''
 }
 
 if (project.hasProperty('atomics_build_dir')) {
@@ -88,7 +92,7 @@ tasks.named('jar', Jar).configure {
                 'Specification-Vendor'    : project.mod_authors,
                 'Specification-Version'   : '1',
                 'Implementation-Title'    : project.name,
-                'Implementation-Version'  : project.jar.archiveVersion,
+                'Implementation-Version'  : project.mod_version,
                 'Implementation-Vendor'   : project.mod_authors,
                 'Implementation-Timestamp': new Date().format("yyyy-MM-dd'T'HH:mm:ssZ"),
                 'MixinConfigs'            : 'atomics_client.mixins.json'

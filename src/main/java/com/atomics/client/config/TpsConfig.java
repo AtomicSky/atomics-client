@@ -102,6 +102,8 @@ public class TpsConfig {
     public static final float DEFAULT_FOOD_OVERLAY_ALPHA = 0.5f;
     public static final boolean DEFAULT_PARTIAL_STATUS_ICONS_ENABLED = true;
     public static final boolean DEFAULT_STREAMER_MODE_ENABLED = false;
+    public static final float MIN_ZOOM_MULTIPLIER = 1.0f;
+    public static final float MAX_ZOOM_MULTIPLIER = 300.0f;
     public static final boolean DEFAULT_ZOOM_ENABLED = true;
     public static final float DEFAULT_ZOOM_MULTIPLIER = 4.0f;
     public static final boolean DEFAULT_FREELOOK_ENABLED = true;
@@ -185,7 +187,7 @@ public class TpsConfig {
         if (ui == null) ui = new UiSettings();
         visual.timeOfDay = clampInt(visual.timeOfDay, 0, 24000);
         visual.tntTimerRange = clampInt(visual.tntTimerRange, 8, 128);
-        visual.zoomMultiplier = clampFloat(visual.zoomMultiplier, 1.5f, 8.0f);
+        visual.zoomMultiplier = clampFloat(visual.zoomMultiplier, MIN_ZOOM_MULTIPLIER, MAX_ZOOM_MULTIPLIER);
         visual.foodOverlayHue = clampFloat(visual.foodOverlayHue, -180.0f, 180.0f);
         visual.foodOverlayAlpha = clampFloat(visual.foodOverlayAlpha, 0.0f, 1.0f);
         visual.armorDurabilityWarningPercent = DEFAULT_ARMOR_DURABILITY_WARNING_PERCENT;
