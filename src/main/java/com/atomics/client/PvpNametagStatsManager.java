@@ -186,6 +186,11 @@ public final class PvpNametagStatsManager {
         }
     }
 
+    public static void resetTotemPopCounters() {
+        OPPONENT_STATS.clear();
+        localTotemPops = 0;
+    }
+
     private static void clearSession() {
         OPPONENT_STATS.clear();
         localTotemPops = 0;
