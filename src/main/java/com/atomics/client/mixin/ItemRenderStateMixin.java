@@ -2,7 +2,7 @@ package com.atomics.client.mixin;
 
 import com.atomics.client.access.ItemRenderStateAccess;
 import com.atomics.client.render.ItemRenderColorContext;
-import net.minecraft.client.render.command.OrderedRenderCommandQueue;
+import net.minecraft.client.render.VertexConsumerProvider;
 import net.minecraft.client.render.item.ItemRenderState;
 import net.minecraft.client.util.math.MatrixStack;
 import org.spongepowered.asm.mixin.Mixin;
@@ -40,18 +40,18 @@ public class ItemRenderStateMixin implements ItemRenderStateAccess {
     }
 
     @Inject(
-            method = "render(Lnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/command/OrderedRenderCommandQueue;III)V",
+            method = "render(Lnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/VertexConsumerProvider;II)V",
             at = @At("HEAD")
     )
-    private void atomics_client$beginColoredItemRender(MatrixStack matrices, OrderedRenderCommandQueue orderedRenderCommandQueue, int light, int overlay, int int2, CallbackInfo ci) {
+    private void atomics_client$beginColoredItemRender(MatrixStack matrices, VertexConsumerProvider vertexConsumers, int light, int overlay, CallbackInfo ci) {
         ItemRenderColorContext.set(this.atomics_client$colorOverlay, this.atomics_client$hueShift);
     }
 
     @Inject(
-            method = "render(Lnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/command/OrderedRenderCommandQueue;III)V",
+            method = "render(Lnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/VertexConsumerProvider;II)V",
             at = @At("RETURN")
     )
-    private void atomics_client$endColoredItemRender(MatrixStack matrices, OrderedRenderCommandQueue orderedRenderCommandQueue, int light, int overlay, int int2, CallbackInfo ci) {
+    private void atomics_client$endColoredItemRender(MatrixStack matrices, VertexConsumerProvider vertexConsumers, int light, int overlay, CallbackInfo ci) {
         ItemRenderColorContext.clear();
     }
 }

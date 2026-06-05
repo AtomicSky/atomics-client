@@ -11,8 +11,6 @@ import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
 import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
 import net.fabricmc.fabric.api.resource.SimpleSynchronousResourceReloadListener;
 import net.fabricmc.loader.api.FabricLoader;
-import net.minecraft.component.DataComponentTypes;
-import net.minecraft.component.type.BlocksAttacksComponent;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
@@ -45,7 +43,7 @@ public class AtomicsClient implements ClientModInitializer {
     private static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
     public static TpsConfig CONFIG;
-    private static KeyBinding.Category keyCategory;
+    private static String keyCategory;
     private static KeyBinding openStudioKey;
     private static KeyBinding zoomKey;
     private static KeyBinding freelookKey;
@@ -76,7 +74,7 @@ public class AtomicsClient implements ClientModInitializer {
         CONFIG = TpsConfig.load().normalize();
 
         try {
-            keyCategory = KeyBinding.Category.create(Identifier.of(MOD_ID, "main"));
+            keyCategory = "key.categories." + MOD_ID;
             openStudioKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
                     "key.atomics_client.open_gui",
                     InputUtil.Type.KEYSYM,
@@ -330,7 +328,7 @@ public class AtomicsClient implements ClientModInitializer {
             CONFIG = new TpsConfig();
         }
         CONFIG.normalize();
-        String name = player.getGameProfile() == null ? player.getName().getString() : player.getGameProfile().name();
+        String name = player.getGameProfile() == null ? player.getName().getString() : player.getGameProfile().getName();
         String normalized = name == null ? "" : name.trim();
         if (normalized.isEmpty()) {
             sendActionMessage(client, "Could not read player name");
@@ -579,8 +577,7 @@ public class AtomicsClient implements ClientModInitializer {
     }
 
     private static int getShieldBlockDelayTicks(ItemStack stack) {
-        BlocksAttacksComponent blocksAttacks = stack == null ? null : stack.get(DataComponentTypes.BLOCKS_ATTACKS);
-        return blocksAttacks == null ? 5 : Math.max(0, blocksAttacks.getBlockDelayTicks());
+        return 5;
     }
 
     public static int getItemColorOverlay(ItemStack stack) {
@@ -658,7 +655,7 @@ public class AtomicsClient implements ClientModInitializer {
         if (player == null) {
             return null;
         }
-        return player.getGameProfile() == null ? player.getName().getString() : player.getGameProfile().name();
+        return player.getGameProfile() == null ? player.getName().getString() : player.getGameProfile().getName();
     }
 
     private static boolean containsName(List<String> names, String normalizedName) {

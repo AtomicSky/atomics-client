@@ -6,7 +6,6 @@ import net.minecraft.client.option.Perspective;
 import net.minecraft.client.render.Camera;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
-import net.minecraft.entity.attribute.EntityAttributes;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 
@@ -97,10 +96,10 @@ public final class FreelookManager {
 
     private static Vec3d baseCameraPos(Entity focusedEntity, Camera camera, float tickProgress) {
         double progress = tickProgress;
-        double x = MathHelper.lerp(progress, focusedEntity.lastX, focusedEntity.getX());
-        double y = MathHelper.lerp(progress, focusedEntity.lastY, focusedEntity.getY())
+        double x = MathHelper.lerp(progress, focusedEntity.prevX, focusedEntity.getX());
+        double y = MathHelper.lerp(progress, focusedEntity.prevY, focusedEntity.getY())
                 + MathHelper.lerp(tickProgress, ((CameraAccessor) camera).atomics_client$getLastCameraY(), ((CameraAccessor) camera).atomics_client$getCameraY());
-        double z = MathHelper.lerp(progress, focusedEntity.lastZ, focusedEntity.getZ());
+        double z = MathHelper.lerp(progress, focusedEntity.prevZ, focusedEntity.getZ());
         return new Vec3d(x, y, z);
     }
 
@@ -109,7 +108,6 @@ public final class FreelookManager {
         float focusedDistance = 4.0f;
         if (focusedEntity instanceof LivingEntity living) {
             focusedScale = living.getScale();
-            focusedDistance = (float) living.getAttributeValue(EntityAttributes.CAMERA_DISTANCE);
         }
 
         float cameraScale = focusedScale;
@@ -117,7 +115,6 @@ public final class FreelookManager {
         Entity vehicle = focusedEntity.hasVehicle() ? focusedEntity.getVehicle() : null;
         if (vehicle instanceof LivingEntity livingVehicle) {
             cameraScale = livingVehicle.getScale();
-            cameraDistance = (float) livingVehicle.getAttributeValue(EntityAttributes.CAMERA_DISTANCE);
         }
         return Math.max(focusedScale * focusedDistance, cameraScale * cameraDistance);
     }

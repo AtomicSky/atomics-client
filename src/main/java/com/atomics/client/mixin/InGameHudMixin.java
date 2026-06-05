@@ -4,8 +4,8 @@ import com.atomics.client.AtomicsClient;
 import com.atomics.client.config.TpsConfig;
 import com.atomics.client.render.FoodOverlayTextureCache;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gl.RenderPipelines;
 import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.render.RenderLayer;
 import net.minecraft.client.gui.hud.InGameHud;
 import net.minecraft.component.DataComponentTypes;
 import net.minecraft.component.type.FoodComponent;
@@ -15,7 +15,7 @@ import net.minecraft.item.Items;
 import net.minecraft.item.ItemStack;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.Identifier;
-import net.minecraft.world.rule.GameRules;
+import net.minecraft.world.GameRules;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
@@ -213,7 +213,7 @@ public abstract class InGameHudMixin {
     }
 
     private static void atomics_client$drawHeartWhole(DrawContext context, Identifier texture, int x, int y) {
-        context.drawGuiTexture(RenderPipelines.GUI_TEXTURED, texture, x, y, 9, 9);
+        context.drawGuiTexture(RenderLayer::getGuiTextured, texture, x, y, 9, 9);
     }
 
     private static void atomics_client$drawHeartPartial(DrawContext context, Identifier texture, int x, int y, float fill) {
@@ -227,7 +227,7 @@ public abstract class InGameHudMixin {
             return;
         }
 
-        context.drawGuiTexture(RenderPipelines.GUI_TEXTURED, texture, 9, 9, 0, 0, x, y, width, 9);
+        context.drawGuiTexture(RenderLayer::getGuiTextured, texture, 9, 9, 0, 0, x, y, width, 9);
     }
 
     private static void atomics_client$drawFoodOverlayIcon(DrawContext context, Identifier vanillaSpriteId, int x, int y, int color) {
@@ -235,18 +235,18 @@ public abstract class InGameHudMixin {
     }
 
     private static void atomics_client$drawFoodBarIcon(DrawContext context, Identifier vanillaSpriteId, int x, int y, int color) {
-        context.drawGuiTexture(RenderPipelines.GUI_TEXTURED, vanillaSpriteId, x, y, 9, 9, color);
+        context.drawGuiTexture(RenderLayer::getGuiTextured, vanillaSpriteId, x, y, 9, 9, color);
     }
 
     private static void atomics_client$drawFoodOverlayIcon(DrawContext context, Identifier vanillaSpriteId, int x, int y, int width, int color) {
         Identifier shiftedTexture = FoodOverlayTextureCache.get(vanillaSpriteId);
         if (shiftedTexture == null) {
-            context.drawGuiTexture(RenderPipelines.GUI_TEXTURED, vanillaSpriteId, x, y, 9, 9, color);
+            context.drawGuiTexture(RenderLayer::getGuiTextured, vanillaSpriteId, x, y, 9, 9, color);
             return;
         }
         int visibleWidth = Math.max(0, Math.min(9, width));
         int xOffset = 9 - visibleWidth;
-        context.drawTexture(RenderPipelines.GUI_TEXTURED, shiftedTexture, x + xOffset, y, xOffset, 0.0f, visibleWidth, 9, 9, 9, color);
+        context.drawTexture(RenderLayer::getGuiTextured, shiftedTexture, x + xOffset, y, xOffset, 0.0f, visibleWidth, 9, 9, 9, color);
     }
 
     private int atomics_client$foodIconYOffset(PlayerEntity player, int icon) {
@@ -312,7 +312,7 @@ public abstract class InGameHudMixin {
         if (client != null && client.getServer() != null) {
             ServerWorld serverWorld = client.getServer().getWorld(player.getEntityWorld().getRegistryKey());
             if (serverWorld != null) {
-                return Boolean.TRUE.equals(serverWorld.getGameRules().getValue(GameRules.NATURAL_HEALTH_REGENERATION));
+                return serverWorld.getGameRules().getBoolean(GameRules.NATURAL_REGENERATION);
             }
         }
         return true;

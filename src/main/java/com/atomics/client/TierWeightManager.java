@@ -10,7 +10,6 @@ import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.Identifier;
 import net.minecraft.text.MutableText;
-import net.minecraft.text.StyleSpriteSource;
 import net.minecraft.text.Text;
 
 import java.io.IOException;
@@ -46,7 +45,7 @@ public final class TierWeightManager {
     private static final Map<String, Map<String, String>> MODE_TITLE_CACHE = new ConcurrentHashMap<>();
     private static final Pattern NUMERIC_TIER_PATTERN = Pattern.compile("[1-5]");
     private static final int HEADER_ORANGE = 0xFF9A2E;
-    private static final StyleSpriteSource.Font TIER_TAGGER_ICON_FONT = new StyleSpriteSource.Font(Identifier.of(AtomicsClient.MOD_ID, "tiertagger_icons"));
+    private static final Identifier TIER_TAGGER_ICON_FONT = Identifier.of(AtomicsClient.MOD_ID, "tiertagger_icons");
     private static final ProviderEndpoint[] PROVIDER_ENDPOINTS = new ProviderEndpoint[] {
             new ProviderEndpoint("MCTiers", "https://mctiers.com/api", "/v2/profile/by-name/", "/v2/mode/list", TierSchema.MCTIERS),
             new ProviderEndpoint("PvPTiers", "https://api.skypractice.xyz/api/metatl", "/profile/by-name/", "/mode/list", TierSchema.SKY)
@@ -209,7 +208,7 @@ public final class TierWeightManager {
                 && AtomicsClient.CONFIG.enabled
                 && AtomicsClient.CONFIG.combat != null
                 && AtomicsClient.CONFIG.combat.opponentInfoEnabled
-                && !username.equalsIgnoreCase(client.player.getGameProfile().name());
+                && !username.equalsIgnoreCase(client.player.getGameProfile().getName());
     }
 
     private static String cleanUsername(String username) {

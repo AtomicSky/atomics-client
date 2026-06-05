@@ -2,9 +2,8 @@ package com.atomics.client.gui;
 
 import com.atomics.client.config.TpsConfig;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gl.RenderPipelines;
-import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.render.RenderLayer;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.item.ItemStack;
@@ -89,36 +88,36 @@ class ArmorHudLayoutScreen extends Screen {
     }
 
     @Override
-    public boolean mouseClicked(Click click, boolean doubleClick) {
-        if (isInsideHud(click.x(), click.y())) {
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (isInsideHud(mouseX, mouseY)) {
             dragging = true;
-            dragOffsetX = (int) Math.round(click.x()) - hudX;
-            dragOffsetY = (int) Math.round(click.y()) - hudY;
+            dragOffsetX = (int) Math.round(mouseX) - hudX;
+            dragOffsetY = (int) Math.round(mouseY) - hudY;
             return true;
         }
-        return super.mouseClicked(click, doubleClick);
+        return super.mouseClicked(mouseX, mouseY, button);
     }
 
     @Override
-    public boolean mouseDragged(Click click, double offsetX, double offsetY) {
+    public boolean mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY) {
         if (dragging) {
-            hudX = (int) Math.round(click.x()) - dragOffsetX;
-            hudY = (int) Math.round(click.y()) - dragOffsetY;
+            hudX = (int) Math.round(mouseX) - dragOffsetX;
+            hudY = (int) Math.round(mouseY) - dragOffsetY;
             clampHud();
             apply();
             return true;
         }
-        return super.mouseDragged(click, offsetX, offsetY);
+        return super.mouseDragged(mouseX, mouseY, button, deltaX, deltaY);
     }
 
     @Override
-    public boolean mouseReleased(Click click) {
+    public boolean mouseReleased(double mouseX, double mouseY, int button) {
         if (dragging) {
             dragging = false;
             apply();
             return true;
         }
-        return super.mouseReleased(click);
+        return super.mouseReleased(mouseX, mouseY, button);
     }
 
     @Override
@@ -161,10 +160,10 @@ class ArmorHudLayoutScreen extends Screen {
                 int textWidth = this.textRenderer.getWidth(text);
                 int textX = Math.round((itemX + 8.0f - textWidth * scale / 2.0f) / scale);
                 int textY = Math.round((itemY + 18) / scale);
-                context.getMatrices().pushMatrix();
-                context.getMatrices().scale(scale, scale);
+                context.getMatrices().push();
+                context.getMatrices().scale(scale, scale, 1.0f);
                 context.drawTextWithShadow(this.textRenderer, text, textX, textY, 0xFF55FF55);
-                context.getMatrices().popMatrix();
+                context.getMatrices().pop();
             }
 
             if (vertical) {
@@ -176,17 +175,17 @@ class ArmorHudLayoutScreen extends Screen {
     }
 
     private void renderPreviewSlot(DrawContext context, int x, int y) {
-        context.drawTexture(RenderPipelines.GUI_TEXTURED, HOTBAR_SPRITE_TEXTURE, x, y, 0.0f, 0.0f, 22, 22, 182, 22);
+        context.drawTexture(RenderLayer::getGuiTextured, HOTBAR_SPRITE_TEXTURE, x, y, 0.0f, 0.0f, 22, 22, 182, 22);
     }
 
     private void renderVanillaHudReference(DrawContext context) {
         int hotbarX = this.width / 2 - 91;
         int hotbarY = this.height - 23;
-        context.drawGuiTexture(RenderPipelines.GUI_TEXTURED, HOTBAR_TEXTURE, hotbarX, hotbarY, 182, 22);
+        context.drawGuiTexture(RenderLayer::getGuiTextured, HOTBAR_TEXTURE, hotbarX, hotbarY, 182, 22);
 
         int offhandX = hotbarX - 28;
         int offhandY = hotbarY;
-        context.drawGuiTexture(RenderPipelines.GUI_TEXTURED, HOTBAR_OFFHAND_LEFT_TEXTURE, offhandX - 1, offhandY - 1, 29, 24);
+        context.drawGuiTexture(RenderLayer::getGuiTextured, HOTBAR_OFFHAND_LEFT_TEXTURE, offhandX - 1, offhandY - 1, 29, 24);
         context.drawItem(new ItemStack(Items.SHIELD), offhandX + 3, offhandY + 3);
 
         int statusY = hotbarY - 20;
@@ -199,8 +198,8 @@ class ArmorHudLayoutScreen extends Screen {
     private void renderGuiIconRow(DrawContext context, int x, int y, int count, Identifier background, Identifier foreground) {
         for (int i = 0; i < count; i++) {
             int iconX = x + i * 8;
-            context.drawGuiTexture(RenderPipelines.GUI_TEXTURED, background, iconX, y, 9, 9);
-            context.drawGuiTexture(RenderPipelines.GUI_TEXTURED, foreground, iconX, y, 9, 9);
+            context.drawGuiTexture(RenderLayer::getGuiTextured, background, iconX, y, 9, 9);
+            context.drawGuiTexture(RenderLayer::getGuiTextured, foreground, iconX, y, 9, 9);
         }
     }
 

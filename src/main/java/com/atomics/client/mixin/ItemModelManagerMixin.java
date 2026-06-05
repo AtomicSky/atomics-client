@@ -5,8 +5,9 @@ import com.atomics.client.access.ItemRenderStateAccess;
 import com.atomics.client.render.ItemRenderColorContext;
 import net.minecraft.client.item.ItemModelManager;
 import net.minecraft.client.render.item.ItemRenderState;
+import net.minecraft.entity.LivingEntity;
+import net.minecraft.item.ModelTransformationMode;
 import net.minecraft.item.ItemStack;
-import net.minecraft.util.HeldItemContext;
 import net.minecraft.world.World;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -17,7 +18,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(ItemModelManager.class)
 public class ItemModelManagerMixin {
     @ModifyVariable(
-            method = "clearAndUpdate(Lnet/minecraft/client/render/item/ItemRenderState;Lnet/minecraft/item/ItemStack;Lnet/minecraft/item/ItemDisplayContext;Lnet/minecraft/world/World;Lnet/minecraft/util/HeldItemContext;I)V",
+            method = "update(Lnet/minecraft/client/render/item/ItemRenderState;Lnet/minecraft/item/ItemStack;Lnet/minecraft/item/ModelTransformationMode;ZLnet/minecraft/world/World;Lnet/minecraft/entity/LivingEntity;I)V",
             at = @At("HEAD"),
             argsOnly = true,
             ordinal = 0
@@ -27,10 +28,10 @@ public class ItemModelManagerMixin {
     }
 
     @Inject(
-            method = "clearAndUpdate(Lnet/minecraft/client/render/item/ItemRenderState;Lnet/minecraft/item/ItemStack;Lnet/minecraft/item/ItemDisplayContext;Lnet/minecraft/world/World;Lnet/minecraft/util/HeldItemContext;I)V",
+            method = "update(Lnet/minecraft/client/render/item/ItemRenderState;Lnet/minecraft/item/ItemStack;Lnet/minecraft/item/ModelTransformationMode;ZLnet/minecraft/world/World;Lnet/minecraft/entity/LivingEntity;I)V",
             at = @At("TAIL")
     )
-    private void atomics_client$setColorOverlay(ItemRenderState state, ItemStack stack, net.minecraft.item.ItemDisplayContext displayContext, World world, HeldItemContext heldItemContext, int seed, CallbackInfo ci) {
+    private void atomics_client$setColorOverlay(ItemRenderState state, ItemStack stack, ModelTransformationMode displayContext, boolean leftHanded, World world, LivingEntity entity, int seed, CallbackInfo ci) {
         ItemRenderStateAccess access = (ItemRenderStateAccess) state;
 
         // Store dynamic targets instead of baked values. Minecraft can cache item

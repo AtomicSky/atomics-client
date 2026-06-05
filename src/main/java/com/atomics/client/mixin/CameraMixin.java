@@ -5,7 +5,7 @@ import com.atomics.client.FreelookManager;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.Camera;
 import net.minecraft.entity.Entity;
-import net.minecraft.world.World;
+import net.minecraft.world.BlockView;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
@@ -17,9 +17,9 @@ public class CameraMixin {
     @Shadow
     private boolean thirdPerson;
 
-    @Inject(method = "update", at = @At("TAIL"))
+    @Inject(method = "update(Lnet/minecraft/world/BlockView;Lnet/minecraft/entity/Entity;ZZF)V", at = @At("TAIL"))
     private void atomics_client$disableVanillaThirdPersonOffset(
-            World world,
+            BlockView world,
             Entity focusedEntity,
             boolean thirdPerson,
             boolean inverseView,

@@ -1,0 +1,33 @@
+{
+  "required": false,
+  "package": "com.atomics.client.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "CameraAccessor",
+    "CameraMixin",
+    "ClientPlayNetworkHandlerMixin",
+    "GameRendererMixin",
+    "ClientPlayerInteractionManagerMixin",
+    "HeldItemRendererMixin",
+    "InGameHudMixin",
+    "InGameOverlayRendererMixin",
+    "ItemEntityRenderStateMixin",
+    "ItemEntityRendererMixin",
+    "ItemModelManagerMixin",
+    "ItemRenderStateMixin",
+    "LayerRenderStateMixin",
+    "LivingEntityRendererMixin",
+    "MouseMixin",
+    "OutlineVertexConsumerCompatMixin",
+    "PerspectiveMixin",
+    "PlayerEntityRenderStateMixin",
+    "PlayerEntityRendererMixin",
+    "RenderCommandQueueMixin",
+    "ShieldModelRendererMixin",
+    "TntEntityRendererMixin",
+    "TitleScreenMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 0
+  }
+}

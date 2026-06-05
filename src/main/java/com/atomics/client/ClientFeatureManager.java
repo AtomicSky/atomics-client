@@ -1,10 +1,10 @@
 package com.atomics.client;
 
 import com.atomics.client.config.TpsConfig;
-import net.minecraft.client.gl.RenderPipelines;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.network.PlayerListEntry;
+import net.minecraft.client.render.RenderLayer;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EquipmentSlot;
 import net.minecraft.entity.player.PlayerEntity;
@@ -354,10 +354,10 @@ public final class ClientFeatureManager {
         }
         int x = client.getWindow().getScaledWidth() / 2 - Math.round(lastReachTextWidth * scale / 2.0f);
         int y = client.getWindow().getScaledHeight() / 2 + 12;
-        context.getMatrices().pushMatrix();
-        context.getMatrices().scale(scale, scale);
+        context.getMatrices().push();
+        context.getMatrices().scale(scale, scale, 1.0f);
         context.drawTextWithShadow(client.textRenderer, lastReachText, Math.round(x / scale), Math.round(y / scale), color);
-        context.getMatrices().popMatrix();
+        context.getMatrices().pop();
     }
 
     private static void renderArmorHudAndWarnings(DrawContext context, MinecraftClient client, TpsConfig.VisualSettings visual) {
@@ -423,10 +423,10 @@ public final class ClientFeatureManager {
                 int textWidth = client.textRenderer.getWidth(durability);
                 int textX = Math.round((itemX + 8.0f - textWidth * scale / 2.0f) / scale);
                 int textY = Math.round((itemY + 18) / scale);
-                context.getMatrices().pushMatrix();
-                context.getMatrices().scale(scale, scale);
+                context.getMatrices().push();
+                context.getMatrices().scale(scale, scale, 1.0f);
                 context.drawTextWithShadow(client.textRenderer, durability, textX, textY, color);
-                context.getMatrices().popMatrix();
+                context.getMatrices().pop();
             }
             if (vertical) {
                 y += spacing;
@@ -437,7 +437,7 @@ public final class ClientFeatureManager {
     }
 
     private static void renderArmorHudSlot(DrawContext context, int x, int y, int visible) {
-        context.drawTexture(RenderPipelines.GUI_TEXTURED, HOTBAR_SPRITE_TEXTURE, x, y, 0.0f, 0.0f, 22, 22, 182, 22);
+        context.drawTexture(RenderLayer::getGuiTextured, HOTBAR_SPRITE_TEXTURE, x, y, 0.0f, 0.0f, 22, 22, 182, 22);
     }
 
     private static String armorDurabilityText(ArmorPiece piece, String mode) {

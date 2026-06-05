@@ -1,7 +1,7 @@
 package com.atomics.client.mixin;
 
 import com.atomics.client.render.ItemRenderColorContext;
-import net.minecraft.client.render.item.ItemRenderState;
+import net.minecraft.client.render.item.ItemRenderer;
 import net.minecraft.client.render.model.BakedQuad;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
@@ -13,32 +13,32 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 
-@Mixin(ItemRenderState.LayerRenderState.class)
+@Mixin(ItemRenderer.class)
 public class LayerRenderStateMixin {
     @Unique
     private static final Map<List<BakedQuad>, List<BakedQuad>> atomics_client$tintedQuadCache = new IdentityHashMap<>();
 
     @ModifyArg(
-            method = "render(Lnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/command/OrderedRenderCommandQueue;III)V",
+            method = "renderItem(Lnet/minecraft/item/ModelTransformationMode;Lnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/VertexConsumerProvider;II[ILnet/minecraft/client/render/model/BakedModel;Lnet/minecraft/client/render/RenderLayer;Lnet/minecraft/client/render/item/ItemRenderState$Glint;)V",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraft/client/render/command/OrderedRenderCommandQueue;submitItem(Lnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/item/ItemDisplayContext;III[ILjava/util/List;Lnet/minecraft/client/render/RenderLayer;Lnet/minecraft/client/render/item/ItemRenderState$Glint;)V"
+                    target = "Lnet/minecraft/client/render/item/ItemRenderer;renderBakedItemModel(Lnet/minecraft/client/render/model/BakedModel;[IIILnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/VertexConsumer;)V"
             ),
-            index = 5
+            index = 1
     )
-    private int[] atomics_client$forceTintArray(int[] original) {
+    private static int[] atomics_client$forceTintArray(int[] original) {
         return ItemRenderColorContext.active() ? ItemRenderColorContext.tintArray() : original;
     }
 
     @ModifyArg(
-            method = "render(Lnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/command/OrderedRenderCommandQueue;III)V",
+            method = "renderBakedItemModel",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraft/client/render/command/OrderedRenderCommandQueue;submitItem(Lnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/item/ItemDisplayContext;III[ILjava/util/List;Lnet/minecraft/client/render/RenderLayer;Lnet/minecraft/client/render/item/ItemRenderState$Glint;)V"
+                    target = "Lnet/minecraft/client/render/item/ItemRenderer;renderBakedItemQuads(Lnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/VertexConsumer;Ljava/util/List;[III)V"
             ),
-            index = 6
+            index = 2
     )
-    private List<BakedQuad> atomics_client$forceEveryQuadTinted(List<BakedQuad> original) {
+    private static List<BakedQuad> atomics_client$forceEveryQuadTinted(List<BakedQuad> original) {
         if (!ItemRenderColorContext.active() || original == null || original.isEmpty()) {
             return original;
         }
@@ -50,7 +50,7 @@ public class LayerRenderStateMixin {
 
         boolean needsRetint = false;
         for (BakedQuad quad : original) {
-            if (quad.tintIndex() != 0) {
+            if (!quad.hasTint() || quad.getTintIndex() != 0) {
                 needsRetint = true;
                 break;
             }
@@ -70,23 +70,16 @@ public class LayerRenderStateMixin {
 
     @Unique
     private static BakedQuad atomics_client$withTintIndexZero(BakedQuad quad) {
-        if (quad.tintIndex() == 0) {
+        if (quad.hasTint() && quad.getTintIndex() == 0) {
             return quad;
         }
         return new BakedQuad(
-                quad.position0(),
-                quad.position1(),
-                quad.position2(),
-                quad.position3(),
-                quad.packedUV0(),
-                quad.packedUV1(),
-                quad.packedUV2(),
-                quad.packedUV3(),
+                quad.getVertexData().clone(),
                 0,
-                quad.face(),
-                quad.sprite(),
-                quad.shade(),
-                quad.lightEmission()
+                quad.getFace(),
+                quad.getSprite(),
+                quad.hasShade(),
+                quad.getLightEmission()
         );
     }
 }

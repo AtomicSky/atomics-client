@@ -6,7 +6,6 @@ import com.atomics.client.DualSpectateCamera;
 import com.atomics.client.config.TpsConfig;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.screen.ingame.InventoryScreen;
@@ -14,8 +13,6 @@ import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.ClickableWidget;
 import net.minecraft.client.gui.widget.SliderWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.client.input.CharInput;
-import net.minecraft.client.input.KeyInput;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
 import net.minecraft.item.ItemStack;
@@ -1600,28 +1597,27 @@ public class AtomicsClientScreen extends Screen {
     }
 
     @Override
-    public boolean mouseClicked(Click click, boolean doubleClick) {
-        if (settingsSearchField != null && settingsSearchField.isMouseOver(click.x(), click.y())) {
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (settingsSearchField != null && settingsSearchField.isMouseOver(mouseX, mouseY)) {
             settingsSearchFocused = true;
             focusSettingsSearchField();
-            settingsSearchField.mouseClicked(click, doubleClick);
+            settingsSearchField.mouseClicked(mouseX, mouseY, button);
             return true;
         }
         settingsSearchFocused = false;
         if (settingsSearchField != null && getFocused() == settingsSearchField) {
             setFocused(null);
         }
-        return super.mouseClicked(click, doubleClick);
+        return super.mouseClicked(mouseX, mouseY, button);
     }
 
     @Override
-    public boolean keyPressed(KeyInput keyInput) {
-        if (settingsSearchFocused && settingsSearchField != null && settingsSearchField.keyPressed(keyInput)) {
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (settingsSearchFocused && settingsSearchField != null && settingsSearchField.keyPressed(keyCode, scanCode, modifiers)) {
             return true;
         }
         if (listeningKeyBinding != null) {
-            int key = keyInput.key();
-            if (key == GLFW.GLFW_KEY_ESCAPE) {
+            if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
                 status = Text.literal("Keybind change cancelled").formatted(Formatting.YELLOW);
                 listeningKeyBinding = null;
                 listeningKeyLabel = null;
@@ -1629,9 +1625,9 @@ public class AtomicsClientScreen extends Screen {
                 return true;
             }
 
-            InputUtil.Key boundKey = key == GLFW.GLFW_KEY_BACKSPACE || key == GLFW.GLFW_KEY_DELETE
+            InputUtil.Key boundKey = keyCode == GLFW.GLFW_KEY_BACKSPACE || keyCode == GLFW.GLFW_KEY_DELETE
                     ? InputUtil.UNKNOWN_KEY
-                    : InputUtil.fromKeyCode(keyInput);
+                    : InputUtil.fromKeyCode(keyCode, scanCode);
             AtomicsClient.setKeyBinding(listeningKeyBinding, boundKey);
             String label = listeningKeyLabel == null ? "Keybind" : listeningKeyLabel;
             status = Text.literal(label + " set to " + AtomicsClient.keyBindingName(listeningKeyBinding)).formatted(Formatting.GREEN);
@@ -1640,15 +1636,15 @@ public class AtomicsClientScreen extends Screen {
             clearAndInit();
             return true;
         }
-        return super.keyPressed(keyInput);
+        return super.keyPressed(keyCode, scanCode, modifiers);
     }
 
     @Override
-    public boolean charTyped(CharInput charInput) {
-        if (settingsSearchFocused && settingsSearchField != null && settingsSearchField.charTyped(charInput)) {
+    public boolean charTyped(char chr, int modifiers) {
+        if (settingsSearchFocused && settingsSearchField != null && settingsSearchField.charTyped(chr, modifiers)) {
             return true;
         }
-        return super.charTyped(charInput);
+        return super.charTyped(chr, modifiers);
     }
 
     @Override
@@ -1737,7 +1733,7 @@ public class AtomicsClientScreen extends Screen {
         int boxTop = y + 22;
         int boxBottom = contentBottom - 12;
         context.fill(x, boxTop, x + w, boxBottom, 0xAA202020);
-        context.drawStrokedRectangle(x, boxTop, w, boxBottom - boxTop, 0x90FFFFFF);
+        context.drawBorder(x, boxTop, w, boxBottom - boxTop, 0x90FFFFFF);
         context.drawCenteredTextWithShadow(this.textRenderer, Text.literal(selectedTab.label + " Preview"), x + w / 2, boxTop + 14, textColor(0xFFFFFF));
 
         MinecraftClient client = MinecraftClient.getInstance();
@@ -1818,16 +1814,16 @@ public class AtomicsClientScreen extends Screen {
         float clampedScale = Math.max(0.01f, Math.min(3.0f, scale));
         float itemSize = 16.0f * clampedScale;
         var matrices = context.getMatrices();
-        matrices.pushMatrix();
-        matrices.translate(centerX - itemSize / 2.0f, centerY - itemSize / 2.0f);
-        matrices.scale(clampedScale, clampedScale);
+        matrices.push();
+        matrices.translate(centerX - itemSize / 2.0f, centerY - itemSize / 2.0f, 0.0f);
+        matrices.scale(clampedScale, clampedScale, 1.0f);
         context.drawItem(stack, 0, 0);
         if (totemOverlayEnabled) {
             int[] rgb = hueAdjustmentToRgb(totemOverlayHue);
             int color = colorWithAlpha(rgb[0], rgb[1], rgb[2], totemOverlayAlpha);
             context.fill(0, 0, 16, 16, color);
         }
-        matrices.popMatrix();
+        matrices.pop();
     }
 
     @Override
@@ -2088,7 +2084,7 @@ public class AtomicsClientScreen extends Screen {
         }
 
         @Override
-        public void onClick(net.minecraft.client.gui.Click click, boolean doubleClick) {
+        public void onClick(double mouseX, double mouseY) {
             action.run();
         }
 
@@ -2131,7 +2127,7 @@ public class AtomicsClientScreen extends Screen {
         }
 
         @Override
-        public void onClick(net.minecraft.client.gui.Click click, boolean doubleClick) {
+        public void onClick(double mouseX, double mouseY) {
             action.run();
         }
 
@@ -2173,7 +2169,7 @@ public class AtomicsClientScreen extends Screen {
         }
 
         @Override
-        public void onClick(net.minecraft.client.gui.Click click, boolean doubleClick) {
+        public void onClick(double mouseX, double mouseY) {
             action.run();
         }
 

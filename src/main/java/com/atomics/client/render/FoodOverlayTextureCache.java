@@ -50,7 +50,7 @@ public final class FoodOverlayTextureCache {
             return null;
         }
 
-        client.getTextureManager().registerTexture(textureId, new NativeImageBackedTexture(() -> textureId.toString(), image));
+        client.getTextureManager().registerTexture(textureId, new NativeImageBackedTexture(image));
         TEXTURES.put(vanillaSpriteId, textureId);
         return textureId;
     }

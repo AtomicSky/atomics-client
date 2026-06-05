@@ -62,19 +62,19 @@ public class ClientPlayNetworkHandlerMixin {
             method = "onEntityStatus",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraft/client/world/ClientWorld;playSoundClient(DDDLnet/minecraft/sound/SoundEvent;Lnet/minecraft/sound/SoundCategory;FFZ)V"
+                    target = "Lnet/minecraft/client/world/ClientWorld;playSound(DDDLnet/minecraft/sound/SoundEvent;Lnet/minecraft/sound/SoundCategory;FFZ)V"
             )
     )
     private void atomics_client$playConfiguredTotemSound(ClientWorld world, double x, double y, double z, SoundEvent sound, SoundCategory category, float volume, float pitch, boolean useDistance, EntityStatusS2CPacket packet) {
         Entity entity = packet.getEntity(world);
         if (packet.getStatus() != 35 || !AtomicsClient.shouldCustomizeTotemPop(entity)) {
-            world.playSoundClient(x, y, z, sound, category, volume, pitch, useDistance);
+            world.playSound(x, y, z, sound, category, volume, pitch, useDistance);
             return;
         }
 
         boolean replaceVanilla = AtomicsClient.CONFIG == null || AtomicsClient.CONFIG.utility.replaceVanillaSounds;
         if (!replaceVanilla) {
-            world.playSoundClient(x, y, z, sound, category, volume, pitch, useDistance);
+            world.playSound(x, y, z, sound, category, volume, pitch, useDistance);
         }
         if (AtomicsClient.CONFIG != null && AtomicsClient.CONFIG.sounds.enabled && entity != null) {
             TotemPopEffects.playSounds(entity);
