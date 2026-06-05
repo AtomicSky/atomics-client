@@ -11,6 +11,7 @@
   "key.atomics_client.toggle_projectile_trail": "Toggle Projectile Trail",
   "key.atomics_client.toggle_streamer_mode": "Toggle Streamer Mode",
   "key.atomics_client.cycle_friend_foe": "Cycle Friend/Foe Target",
+  "key.atomics_client.reset_totem_pop_counter": "Reset Totem Pop Counter",
   "key.atomics_client.macro_1": "Chat Macro 1",
   "key.atomics_client.macro_2": "Chat Macro 2",
   "key.atomics_client.macro_3": "Chat Macro 3",
