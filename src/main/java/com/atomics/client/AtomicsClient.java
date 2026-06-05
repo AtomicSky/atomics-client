@@ -54,6 +54,7 @@ public class AtomicsClient implements ClientModInitializer {
     private static KeyBinding toggleProjectileTrailKey;
     private static KeyBinding toggleStreamerModeKey;
     private static KeyBinding cycleFriendFoeKey;
+    private static KeyBinding resetTotemPopCounterKey;
     private static final List<KeyBinding> macroKeys = new ArrayList<>();
     private static String cachedReplacementItemId;
     private static Item cachedReplacementItem;
@@ -104,6 +105,7 @@ public class AtomicsClient implements ClientModInitializer {
             toggleProjectileTrailKey = registerUnboundKey("key.atomics_client.toggle_projectile_trail");
             toggleStreamerModeKey = registerUnboundKey("key.atomics_client.toggle_streamer_mode");
             cycleFriendFoeKey = registerUnboundKey("key.atomics_client.cycle_friend_foe");
+            resetTotemPopCounterKey = registerUnboundKey("key.atomics_client.reset_totem_pop_counter");
 
             registerMacroKeys(TpsConfig.MAX_MACRO_SLOTS);
         } catch (RuntimeException e) {
@@ -147,6 +149,9 @@ public class AtomicsClient implements ClientModInitializer {
             }
             while (cycleFriendFoeKey != null && cycleFriendFoeKey.wasPressed()) {
                 cycleLookedAtPlayerFriendFoe(client);
+            }
+            while (resetTotemPopCounterKey != null && resetTotemPopCounterKey.wasPressed()) {
+                resetTotemPopCounters(client);
             }
             for (int i = 0; i < macroKeys.size(); i++) {
                 KeyBinding macroKey = macroKeys.get(i);
@@ -248,6 +253,10 @@ public class AtomicsClient implements ClientModInitializer {
         return cycleFriendFoeKey;
     }
 
+    public static KeyBinding getResetTotemPopCounterKeyBinding() {
+        return resetTotemPopCounterKey;
+    }
+
     public static KeyBinding getMacroKeyBinding(int index) {
         return index >= 0 && index < macroKeys.size() ? macroKeys.get(index) : null;
     }
@@ -309,6 +318,11 @@ public class AtomicsClient implements ClientModInitializer {
         if (CONFIG == null) return;
         CONFIG.visual.streamerModeEnabled = !CONFIG.visual.streamerModeEnabled;
         sendToggleMessage(client, "Streamer Mode", CONFIG.visual.streamerModeEnabled);
+    }
+
+    private static void resetTotemPopCounters(MinecraftClient client) {
+        PvpNametagStatsManager.resetTotemPopCounters();
+        sendActionMessage(client, "Totem pop counters reset");
     }
 
     private static void sendToggleMessage(MinecraftClient client, String label, boolean enabled) {
