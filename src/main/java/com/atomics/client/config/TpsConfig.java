@@ -58,6 +58,9 @@ public class TpsConfig {
     public static final int DEFAULT_FOE_OVERLAY_G = 60;
     public static final int DEFAULT_FOE_OVERLAY_B = 60;
     public static final float DEFAULT_FOE_OVERLAY_ALPHA = 0.35f;
+    public static final boolean DEFAULT_TEAM_COUNT_OVERLAY_ENABLED = false;
+    public static final int DEFAULT_TEAM_COUNT_OVERLAY_X = -1;
+    public static final int DEFAULT_TEAM_COUNT_OVERLAY_Y = -1;
     public static final String FRIEND_FOE_STYLE_FULL = "full";
     public static final String FRIEND_FOE_STYLE_OUTLINE = "outline";
     public static final String FRIEND_FOE_STYLE_OUTLINE_FULL = "outline_full";
@@ -145,6 +148,7 @@ public class TpsConfig {
     public CombatSettings combat = new CombatSettings();
     public VisualSettings visual = new VisualSettings();
     public MacroSettings macros = new MacroSettings();
+    public InventorySorterSettings inventorySorter = new InventorySorterSettings();
     public UiSettings ui = new UiSettings();
 
     public static TpsConfig load() {
@@ -184,6 +188,7 @@ public class TpsConfig {
         if (combat == null) combat = new CombatSettings();
         if (visual == null) visual = new VisualSettings();
         if (macros == null) macros = new MacroSettings();
+        if (inventorySorter == null) inventorySorter = new InventorySorterSettings();
         if (ui == null) ui = new UiSettings();
         visual.timeOfDay = clampInt(visual.timeOfDay, 0, 24000);
         visual.tntTimerRange = clampInt(visual.tntTimerRange, 8, 128);
@@ -224,6 +229,7 @@ public class TpsConfig {
             ui.collapsedSections.removeIf(id -> id == null || id.isBlank());
             ui.collapsedSections = new ArrayList<>(new LinkedHashSet<>(ui.collapsedSections));
         }
+        normalizeInventorySorter();
         pvp.spoofedHealthMode = PVP_HEALTH_MODE_PREFER_SRV;
         if (pvp.dualSpectatePlayerOne == null) pvp.dualSpectatePlayerOne = "";
         if (pvp.dualSpectatePlayerTwo == null) pvp.dualSpectatePlayerTwo = "";
@@ -255,6 +261,8 @@ public class TpsConfig {
         if (pvp.dualSpectateMaxDistance < pvp.dualSpectateMinDistance) {
             pvp.dualSpectateMaxDistance = pvp.dualSpectateMinDistance;
         }
+        pvp.teamCountOverlayX = clampInt(pvp.teamCountOverlayX, -1, 10000);
+        pvp.teamCountOverlayY = clampInt(pvp.teamCountOverlayY, -1, 10000);
         if (particles.disabledParticleIds == null) {
             particles.disabledParticleIds = new ArrayList<>();
         } else {
@@ -314,6 +322,64 @@ public class TpsConfig {
         misc.emptyBucketOverlayB = clampInt(misc.emptyBucketOverlayB, 0, 255);
         misc.emptyBucketOverlayAlpha = clampFloat(misc.emptyBucketOverlayAlpha, 0.0f, 1.0f);
         return this;
+    }
+
+    private void normalizeInventorySorter() {
+        if (inventorySorter.kits == null) {
+            inventorySorter.kits = new ArrayList<>();
+            return;
+        }
+
+        LinkedHashSet<String> seenIds = new LinkedHashSet<>();
+        for (int i = 0; i < inventorySorter.kits.size(); i++) {
+            InventorySortKit kit = inventorySorter.kits.get(i);
+            if (kit == null) {
+                kit = new InventorySortKit();
+                inventorySorter.kits.set(i, kit);
+            }
+
+            kit.id = normalizeKitId(kit.id, seenIds);
+            kit.name = normalizeKitName(kit.name, i + 1);
+            kit.serverAddress = kit.serverAddress == null ? "" : kit.serverAddress.trim();
+            kit.beforeSlots = normalizeInventorySortSlots(kit.beforeSlots);
+            kit.afterSlots = normalizeInventorySortSlots(kit.afterSlots);
+        }
+    }
+
+    private static String normalizeKitId(String id, LinkedHashSet<String> seenIds) {
+        String normalized = id == null ? "" : id.trim();
+        if (normalized.isEmpty() || seenIds.contains(normalized)) {
+            normalized = "kit-" + System.currentTimeMillis() + "-" + seenIds.size();
+            while (seenIds.contains(normalized)) {
+                normalized = normalized + "x";
+            }
+        }
+        seenIds.add(normalized);
+        return normalized;
+    }
+
+    private static String normalizeKitName(String name, int fallbackIndex) {
+        String normalized = name == null ? "" : name.trim();
+        if (normalized.isEmpty()) {
+            normalized = "Kit " + fallbackIndex;
+        }
+        return normalized.length() > 48 ? normalized.substring(0, 48) : normalized;
+    }
+
+    private static List<String> normalizeInventorySortSlots(List<String> slots) {
+        ArrayList<String> normalized = new ArrayList<>(InventorySortKit.SLOT_COUNT);
+        if (slots != null) {
+            for (String slot : slots) {
+                normalized.add(slot == null ? "" : slot);
+                if (normalized.size() >= InventorySortKit.SLOT_COUNT) {
+                    break;
+                }
+            }
+        }
+        while (normalized.size() < InventorySortKit.SLOT_COUNT) {
+            normalized.add("");
+        }
+        return normalized;
     }
 
     public static String normalizeFriendFoeStyle(String value) {
@@ -540,6 +606,30 @@ public class TpsConfig {
         public String[] messages = new String[]{"", "", "", ""};
     }
 
+    public static class InventorySorterSettings {
+        public boolean enabled = false;
+        public List<InventorySortKit> kits = new ArrayList<>();
+    }
+
+    public static class InventorySortKit {
+        public static final int SLOT_COUNT = 41;
+
+        public String id = "kit-" + System.currentTimeMillis();
+        public String name = "Kit";
+        public String serverAddress = "";
+        public boolean enabled = true;
+        public List<String> beforeSlots = emptySlots();
+        public List<String> afterSlots = emptySlots();
+
+        public static List<String> emptySlots() {
+            ArrayList<String> slots = new ArrayList<>(SLOT_COUNT);
+            for (int i = 0; i < SLOT_COUNT; i++) {
+                slots.add("");
+            }
+            return slots;
+        }
+    }
+
     public static class UiSettings {
         public List<String> collapsedSections = new ArrayList<>();
     }
@@ -572,6 +662,9 @@ public class TpsConfig {
         public float dualSpectateMaxDistance = 80.0f;
         public boolean friendFoeOverlayEnabled = DEFAULT_FRIEND_FOE_OVERLAY_ENABLED;
         public String friendFoeOverlayStyle = DEFAULT_FRIEND_FOE_OVERLAY_STYLE;
+        public boolean teamCountOverlayEnabled = DEFAULT_TEAM_COUNT_OVERLAY_ENABLED;
+        public int teamCountOverlayX = DEFAULT_TEAM_COUNT_OVERLAY_X;
+        public int teamCountOverlayY = DEFAULT_TEAM_COUNT_OVERLAY_Y;
         public List<String> friendNames = new ArrayList<>();
         public List<String> foeNames = new ArrayList<>();
         public int friendOverlayR = DEFAULT_FRIEND_OVERLAY_R;

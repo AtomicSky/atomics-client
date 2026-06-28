@@ -14,6 +14,7 @@ import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.component.DataComponentTypes;
 import net.minecraft.component.type.BlocksAttacksComponent;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.network.PlayerListEntry;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
 import net.minecraft.entity.Entity;
@@ -25,6 +26,7 @@ import net.minecraft.item.Items;
 import net.minecraft.registry.Registries;
 import net.minecraft.resource.ResourceManager;
 import net.minecraft.resource.ResourceType;
+import net.minecraft.scoreboard.Team;
 import net.minecraft.util.hit.EntityHitResult;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.Box;
@@ -39,10 +41,15 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class AtomicsClient implements ClientModInitializer {
     public static final String MOD_ID = "atomics_client";
     private static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
+    private static final Pattern LEGIONS_RATING_PATTERN = Pattern.compile("\\[\\s*(\\d+(?:\\.\\d+)?)\\s*\\]");
+    private static final float LEGIONS_LOW_RATING = 0.5f;
+    private static final float LEGIONS_HIGH_RATING = 2.0f;
 
     public static TpsConfig CONFIG;
     private static KeyBinding.Category keyCategory;
@@ -71,6 +78,10 @@ public class AtomicsClient implements ClientModInitializer {
     private static int cachedFriendFoeOverlayStyle = PlayerOverlayColorContext.STYLE_FULL;
     private static int cachedFriendOverlayColor = -1;
     private static int cachedFoeOverlayColor = -1;
+    private static int cachedFoeOverlayR;
+    private static int cachedFoeOverlayG;
+    private static int cachedFoeOverlayB;
+    private static float cachedFoeOverlayAlpha;
 
     @Override
     public void onInitializeClient() {
@@ -166,6 +177,7 @@ public class AtomicsClient implements ClientModInitializer {
             DualSpectateCamera.tick(client);
             FreelookManager.tick(client);
             ClientFeatureManager.tick(client);
+            InventorySorter.tick(client);
         });
 
         HudRenderCallback.EVENT.register((context, tickCounter) -> ClientFeatureManager.renderHud(context));
@@ -611,7 +623,15 @@ public class AtomicsClient implements ClientModInitializer {
 
     public static int getPlayerFriendFoeOverlayColor(PlayerEntity player) {
         syncFriendFoeCache();
-        if (player == null || !cachedFriendFoeOverlayEnabled) {
+        if (player == null) {
+            return -1;
+        }
+
+        if (isAutomaticLegionsFoe(player)) {
+            return getLegionsFoeOverlayColor(player);
+        }
+
+        if (!cachedFriendFoeOverlayEnabled) {
             return -1;
         }
 
@@ -643,9 +663,7 @@ public class AtomicsClient implements ClientModInitializer {
 
     public static boolean shouldBlockFriendAttack(PlayerEntity target) {
         syncFriendFoeCache();
-        return target != null
-                && cachedFriendFoeOverlayEnabled
-                && isFriend(target);
+        return target != null && isFriend(target);
     }
 
     public static void notifyFriendAttackBlocked(PlayerEntity target) {
@@ -663,6 +681,12 @@ public class AtomicsClient implements ClientModInitializer {
     }
 
     private static boolean isFriend(PlayerEntity player) {
+        if (isAutomaticLegionsFoe(player)) {
+            return false;
+        }
+        if (!cachedFriendFoeOverlayEnabled) {
+            return false;
+        }
         String name = getPlayerProfileName(player);
         String normalizedName = normalizeName(name);
         return !normalizedName.isEmpty() && cachedFriendNames.contains(normalizedName);
@@ -697,8 +721,9 @@ public class AtomicsClient implements ClientModInitializer {
     private static void syncFriendFoeCache() {
         TpsConfig cfg = CONFIG;
         TpsConfig.PvpSettings pvp = cfg == null ? null : cfg.pvp;
-        boolean enabled = cfg != null && cfg.enabled && pvp != null && pvp.friendFoeOverlayEnabled;
-        int fingerprint = friendFoeFingerprint(pvp, enabled);
+        boolean available = cfg != null && cfg.enabled && pvp != null;
+        boolean enabled = available && pvp.friendFoeOverlayEnabled;
+        int fingerprint = friendFoeFingerprint(pvp, available, enabled);
         if (friendFoeCacheInitialized && fingerprint == friendFoeCacheFingerprint) {
             return;
         }
@@ -711,19 +736,30 @@ public class AtomicsClient implements ClientModInitializer {
         cachedFoeNames.clear();
         cachedFriendOverlayColor = -1;
         cachedFoeOverlayColor = -1;
-        if (!enabled) {
+        cachedFoeOverlayR = 0;
+        cachedFoeOverlayG = 0;
+        cachedFoeOverlayB = 0;
+        cachedFoeOverlayAlpha = 0.0f;
+        if (!available) {
             return;
         }
 
-        addNormalizedNames(pvp.friendNames, cachedFriendNames);
-        addNormalizedNames(pvp.foeNames, cachedFoeNames);
         cachedFriendFoeOverlayStyle = friendFoeStyleId(pvp.friendFoeOverlayStyle);
         cachedFriendOverlayColor = colorWithAlpha(pvp.friendOverlayR, pvp.friendOverlayG, pvp.friendOverlayB, pvp.friendOverlayAlpha);
         cachedFoeOverlayColor = colorWithAlpha(pvp.foeOverlayR, pvp.foeOverlayG, pvp.foeOverlayB, pvp.foeOverlayAlpha);
+        cachedFoeOverlayR = Math.max(0, Math.min(255, pvp.foeOverlayR));
+        cachedFoeOverlayG = Math.max(0, Math.min(255, pvp.foeOverlayG));
+        cachedFoeOverlayB = Math.max(0, Math.min(255, pvp.foeOverlayB));
+        cachedFoeOverlayAlpha = Math.max(0.0f, Math.min(1.0f, pvp.foeOverlayAlpha));
+        if (enabled) {
+            addNormalizedNames(pvp.friendNames, cachedFriendNames);
+            addNormalizedNames(pvp.foeNames, cachedFoeNames);
+        }
     }
 
-    private static int friendFoeFingerprint(TpsConfig.PvpSettings pvp, boolean enabled) {
-        int result = Boolean.hashCode(enabled);
+    private static int friendFoeFingerprint(TpsConfig.PvpSettings pvp, boolean available, boolean enabled) {
+        int result = Boolean.hashCode(available);
+        result = 31 * result + Boolean.hashCode(enabled);
         if (pvp == null) {
             return result;
         }
@@ -779,6 +815,121 @@ public class AtomicsClient implements ClientModInitializer {
         }
         String trimmed = name.trim();
         return trimmed.isEmpty() ? "" : trimmed.toLowerCase(Locale.ROOT);
+    }
+
+    private static boolean isAutomaticLegionsFoe(PlayerEntity player) {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client == null || client.player == null || player == null || player == client.player) {
+            return false;
+        }
+        if (CONFIG == null || !CONFIG.enabled || CONFIG.pvp == null || !isLegionsServer(client)) {
+            return false;
+        }
+
+        Team localTeam = client.player.getScoreboardTeam();
+        Team playerTeam = player.getScoreboardTeam();
+        return localTeam != null
+                && playerTeam != null
+                && !localTeam.getName().equals(playerTeam.getName());
+    }
+
+    private static int getLegionsFoeOverlayColor(PlayerEntity player) {
+        float rating = getLegionsRating(player);
+        if (!Float.isFinite(rating)) {
+            return cachedFoeOverlayColor;
+        }
+
+        float strength = Math.max(0.0f, Math.min(1.0f, (rating - LEGIONS_LOW_RATING) / (LEGIONS_HIGH_RATING - LEGIONS_LOW_RATING)));
+        float minAlpha = Math.min(1.0f, Math.max(0.16f, cachedFoeOverlayAlpha * 0.45f));
+        float maxAlpha = Math.min(1.0f, Math.max(cachedFoeOverlayAlpha, 0.85f));
+        float alpha = minAlpha + (maxAlpha - minAlpha) * strength;
+        return colorWithAlpha(cachedFoeOverlayR, cachedFoeOverlayG, cachedFoeOverlayB, alpha);
+    }
+
+    private static float getLegionsRating(PlayerEntity player) {
+        if (player == null) {
+            return Float.NaN;
+        }
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client == null || client.getNetworkHandler() == null) {
+            return Float.NaN;
+        }
+
+        PlayerListEntry entry = client.getNetworkHandler().getPlayerListEntry(player.getUuid());
+        String text = entry == null || entry.getDisplayName() == null ? "" : entry.getDisplayName().getString();
+        if (text.isBlank() && player.getDisplayName() != null) {
+            text = player.getDisplayName().getString();
+        }
+
+        String rating = parseLastLegionsRating(text, getPlayerProfileName(player));
+        if (rating.isBlank()) {
+            return Float.NaN;
+        }
+        try {
+            return Float.parseFloat(rating);
+        } catch (NumberFormatException ignored) {
+            return Float.NaN;
+        }
+    }
+
+    private static String parseLastLegionsRating(String displayName, String username) {
+        if (displayName == null || displayName.isBlank()) {
+            return "";
+        }
+
+        int usernameIndex = username == null || username.isBlank()
+                ? -1
+                : displayName.toLowerCase(Locale.ROOT).indexOf(username.toLowerCase(Locale.ROOT));
+        String beforeName = usernameIndex > 0 ? displayName.substring(0, usernameIndex) : displayName;
+        String rating = lastLegionsRating(beforeName);
+        return rating.isBlank() ? lastLegionsRating(displayName) : rating;
+    }
+
+    private static String lastLegionsRating(String text) {
+        if (text == null || text.isBlank()) {
+            return "";
+        }
+        Matcher matcher = LEGIONS_RATING_PATTERN.matcher(text);
+        String rating = "";
+        while (matcher.find()) {
+            rating = matcher.group(1);
+        }
+        return rating;
+    }
+
+    private static boolean isLegionsServer(MinecraftClient client) {
+        if (client == null || client.isInSingleplayer()) {
+            return false;
+        }
+        if (client.getCurrentServerEntry() != null && isLegionsHost(serverHost(client.getCurrentServerEntry().address))) {
+            return true;
+        }
+        return client.getNetworkHandler() != null
+                && client.getNetworkHandler().getServerInfo() != null
+                && isLegionsHost(serverHost(client.getNetworkHandler().getServerInfo().address));
+    }
+
+    private static boolean isLegionsHost(String host) {
+        return "legions.club".equals(host) || "legions.gay".equals(host);
+    }
+
+    private static String serverHost(String address) {
+        String normalized = address == null ? "" : address.trim().toLowerCase(Locale.ROOT);
+        if (normalized.isBlank()) {
+            return "";
+        }
+        if (normalized.startsWith("[")) {
+            int bracket = normalized.indexOf(']');
+            return bracket > 0 ? normalized.substring(1, bracket) : normalized;
+        }
+        int portIndex = normalized.indexOf(':');
+        if (portIndex > 0) {
+            normalized = normalized.substring(0, portIndex);
+        }
+        while (normalized.endsWith(".")) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
+        return normalized;
     }
 
     private static int colorWithAlpha(int r, int g, int b, float alpha) {

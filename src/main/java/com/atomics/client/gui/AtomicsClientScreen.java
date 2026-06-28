@@ -90,6 +90,7 @@ public class AtomicsClientScreen extends Screen {
     private boolean dualSpectateAutoFill;
     private boolean dualSpectateForceThirdPerson;
     private boolean friendFoeOverlayEnabled;
+    private boolean teamCountOverlayEnabled;
     private boolean reachDisplayEnabled;
     private boolean opponentInfoEnabled;
     private boolean fullBrightEnabled;
@@ -121,6 +122,8 @@ public class AtomicsClientScreen extends Screen {
     private int armorDurabilityWarningPercent;
     private int armorHudX;
     private int armorHudY;
+    private int teamCountOverlayX;
+    private int teamCountOverlayY;
     private boolean armorHudVertical;
     private int armorHudSpacing;
     private boolean armorHudHotbarBorder;
@@ -455,6 +458,14 @@ public class AtomicsClientScreen extends Screen {
             y += 10;
         }
 
+        if (shouldShowFeature("misc.inventory_sorter", "Inventory Sorter", "kit sort", "server inventory", "sort inventory")) {
+            y = addFeatureSection(y, "misc.inventory_sorter", "Inventory Sorter");
+            if (!isFeatureCollapsed("misc.inventory_sorter")) {
+                addWideButton(leftX, y, controlWidth, "Edit Kit Sorts (" + getInventorySortKitCount() + ")", b -> this.client.setScreen(new InventorySortScreen(this))); y += ROW_HEIGHT;
+            }
+            y += 10;
+        }
+
         if (selectedTab != Tab.SEARCH && !normalizeSearch(settingsSearch).isEmpty() && y == startY) {
             labels.add(new DrawLabel("No settings matched the search.", leftX + 8, y + 8, 0xCCCCCC));
             y += 34;
@@ -649,6 +660,19 @@ public class AtomicsClientScreen extends Screen {
                     labels.add(new DrawLabel("Outline styles render visible model edges without showing through walls.", leftX + 8, y + 4, 0xAAAAAA));
                     y += 14;
                     labels.add(new DrawLabel("Use the keybind to cycle a looked-at player through Friend, Foe, and Neutral.", leftX + 8, y + 4, 0xAAAAAA));
+                    y += 22;
+                }
+            }
+            y += 10;
+        }
+
+        if (shouldShowFeature("pvp.team_count_overlay", "Team Count Overlay", "scoreboard", "teams left", "team counts", "players left")) {
+            y = addFeatureSection(y, "pvp.team_count_overlay", "Team Count Overlay");
+            if (!isFeatureCollapsed("pvp.team_count_overlay")) {
+                addToggle(leftX, y, controlWidth, "Show Team Count Overlay", teamCountOverlayEnabled, TpsConfig.DEFAULT_TEAM_COUNT_OVERLAY_ENABLED, () -> teamCountOverlayEnabled, value -> teamCountOverlayEnabled = value, true); y += ROW_HEIGHT;
+                if (teamCountOverlayEnabled) {
+                    addWideButton(leftX, y, controlWidth, "Move Overlay", b -> this.client.setScreen(new TeamCountOverlayLayoutScreen(this, teamCountOverlayX, teamCountOverlayY))); y += ROW_HEIGHT;
+                    labels.add(new DrawLabel("Counts alive non-spectator players on each scoreboard team.", leftX + 8, y + 4, 0xAAAAAA));
                     y += 22;
                 }
             }
@@ -1178,6 +1202,9 @@ public class AtomicsClientScreen extends Screen {
         dualSpectateMaxDistance = cfg.pvp.dualSpectateMaxDistance;
         friendFoeOverlayEnabled = cfg.pvp.friendFoeOverlayEnabled;
         friendFoeOverlayStyle = TpsConfig.normalizeFriendFoeStyle(cfg.pvp.friendFoeOverlayStyle);
+        teamCountOverlayEnabled = cfg.pvp.teamCountOverlayEnabled;
+        teamCountOverlayX = cfg.pvp.teamCountOverlayX;
+        teamCountOverlayY = cfg.pvp.teamCountOverlayY;
         friendOverlayR = cfg.pvp.friendOverlayR;
         friendOverlayG = cfg.pvp.friendOverlayG;
         friendOverlayB = cfg.pvp.friendOverlayB;
@@ -1234,6 +1261,12 @@ public class AtomicsClientScreen extends Screen {
         armorHudY = Math.max(-1, Math.min(10000, y));
         armorHudVertical = vertical;
         armorHudSpacing = Math.max(20, Math.min(64, spacing));
+        changed();
+    }
+
+    void applyTeamCountOverlayLayout(int x, int y) {
+        teamCountOverlayX = Math.max(-1, Math.min(10000, x));
+        teamCountOverlayY = Math.max(-1, Math.min(10000, y));
         changed();
     }
 
@@ -1353,6 +1386,9 @@ public class AtomicsClientScreen extends Screen {
         dualSpectateMaxDistance = 80.0f;
         friendFoeOverlayEnabled = TpsConfig.DEFAULT_FRIEND_FOE_OVERLAY_ENABLED;
         friendFoeOverlayStyle = TpsConfig.DEFAULT_FRIEND_FOE_OVERLAY_STYLE;
+        teamCountOverlayEnabled = TpsConfig.DEFAULT_TEAM_COUNT_OVERLAY_ENABLED;
+        teamCountOverlayX = TpsConfig.DEFAULT_TEAM_COUNT_OVERLAY_X;
+        teamCountOverlayY = TpsConfig.DEFAULT_TEAM_COUNT_OVERLAY_Y;
         friendOverlayR = TpsConfig.DEFAULT_FRIEND_OVERLAY_R;
         friendOverlayG = TpsConfig.DEFAULT_FRIEND_OVERLAY_G;
         friendOverlayB = TpsConfig.DEFAULT_FRIEND_OVERLAY_B;
@@ -1404,6 +1440,7 @@ public class AtomicsClientScreen extends Screen {
             AtomicsClient.CONFIG.sounds.sounds = new ArrayList<>(List.of(TpsConfig.defaultSoundPlay()));
             AtomicsClient.CONFIG.pvp.friendNames = new ArrayList<>();
             AtomicsClient.CONFIG.pvp.foeNames = new ArrayList<>();
+            AtomicsClient.CONFIG.inventorySorter = new TpsConfig.InventorySorterSettings();
         }
         changed();
         clearAndInit();
@@ -1488,6 +1525,9 @@ public class AtomicsClientScreen extends Screen {
         cfg.pvp.dualSpectateMaxDistance = Math.max(10.0f, Math.min(160.0f, dualSpectateMaxDistance));
         cfg.pvp.friendFoeOverlayEnabled = friendFoeOverlayEnabled;
         cfg.pvp.friendFoeOverlayStyle = TpsConfig.normalizeFriendFoeStyle(friendFoeOverlayStyle);
+        cfg.pvp.teamCountOverlayEnabled = teamCountOverlayEnabled;
+        cfg.pvp.teamCountOverlayX = Math.max(-1, Math.min(10000, teamCountOverlayX));
+        cfg.pvp.teamCountOverlayY = Math.max(-1, Math.min(10000, teamCountOverlayY));
         cfg.pvp.friendOverlayR = Math.max(0, Math.min(255, friendOverlayR));
         cfg.pvp.friendOverlayG = Math.max(0, Math.min(255, friendOverlayG));
         cfg.pvp.friendOverlayB = Math.max(0, Math.min(255, friendOverlayB));
@@ -1885,6 +1925,11 @@ public class AtomicsClientScreen extends Screen {
         int friends = cfg.pvp.friendNames == null ? 0 : cfg.pvp.friendNames.size();
         int foes = cfg.pvp.foeNames == null ? 0 : cfg.pvp.foeNames.size();
         return friends + foes;
+    }
+
+    private int getInventorySortKitCount() {
+        TpsConfig cfg = AtomicsClient.CONFIG;
+        return cfg == null || cfg.inventorySorter == null || cfg.inventorySorter.kits == null ? 0 : cfg.inventorySorter.kits.size();
     }
 
     private List<String> enabledNametagItems() {

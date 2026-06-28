@@ -14,6 +14,7 @@ import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.entity.projectile.ProjectileEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.particle.ParticleEffect;
+import net.minecraft.scoreboard.Team;
 import net.minecraft.text.MutableText;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
@@ -24,6 +25,7 @@ import net.minecraft.util.math.random.Random;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -36,6 +38,13 @@ public final class ClientFeatureManager {
     private static final double ZOOM_SCROLL_FACTOR = 1.25;
     private static final int ARMOR_HUD_EMPTY_OFFHAND_SHIFT = 28;
     private static final Identifier HOTBAR_SPRITE_TEXTURE = Identifier.ofVanilla("textures/gui/sprites/hud/hotbar.png");
+    private static final String TEAM_COUNT_TITLE = "Teams Left";
+    private static final int TEAM_COUNT_MIN_WIDTH = 78;
+    private static final int TEAM_COUNT_HEADER_HEIGHT = 13;
+    private static final int TEAM_COUNT_ROW_HEIGHT = 10;
+    private static final int TEAM_COUNT_PADDING_X = 5;
+    private static final int TEAM_COUNT_MARGIN = 8;
+    private static final int TEAM_COUNT_DEFAULT_Y = 36;
 
     private static long lastReachMillis;
     private static String lastReachTextString = "";
@@ -161,6 +170,33 @@ public final class ClientFeatureManager {
         if (cfg.visual.armorHudEnabled || cfg.visual.armorDurabilityWarningEnabled) {
             renderArmorHudAndWarnings(context, client, cfg.visual);
         }
+        if (cfg.pvp.teamCountOverlayEnabled) {
+            renderTeamCountOverlay(context, client, cfg.pvp.teamCountOverlayX, cfg.pvp.teamCountOverlayY, false);
+        }
+    }
+
+    public static int teamCountOverlayPreviewWidth(MinecraftClient client) {
+        MinecraftClient renderClient = client == null ? MinecraftClient.getInstance() : client;
+        return teamCountOverlayWidth(renderClient, displayTeamCounts(client, true));
+    }
+
+    public static int teamCountOverlayPreviewHeight(MinecraftClient client) {
+        return teamCountOverlayHeight(displayTeamCounts(client, true));
+    }
+
+    public static int defaultTeamCountOverlayX(MinecraftClient client) {
+        MinecraftClient renderClient = client == null ? MinecraftClient.getInstance() : client;
+        int screenWidth = renderClient.getWindow().getScaledWidth();
+        return Math.max(0, screenWidth - teamCountOverlayPreviewWidth(renderClient) - TEAM_COUNT_MARGIN);
+    }
+
+    public static int defaultTeamCountOverlayY() {
+        return TEAM_COUNT_DEFAULT_Y;
+    }
+
+    public static void renderTeamCountOverlayPreview(DrawContext context, MinecraftClient client, int x, int y) {
+        MinecraftClient renderClient = client == null ? MinecraftClient.getInstance() : client;
+        renderTeamCountOverlay(context, renderClient, x, y, true);
     }
 
     public static boolean shouldMaskPlayerNames() {
@@ -358,6 +394,128 @@ public final class ClientFeatureManager {
         context.getMatrices().scale(scale, scale);
         context.drawTextWithShadow(client.textRenderer, lastReachText, Math.round(x / scale), Math.round(y / scale), color);
         context.getMatrices().popMatrix();
+    }
+
+    private static void renderTeamCountOverlay(DrawContext context, MinecraftClient client, int configuredX, int configuredY, boolean preview) {
+        List<TeamCount> counts = displayTeamCounts(client, preview);
+        if (counts.isEmpty()) {
+            return;
+        }
+
+        int width = teamCountOverlayWidth(client, counts);
+        int height = teamCountOverlayHeight(counts);
+        int screenWidth = client.getWindow().getScaledWidth();
+        int screenHeight = client.getWindow().getScaledHeight();
+        int x = configuredX;
+        int y = configuredY;
+        if (x < 0 || y < 0) {
+            x = Math.max(0, screenWidth - width - TEAM_COUNT_MARGIN);
+            y = Math.min(Math.max(0, TEAM_COUNT_DEFAULT_Y), Math.max(0, screenHeight - height));
+        }
+        x = Math.max(0, Math.min(screenWidth - width, x));
+        y = Math.max(0, Math.min(screenHeight - height, y));
+
+        context.fill(x, y, x + width, y + height, 0x66000000);
+        context.fill(x, y, x + width, y + TEAM_COUNT_HEADER_HEIGHT, 0x99000000);
+        int titleX = x + width / 2 - client.textRenderer.getWidth(TEAM_COUNT_TITLE) / 2;
+        context.drawTextWithShadow(client.textRenderer, TEAM_COUNT_TITLE, titleX, y + 2, 0xFFFFFF55);
+
+        int rowY = y + TEAM_COUNT_HEADER_HEIGHT + 2;
+        for (int i = 0; i < counts.size(); i++) {
+            TeamCount count = counts.get(i);
+            int rowTop = rowY + i * TEAM_COUNT_ROW_HEIGHT;
+            context.fill(x, rowTop, x + width, rowTop + TEAM_COUNT_ROW_HEIGHT, (i & 1) == 0 ? 0x52000000 : 0x3F000000);
+            context.drawTextWithShadow(client.textRenderer, count.name(), x + TEAM_COUNT_PADDING_X, rowTop + 1, count.color());
+            String value = String.valueOf(count.count());
+            int valueX = x + width - TEAM_COUNT_PADDING_X - client.textRenderer.getWidth(value);
+            context.drawTextWithShadow(client.textRenderer, value, valueX, rowTop + 1, 0xFFFFFFFF);
+        }
+    }
+
+    private static int teamCountOverlayWidth(MinecraftClient client, List<TeamCount> counts) {
+        int width = client.textRenderer.getWidth(TEAM_COUNT_TITLE) + TEAM_COUNT_PADDING_X * 2;
+        for (TeamCount count : counts) {
+            String value = String.valueOf(count.count());
+            int rowWidth = client.textRenderer.getWidth(count.name()) + client.textRenderer.getWidth(value) + TEAM_COUNT_PADDING_X * 3 + 8;
+            width = Math.max(width, rowWidth);
+        }
+        return Math.max(TEAM_COUNT_MIN_WIDTH, width);
+    }
+
+    private static int teamCountOverlayHeight(List<TeamCount> counts) {
+        return TEAM_COUNT_HEADER_HEIGHT + 4 + counts.size() * TEAM_COUNT_ROW_HEIGHT;
+    }
+
+    private static List<TeamCount> displayTeamCounts(MinecraftClient client, boolean preview) {
+        List<TeamCount> counts = collectTeamCounts(client);
+        if (preview && counts.isEmpty()) {
+            return sampleTeamCounts();
+        }
+        return counts;
+    }
+
+    private static List<TeamCount> collectTeamCounts(MinecraftClient client) {
+        LinkedHashMap<String, TeamCount> counts = new LinkedHashMap<>();
+        if (client == null || client.world == null) {
+            return new ArrayList<>();
+        }
+
+        for (PlayerEntity player : client.world.getPlayers()) {
+            if (player == null || player.isSpectator() || player.isDead() || !player.isAlive()) {
+                continue;
+            }
+
+            Team team = player.getScoreboardTeam();
+            if (team == null || team.getName() == null || team.getName().isBlank()) {
+                continue;
+            }
+
+            String key = team.getName();
+            TeamCount current = counts.get(key);
+            if (current == null) {
+                counts.put(key, new TeamCount(teamDisplayName(team), teamTextColor(team), 1));
+            } else {
+                counts.put(key, new TeamCount(current.name(), current.color(), current.count() + 1));
+            }
+        }
+        return new ArrayList<>(counts.values());
+    }
+
+    private static List<TeamCount> sampleTeamCounts() {
+        ArrayList<TeamCount> counts = new ArrayList<>();
+        counts.add(new TeamCount("BLUE", 0xFF5555FF, 8));
+        counts.add(new TeamCount("RED", 0xFFFF5555, 7));
+        return counts;
+    }
+
+    private static String teamDisplayName(Team team) {
+        String name = team.getDisplayName() == null ? "" : team.getDisplayName().getString();
+        if (name.isBlank()) {
+            name = team.getName();
+        }
+        return formatTeamName(name);
+    }
+
+    private static String formatTeamName(String name) {
+        if (name == null || name.isBlank()) {
+            return "Team";
+        }
+        return name.length() <= 18 ? name : name.substring(0, 18);
+    }
+
+    private static int teamTextColor(Team team) {
+        Formatting formatting = team.getColor();
+        if (formatting == null) {
+            return 0xFFFFFFFF;
+        }
+
+        Integer rgb = formatting.getColorValue();
+        if (rgb == null) {
+            return 0xFFFFFFFF;
+        }
+
+        int color = rgb & 0xFFFFFF;
+        return color <= 0x202020 ? 0xFFAAAAAA : 0xFF000000 | color;
     }
 
     private static void renderArmorHudAndWarnings(DrawContext context, MinecraftClient client, TpsConfig.VisualSettings visual) {
@@ -709,6 +867,9 @@ public final class ClientFeatureManager {
             return null;
         }
         return AtomicsClient.CONFIG;
+    }
+
+    private record TeamCount(String name, int color, int count) {
     }
 
     private record PreparedParticleBurst(TpsConfig.ParticleBurst burst, ParticleEffect effect, int count) {
