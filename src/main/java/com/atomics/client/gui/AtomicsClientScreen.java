@@ -562,6 +562,7 @@ public class AtomicsClientScreen extends Screen {
                 addKeybindButton(leftX, y, controlWidth, "Open Menu", AtomicsClient.getOpenStudioKeyBinding()); y += ROW_HEIGHT;
                 addKeybindButton(leftX, y, controlWidth, "Zoom", AtomicsClient.getZoomKeyBinding()); y += ROW_HEIGHT;
                 addKeybindButton(leftX, y, controlWidth, "Freelook", AtomicsClient.getFreelookKeyBinding()); y += ROW_HEIGHT;
+                addKeybindButton(leftX, y, controlWidth, "Reset Totem Counter", AtomicsClient.getResetTotemCounterKeyBinding()); y += ROW_HEIGHT;
             }
             y += 10;
         }

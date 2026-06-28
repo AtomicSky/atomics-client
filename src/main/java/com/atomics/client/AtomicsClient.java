@@ -49,6 +49,7 @@ public class AtomicsClient implements ClientModInitializer {
     private static KeyBinding openStudioKey;
     private static KeyBinding zoomKey;
     private static KeyBinding freelookKey;
+    private static KeyBinding resetTotemCounterKey;
     private static KeyBinding toggleAutoGgKey;
     private static KeyBinding toggleDualSpectateKey;
     private static KeyBinding toggleFullBrightKey;
@@ -99,6 +100,7 @@ public class AtomicsClient implements ClientModInitializer {
                     keyCategory
             ));
 
+            resetTotemCounterKey = registerUnboundKey("key.atomics_client.reset_totem_counter");
             toggleAutoGgKey = registerUnboundKey("key.atomics_client.toggle_auto_gg");
             toggleDualSpectateKey = registerUnboundKey("key.atomics_client.toggle_dual_spectate");
             toggleFullBrightKey = registerUnboundKey("key.atomics_client.toggle_full_bright");
@@ -149,6 +151,9 @@ public class AtomicsClient implements ClientModInitializer {
             }
             while (cycleFriendFoeKey != null && cycleFriendFoeKey.wasPressed()) {
                 cycleLookedAtPlayerFriendFoe(client);
+            }
+            while (resetTotemCounterKey != null && resetTotemCounterKey.wasPressed()) {
+                resetTotemCounter(client);
             }
             for (int i = 0; i < macroKeys.size(); i++) {
                 KeyBinding macroKey = macroKeys.get(i);
@@ -220,6 +225,10 @@ public class AtomicsClient implements ClientModInitializer {
 
     public static KeyBinding getFreelookKeyBinding() {
         return freelookKey;
+    }
+
+    public static KeyBinding getResetTotemCounterKeyBinding() {
+        return resetTotemCounterKey;
     }
 
     public static KeyBinding getToggleAutoGgKeyBinding() {
@@ -311,6 +320,11 @@ public class AtomicsClient implements ClientModInitializer {
         if (CONFIG == null) return;
         CONFIG.visual.streamerModeEnabled = !CONFIG.visual.streamerModeEnabled;
         sendToggleMessage(client, "Streamer Mode", CONFIG.visual.streamerModeEnabled);
+    }
+
+    private static void resetTotemCounter(MinecraftClient client) {
+        PvpNametagStatsManager.resetTotemPopCounts(client);
+        sendActionMessage(client, "Totem pop counter reset");
     }
 
     private static void sendToggleMessage(MinecraftClient client, String label, boolean enabled) {

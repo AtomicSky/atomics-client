@@ -64,6 +64,18 @@ public final class PvpNametagStatsManager {
         }
     }
 
+    public static void resetTotemPopCounts(MinecraftClient client) {
+        OPPONENT_STATS.clear();
+        localTotemPops = 0;
+        if (client == null || client.world == null || client.player == null) {
+            activeWorld = null;
+            activeLocalPlayerUuid = null;
+            return;
+        }
+        activeWorld = client.world;
+        activeLocalPlayerUuid = client.player.getUuid();
+    }
+
     public static Text getWinPercentNameSuffix(PlayerEntity player) {
         TpsConfig.PvpSettings pvp = livePvpSettings();
         if (player == null || pvp == null || !pvp.winOddsEnabled || isLocalPlayer(player)) {
