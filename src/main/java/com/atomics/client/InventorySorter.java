@@ -30,6 +30,9 @@ public final class InventorySorter {
     private static final int MAX_SWAPS_PER_TICK = 3;
     private static final int START_COOLDOWN_TICKS = 12;
     private static final int MAX_ACTIVE_STEPS = 200;
+    private static final int CACHE_LIMIT = 2048;
+    private static final Map<String, ItemStack> DESERIALIZED_STACK_CACHE = new HashMap<>();
+    private static final Map<String, String> ITEM_TYPE_KEY_CACHE = new HashMap<>();
 
     private static String activeKitId;
     private static String activeServer;
@@ -51,10 +54,11 @@ public final class InventorySorter {
             resetActive();
             return;
         }
-        if (!isPlayerInventoryOpen(client) || !(client.player.currentScreenHandler instanceof PlayerScreenHandler handler)) {
+        if (!canUsePlayerInventoryHandler(client) || client.player.playerScreenHandler == null) {
             resetActive();
             return;
         }
+        PlayerScreenHandler handler = client.player.playerScreenHandler;
         if (!handler.getCursorStack().isEmpty()) {
             resetActive();
             return;
@@ -81,9 +85,10 @@ public final class InventorySorter {
             return;
         }
 
+        List<String> afterKeys = itemTypeKeys(kit.afterSlots, client);
         for (int i = 0; i < MAX_SWAPS_PER_TICK; i++) {
-            current = captureEncodedSlots(handler, client);
-            if (layoutMatches(current, kit.afterSlots, client)) {
+            List<String> currentKeys = itemTypeKeys(current, client);
+            if (layoutMatches(currentKeys, afterKeys)) {
                 resetActive();
                 startCooldownTicks = START_COOLDOWN_TICKS;
                 return;
@@ -95,7 +100,7 @@ public final class InventorySorter {
                 return;
             }
 
-            if (!performNextSwap(client, handler, current, kit.afterSlots)) {
+            if (!performNextSwap(client, handler, current, currentKeys, afterKeys)) {
                 notify(client, "Inventory sorter paused: after kit does not match available items", Formatting.YELLOW);
                 resetActive();
                 startCooldownTicks = START_COOLDOWN_TICKS * 4;
@@ -116,10 +121,17 @@ public final class InventorySorter {
         if (encoded == null || encoded.isBlank()) {
             return ItemStack.EMPTY;
         }
+        ItemStack cached = DESERIALIZED_STACK_CACHE.get(encoded);
+        if (cached != null) {
+            return cached.copy();
+        }
         try {
             JsonElement json = JsonParser.parseString(encoded);
-            return ItemStack.CODEC.parse(registryOps(client), json).result().orElse(ItemStack.EMPTY).copy();
+            ItemStack stack = ItemStack.CODEC.parse(registryOps(client), json).result().orElse(ItemStack.EMPTY);
+            cacheDeserializedStack(encoded, stack);
+            return stack.copy();
         } catch (RuntimeException e) {
+            cacheDeserializedStack(encoded, ItemStack.EMPTY);
             return ItemStack.EMPTY;
         }
     }
@@ -171,7 +183,7 @@ public final class InventorySorter {
             }
             if (hasConfiguredSlots(kit.beforeSlots)
                     && hasConfiguredSlots(kit.afterSlots)
-                    && sameItemTypeSet(current, kit.beforeSlots, client)
+                    && layoutMatches(current, kit.beforeSlots, client)
                     && sameItemTypeSet(kit.beforeSlots, kit.afterSlots, client)
                     && !layoutMatches(current, kit.afterSlots, client)) {
                 activeKitId = kit.id;
@@ -183,10 +195,7 @@ public final class InventorySorter {
         return null;
     }
 
-    private static boolean performNextSwap(MinecraftClient client, ScreenHandler handler, List<String> current, List<String> afterSlots) {
-        List<String> after = normalizeSlots(afterSlots);
-        List<String> currentKeys = itemTypeKeys(current, client);
-        List<String> afterKeys = itemTypeKeys(after, client);
+    private static boolean performNextSwap(MinecraftClient client, ScreenHandler handler, List<String> current, List<String> currentKeys, List<String> afterKeys) {
         for (int target = 0; target < SLOT_COUNT; target++) {
             String wanted = afterKeys.get(target);
             if (wanted.equals(currentKeys.get(target))) {
@@ -367,7 +376,7 @@ public final class InventorySorter {
             return "";
         }
         try {
-            return ItemStack.CODEC.encodeStart(registryOps(client), stack.copy())
+            return ItemStack.CODEC.encodeStart(registryOps(client), stack)
                     .result()
                     .map(JsonElement::toString)
                     .orElse("");
@@ -387,8 +396,10 @@ public final class InventorySorter {
     }
 
     private static boolean layoutMatches(List<String> current, List<String> layout, MinecraftClient client) {
-        List<String> currentKeys = itemTypeKeys(current, client);
-        List<String> layoutKeys = itemTypeKeys(layout, client);
+        return layoutMatches(itemTypeKeys(current, client), itemTypeKeys(layout, client));
+    }
+
+    private static boolean layoutMatches(List<String> currentKeys, List<String> layoutKeys) {
         for (int i = 0; i < SLOT_COUNT; i++) {
             if (!currentKeys.get(i).equals(layoutKeys.get(i))) {
                 return false;
@@ -421,25 +432,38 @@ public final class InventorySorter {
     private static List<String> itemTypeKeys(List<String> slots, MinecraftClient client) {
         List<String> normalized = normalizeSlots(slots);
         ArrayList<String> keys = new ArrayList<>(SLOT_COUNT);
-        Map<String, String> cache = new HashMap<>();
         for (String slot : normalized) {
-            keys.add(itemTypeKey(slot, client, cache));
+            keys.add(itemTypeKey(slot, client));
         }
         return keys;
     }
 
-    private static String itemTypeKey(String encodedStack, MinecraftClient client, Map<String, String> cache) {
+    private static String itemTypeKey(String encodedStack, MinecraftClient client) {
         if (encodedStack == null || encodedStack.isEmpty()) {
             return "";
         }
-        String cached = cache.get(encodedStack);
+        String cached = ITEM_TYPE_KEY_CACHE.get(encodedStack);
         if (cached != null) {
             return cached;
         }
         ItemStack stack = deserializeStack(encodedStack, client);
         String key = stack.isEmpty() ? "" : Registries.ITEM.getId(stack.getItem()).toString();
-        cache.put(encodedStack, key);
+        cacheItemTypeKey(encodedStack, key);
         return key;
+    }
+
+    private static void cacheDeserializedStack(String encoded, ItemStack stack) {
+        if (DESERIALIZED_STACK_CACHE.size() >= CACHE_LIMIT) {
+            DESERIALIZED_STACK_CACHE.clear();
+        }
+        DESERIALIZED_STACK_CACHE.put(encoded, stack == null ? ItemStack.EMPTY : stack.copy());
+    }
+
+    private static void cacheItemTypeKey(String encoded, String key) {
+        if (ITEM_TYPE_KEY_CACHE.size() >= CACHE_LIMIT) {
+            ITEM_TYPE_KEY_CACHE.clear();
+        }
+        ITEM_TYPE_KEY_CACHE.put(encoded, key == null ? "" : key);
     }
 
     private static boolean hasConfiguredSlots(List<String> slots) {
@@ -493,11 +517,14 @@ public final class InventorySorter {
         return serverAddress == null ? "" : serverAddress.trim().toLowerCase(Locale.ROOT);
     }
 
-    private static boolean isPlayerInventoryOpen(MinecraftClient client) {
-        return client != null
-                && client.player != null
-                && client.currentScreen instanceof HandledScreen<?>
-                && client.player.currentScreenHandler == client.player.playerScreenHandler;
+    private static boolean canUsePlayerInventoryHandler(MinecraftClient client) {
+        if (client == null || client.player == null || client.player.playerScreenHandler == null) {
+            return false;
+        }
+        if (client.player.currentScreenHandler != client.player.playerScreenHandler) {
+            return false;
+        }
+        return client.currentScreen == null || client.currentScreen instanceof HandledScreen<?>;
     }
 
     private static void notify(MinecraftClient client, String message, Formatting formatting) {

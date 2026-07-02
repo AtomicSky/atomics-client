@@ -8,7 +8,6 @@ import net.minecraft.client.render.entity.PlayerEntityRenderer;
 import net.minecraft.client.render.entity.state.PlayerEntityRenderState;
 import net.minecraft.entity.PlayerLikeEntity;
 import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.util.math.ColorHelper;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -21,13 +20,14 @@ public class PlayerEntityRendererMixin {
         if (player instanceof PlayerEntity playerEntity) {
             PlayerOverlayRenderStateAccess access = (PlayerOverlayRenderStateAccess) state;
             int color = AtomicsClient.getPlayerFriendFoeOverlayColor(playerEntity);
-            int style = AtomicsClient.getPlayerFriendFoeOverlayStyle(playerEntity);
+            int style = AtomicsClient.getPlayerFriendFoeOverlayStyle(playerEntity, color);
             access.atomics_client$setFriendFoeOverlayColor(color);
             access.atomics_client$setFriendFoeOverlayStyle(style);
             if (color != -1 && AtomicsClient.usesFriendFoeOutline(style)) {
                 MinecraftClient client = MinecraftClient.getInstance();
-                state.outlineColor = client.player != null && client.player.canSee(playerEntity)
-                        ? ColorHelper.fullAlpha(color)
+                state.outlineColor = AtomicsClient.usesLegionsSpectatorTeamGlow(playerEntity)
+                        || client.player != null && client.player.canSee(playerEntity)
+                        ? AtomicsClient.getRendererOutlineColor(color)
                         : 0;
             }
         } else {

@@ -13,8 +13,10 @@ import net.minecraft.scoreboard.ScoreboardObjective;
 import net.minecraft.util.Formatting;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 public final class PvpNametagStatsManager {
@@ -188,11 +190,17 @@ public final class PvpNametagStatsManager {
     }
 
     private static void pruneMissingPlayers(MinecraftClient client) {
+        Set<UUID> presentPlayers = new HashSet<>();
+        for (PlayerEntity player : client.world.getPlayers()) {
+            if (player != null) {
+                presentPlayers.add(player.getUuid());
+            }
+        }
+
         Iterator<UUID> iterator = OPPONENT_STATS.keySet().iterator();
         while (iterator.hasNext()) {
             UUID uuid = iterator.next();
-            boolean present = client.world.getPlayers().stream().anyMatch(player -> uuid.equals(player.getUuid()));
-            if (!present) {
+            if (!presentPlayers.contains(uuid)) {
                 iterator.remove();
             }
         }

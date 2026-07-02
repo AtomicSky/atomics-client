@@ -48,6 +48,8 @@ public final class TierWeightManager {
     private static final Pattern NUMERIC_TIER_PATTERN = Pattern.compile("[1-5]");
     private static final Pattern LEGIONS_RATING_PATTERN = Pattern.compile("\\[\\s*(\\d+(?:\\.\\d+)?)\\s*\\]");
     private static final Pattern LEGIONS_UNKNOWN_RATING_PATTERN = Pattern.compile("\\[\\s*\\?\\s*\\]");
+    private static final double[] LEGIONS_RATING_COLOR_VALUES = {0.5, 0.8, 1.0, 1.4, 1.8};
+    private static final int[] LEGIONS_RATING_COLORS = {0x5555FF, 0x55FFFF, 0x55FF55, 0xFFFF55, 0xFF5555};
     private static final int HEADER_ORANGE = 0xFF9A2E;
     private static final StyleSpriteSource.Font TIER_TAGGER_ICON_FONT = new StyleSpriteSource.Font(Identifier.of(AtomicsClient.MOD_ID, "tiertagger_icons"));
     private static final ProviderEndpoint[] PROVIDER_ENDPOINTS = new ProviderEndpoint[] {
@@ -218,14 +220,29 @@ public final class TierWeightManager {
     private static int legionsRatingColor(String rating) {
         try {
             double value = Double.parseDouble(rating);
-            if (value >= 2.0) return 0xFF5555;
-            if (value >= 1.5) return 0xFFAA00;
-            if (value >= 1.0) return 0x55FF55;
-            if (value >= 0.5) return 0x55FFFF;
-            return 0x5555FF;
+            if (value <= LEGIONS_RATING_COLOR_VALUES[0]) {
+                return LEGIONS_RATING_COLORS[0];
+            }
+            for (int i = 1; i < LEGIONS_RATING_COLOR_VALUES.length; i++) {
+                double max = LEGIONS_RATING_COLOR_VALUES[i];
+                if (value <= max) {
+                    double min = LEGIONS_RATING_COLOR_VALUES[i - 1];
+                    float progress = (float) ((value - min) / (max - min));
+                    return lerpColor(LEGIONS_RATING_COLORS[i - 1], LEGIONS_RATING_COLORS[i], progress);
+                }
+            }
+            return LEGIONS_RATING_COLORS[LEGIONS_RATING_COLORS.length - 1];
         } catch (NumberFormatException ignored) {
             return 0xFFFFFF;
         }
+    }
+
+    private static int lerpColor(int from, int to, float progress) {
+        float amount = Math.max(0.0f, Math.min(1.0f, progress));
+        int red = Math.round(((from >> 16) & 0xFF) + (((to >> 16) & 0xFF) - ((from >> 16) & 0xFF)) * amount);
+        int green = Math.round(((from >> 8) & 0xFF) + (((to >> 8) & 0xFF) - ((from >> 8) & 0xFF)) * amount);
+        int blue = Math.round((from & 0xFF) + ((to & 0xFF) - (from & 0xFF)) * amount);
+        return (red << 16) | (green << 8) | blue;
     }
 
     public static void sendOpponentInfoChat(String username) {
@@ -945,39 +962,7 @@ public final class TierWeightManager {
     }
 
     private static boolean isLegionsRatingServer() {
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client == null || client.isInSingleplayer()) {
-            return false;
-        }
-        if (isLegionsRatingHost(currentServerHost(client.getCurrentServerEntry() == null ? "" : client.getCurrentServerEntry().address))) {
-            return true;
-        }
-        return client.getNetworkHandler() != null
-                && client.getNetworkHandler().getServerInfo() != null
-                && isLegionsRatingHost(currentServerHost(client.getNetworkHandler().getServerInfo().address));
-    }
-
-    private static boolean isLegionsRatingHost(String host) {
-        return "legions.club".equals(host) || "legions.gay".equals(host);
-    }
-
-    private static String currentServerHost(String address) {
-        String normalized = address == null ? "" : address.trim().toLowerCase(Locale.ROOT);
-        if (normalized.isBlank()) {
-            return "";
-        }
-        if (normalized.startsWith("[")) {
-            int bracket = normalized.indexOf(']');
-            return bracket > 0 ? normalized.substring(1, bracket) : normalized;
-        }
-        int portIndex = normalized.indexOf(':');
-        if (portIndex > 0) {
-            normalized = normalized.substring(0, portIndex);
-        }
-        while (normalized.endsWith(".")) {
-            normalized = normalized.substring(0, normalized.length() - 1);
-        }
-        return normalized;
+        return AtomicsClient.areLegionsRatingNametagsEnabled(MinecraftClient.getInstance());
     }
 
     private static String joinSummaries(Set<String> summaries) {

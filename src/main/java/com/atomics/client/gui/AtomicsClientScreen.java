@@ -3,6 +3,7 @@ package com.atomics.client.gui;
 import com.atomics.client.TotemPopEffects;
 import com.atomics.client.AtomicsClient;
 import com.atomics.client.DualSpectateCamera;
+import com.atomics.client.AutoVillagerTradeCatalog;
 import com.atomics.client.config.TpsConfig;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.MinecraftClient;
@@ -85,12 +86,16 @@ public class AtomicsClientScreen extends Screen {
     private boolean totemPopNametagEnabled;
     private boolean opponentStatsNametagEnabled;
     private boolean pingNametagEnabled;
-    private boolean autoGgEnabled;
     private boolean dualSpectateEnabled;
     private boolean dualSpectateAutoFill;
     private boolean dualSpectateForceThirdPerson;
     private boolean friendFoeOverlayEnabled;
+    private boolean legionsRatingNametagsEnabled;
+    private boolean legionsAutomaticFoeOverlayEnabled;
+    private boolean legionsSpectatorTeamGlowEnabled;
+    private boolean legionsTeamScoresEnabled;
     private boolean teamCountOverlayEnabled;
+    private boolean teamCountOverlayServerFilterEnabled;
     private boolean reachDisplayEnabled;
     private boolean opponentInfoEnabled;
     private boolean fullBrightEnabled;
@@ -107,8 +112,10 @@ public class AtomicsClientScreen extends Screen {
     private boolean freelookEnabled;
     private boolean freelookToggleMode;
     private boolean chatMacrosEnabled;
-    private String autoGgWinMessage;
-    private String autoGgLoseMessage;
+    private boolean autoVillagerTraderEnabled;
+    private boolean autoVillagerTraderCheckChests;
+    private boolean autoVillagerTraderAutoCloseMerchant;
+    private boolean villagerLevelerAutoDropItems;
     private String settingsSearch = "";
     private final List<String> macroMessages = new ArrayList<>();
     private final List<String> nametagItemOrder = new ArrayList<>();
@@ -117,6 +124,10 @@ public class AtomicsClientScreen extends Screen {
     private String friendFoeOverlayStyle;
     private String dualSpectatePlayerOne;
     private String dualSpectatePlayerTwo;
+    private String teamCountOverlayAllowedServers;
+    private String autoVillagerTraderProfession;
+    private String autoVillagerTraderTrade;
+    private String autoVillagerTraderEnchantment;
     private int timeOfDay;
     private int tntTimerRange;
     private int armorDurabilityWarningPercent;
@@ -164,10 +175,12 @@ public class AtomicsClientScreen extends Screen {
     private float fireOverlayHeight;
     private double projectileTrailSpread;
     private double projectileTrailSpeed;
+    private double autoVillagerTraderRange;
 
     private boolean initializing;
     private boolean settingsSearchFocused;
     private boolean searchRefreshQueued;
+    private String openDropdownKey;
     private KeyBinding listeningKeyBinding;
     private String listeningKeyLabel;
     private final List<String> collapsedSections = new ArrayList<>();
@@ -466,6 +479,28 @@ public class AtomicsClientScreen extends Screen {
             y += 10;
         }
 
+        if (shouldShowFeature("misc.auto_villager_trader", "Auto Villager Trader", "villager", "trade", "chest", "survival", "leveler", "drop")) {
+            y = addFeatureSection(y, "misc.auto_villager_trader", "Auto Villager Trader");
+            if (!isFeatureCollapsed("misc.auto_villager_trader")) {
+                addToggle(leftX, y, controlWidth, "Enable Auto Trader", autoVillagerTraderEnabled, TpsConfig.DEFAULT_AUTO_VILLAGER_TRADER_ENABLED, () -> autoVillagerTraderEnabled, value -> autoVillagerTraderEnabled = value, true); y += ROW_HEIGHT;
+                if (autoVillagerTraderEnabled) {
+                    normalizeAutoVillagerTraderSelection();
+                    y = addDropdown(leftX, y, controlWidth, "auto_trader.profession", "Villager Type", AutoVillagerTradeCatalog.professions(), autoVillagerTraderProfession, TpsConfig.DEFAULT_AUTO_VILLAGER_TRADER_PROFESSION, value -> {
+                        autoVillagerTraderProfession = value;
+                        autoVillagerTraderTrade = AutoVillagerTradeCatalog.profession(value).trades().get(0).id();
+                    });
+                    y = addDropdown(leftX, y, controlWidth, "auto_trader.trade", "Trade Type", AutoVillagerTradeCatalog.profession(autoVillagerTraderProfession).trades(), autoVillagerTraderTrade, AutoVillagerTradeCatalog.profession(autoVillagerTraderProfession).trades().get(0).id(), value -> autoVillagerTraderTrade = value);
+                    if (AutoVillagerTradeCatalog.requiresEnchantment(autoVillagerTraderProfession, autoVillagerTraderTrade)) {
+                        addTextField(leftX, y, controlWidth, "Enchantment", autoVillagerTraderEnchantment, TpsConfig.DEFAULT_AUTO_VILLAGER_TRADER_ENCHANTMENT, value -> autoVillagerTraderEnchantment = value); y += ROW_HEIGHT;
+                    }
+                    addToggle(leftX, y, controlWidth, "Check Reachable Chests", autoVillagerTraderCheckChests, TpsConfig.DEFAULT_AUTO_VILLAGER_TRADER_CHECK_CHESTS, () -> autoVillagerTraderCheckChests, value -> autoVillagerTraderCheckChests = value, true); y += ROW_HEIGHT;
+                    addToggle(leftX, y, controlWidth, "Auto Exit Villager UI", autoVillagerTraderAutoCloseMerchant, TpsConfig.DEFAULT_AUTO_VILLAGER_TRADER_AUTO_CLOSE_MERCHANT, () -> autoVillagerTraderAutoCloseMerchant, value -> autoVillagerTraderAutoCloseMerchant = value, true); y += ROW_HEIGHT;
+                }
+                addToggle(leftX, y, controlWidth, "Auto Drop Leveler Items", villagerLevelerAutoDropItems, TpsConfig.DEFAULT_VILLAGER_LEVELER_AUTO_DROP_ITEMS, () -> villagerLevelerAutoDropItems, value -> villagerLevelerAutoDropItems = value, true); y += ROW_HEIGHT;
+            }
+            y += 10;
+        }
+
         if (selectedTab != Tab.SEARCH && !normalizeSearch(settingsSearch).isEmpty() && y == startY) {
             labels.add(new DrawLabel("No settings matched the search.", leftX + 8, y + 8, 0xCCCCCC));
             y += 34;
@@ -578,15 +613,16 @@ public class AtomicsClientScreen extends Screen {
             y += 10;
         }
 
-        if (shouldShowFeature("keybinds.module_toggles", "Module Toggles", "auto gg", "duel spectate", "full bright", "time changer", "projectile trail", "streamer mode", "friend", "foe")) {
+        if (shouldShowFeature("keybinds.module_toggles", "Module Toggles", "dual spectate", "duel spectate", "full bright", "time changer", "projectile trail", "streamer mode", "auto trader", "villager", "leveler", "friend", "foe")) {
             y = addFeatureSection(y, "keybinds.module_toggles", "Module Toggles");
             if (!isFeatureCollapsed("keybinds.module_toggles")) {
-                addKeybindButton(leftX, y, controlWidth, "Auto GG", AtomicsClient.getToggleAutoGgKeyBinding()); y += ROW_HEIGHT;
                 addKeybindButton(leftX, y, controlWidth, "Dual Spectate Camera", AtomicsClient.getToggleDualSpectateKeyBinding()); y += ROW_HEIGHT;
                 addKeybindButton(leftX, y, controlWidth, "Full Bright", AtomicsClient.getToggleFullBrightKeyBinding()); y += ROW_HEIGHT;
                 addKeybindButton(leftX, y, controlWidth, "Time Changer", AtomicsClient.getToggleTimeChangerKeyBinding()); y += ROW_HEIGHT;
                 addKeybindButton(leftX, y, controlWidth, "Projectile Trail", AtomicsClient.getToggleProjectileTrailKeyBinding()); y += ROW_HEIGHT;
                 addKeybindButton(leftX, y, controlWidth, "Streamer Mode", AtomicsClient.getToggleStreamerModeKeyBinding()); y += ROW_HEIGHT;
+                addKeybindButton(leftX, y, controlWidth, "Auto Trader", AtomicsClient.getToggleAutoTraderKeyBinding()); y += ROW_HEIGHT;
+                addKeybindButton(leftX, y, controlWidth, "Mark Villager Leveler", AtomicsClient.getMarkVillagerLevelerKeyBinding()); y += ROW_HEIGHT;
                 addKeybindButton(leftX, y, controlWidth, "Cycle Friend/Foe Target", AtomicsClient.getCycleFriendFoeKeyBinding()); y += ROW_HEIGHT;
             }
             y += 10;
@@ -638,6 +674,17 @@ public class AtomicsClientScreen extends Screen {
             y += 10;
         }
 
+        if (shouldShowFeature("pvp.legions", "Legions", "legions", "rating", "nametag", "automatic foe", "spectator glow", "team score")) {
+            y = addFeatureSection(y, "pvp.legions", "Legions");
+            if (!isFeatureCollapsed("pvp.legions")) {
+                addToggle(leftX, y, controlWidth, "Rating Nametags", legionsRatingNametagsEnabled, TpsConfig.DEFAULT_LEGIONS_RATING_NAMETAGS_ENABLED, () -> legionsRatingNametagsEnabled, value -> legionsRatingNametagsEnabled = value, false); y += ROW_HEIGHT;
+                addToggle(leftX, y, controlWidth, "Automatic Foe Overlay", legionsAutomaticFoeOverlayEnabled, TpsConfig.DEFAULT_LEGIONS_AUTOMATIC_FOE_OVERLAY_ENABLED, () -> legionsAutomaticFoeOverlayEnabled, value -> legionsAutomaticFoeOverlayEnabled = value, false); y += ROW_HEIGHT;
+                addToggle(leftX, y, controlWidth, "Spectator Team Glow", legionsSpectatorTeamGlowEnabled, TpsConfig.DEFAULT_LEGIONS_SPECTATOR_TEAM_GLOW_ENABLED, () -> legionsSpectatorTeamGlowEnabled, value -> legionsSpectatorTeamGlowEnabled = value, false); y += ROW_HEIGHT;
+                addToggle(leftX, y, controlWidth, "Team Score Totals", legionsTeamScoresEnabled, TpsConfig.DEFAULT_LEGIONS_TEAM_SCORES_ENABLED, () -> legionsTeamScoresEnabled, value -> legionsTeamScoresEnabled = value, false); y += ROW_HEIGHT;
+            }
+            y += 10;
+        }
+
         if (shouldShowFeature("pvp.friend_foe_overlay", "Friend/Foe Overlay", "friends", "foes", "highlight", "green", "red")) {
             y = addFeatureSection(y, "pvp.friend_foe_overlay", "Friend/Foe Overlay");
             if (!isFeatureCollapsed("pvp.friend_foe_overlay")) {
@@ -666,13 +713,19 @@ public class AtomicsClientScreen extends Screen {
             y += 10;
         }
 
-        if (shouldShowFeature("pvp.team_count_overlay", "Team Count Overlay", "scoreboard", "teams left", "team counts", "players left")) {
+        if (shouldShowFeature("pvp.team_count_overlay", "Team Count Overlay", "scoreboard", "teams left", "team counts", "players left", "server", "ip")) {
             y = addFeatureSection(y, "pvp.team_count_overlay", "Team Count Overlay");
             if (!isFeatureCollapsed("pvp.team_count_overlay")) {
                 addToggle(leftX, y, controlWidth, "Show Team Count Overlay", teamCountOverlayEnabled, TpsConfig.DEFAULT_TEAM_COUNT_OVERLAY_ENABLED, () -> teamCountOverlayEnabled, value -> teamCountOverlayEnabled = value, true); y += ROW_HEIGHT;
                 if (teamCountOverlayEnabled) {
                     addWideButton(leftX, y, controlWidth, "Move Overlay", b -> this.client.setScreen(new TeamCountOverlayLayoutScreen(this, teamCountOverlayX, teamCountOverlayY))); y += ROW_HEIGHT;
-                    labels.add(new DrawLabel("Counts alive non-spectator players on each scoreboard team.", leftX + 8, y + 4, 0xAAAAAA));
+                    addToggle(leftX, y, controlWidth, "Only On Listed Servers", teamCountOverlayServerFilterEnabled, TpsConfig.DEFAULT_TEAM_COUNT_OVERLAY_SERVER_FILTER_ENABLED, () -> teamCountOverlayServerFilterEnabled, value -> teamCountOverlayServerFilterEnabled = value, true); y += ROW_HEIGHT;
+                    if (teamCountOverlayServerFilterEnabled) {
+                        addTextField(leftX, y, controlWidth, "Server IPs", teamCountOverlayAllowedServers, "ip1, ip2", value -> teamCountOverlayAllowedServers = value); y += ROW_HEIGHT;
+                    }
+                    labels.add(new DrawLabel("Counts tab-list players by scoreboard team.", leftX + 8, y + 4, 0xAAAAAA));
+                    y += 14;
+                    labels.add(new DrawLabel("Legions adds total tab rating per team.", leftX + 8, y + 4, 0xAAAAAA));
                     y += 22;
                 }
             }
@@ -699,20 +752,6 @@ public class AtomicsClientScreen extends Screen {
                     addIntSlider(leftX, y, controlWidth, "Particles Per Tick", projectileTrailParticleCount, 0, 20, 1, TpsConfig.DEFAULT_PROJECTILE_TRAIL_PARTICLE_COUNT, value -> projectileTrailParticleCount = value); y += ROW_HEIGHT;
                     addDoubleSlider(leftX, y, controlWidth, "Trail Spread", projectileTrailSpread, 0.0, 1.5, 0.01, TpsConfig.DEFAULT_PROJECTILE_TRAIL_SPREAD, value -> projectileTrailSpread = value, value -> formatDecimal(value, 2)); y += ROW_HEIGHT;
                     addDoubleSlider(leftX, y, controlWidth, "Trail Speed", projectileTrailSpeed, 0.0, 1.0, 0.01, TpsConfig.DEFAULT_PROJECTILE_TRAIL_SPEED, value -> projectileTrailSpeed = value, value -> formatDecimal(value, 2)); y += ROW_HEIGHT;
-                }
-            }
-            y += 10;
-        }
-
-        if (shouldShowFeature("pvp.match_end", "Match End", "auto gg", "win message", "lose message")) {
-            y = addFeatureSection(y, "pvp.match_end", "Match End");
-            if (!isFeatureCollapsed("pvp.match_end")) {
-                addToggle(leftX, y, controlWidth, "Auto GG", autoGgEnabled, false, () -> autoGgEnabled, value -> autoGgEnabled = value, true); y += ROW_HEIGHT;
-                if (autoGgEnabled) {
-                    addTextField(leftX, y, controlWidth, "Win Message", autoGgWinMessage, "gg", value -> autoGgWinMessage = value); y += ROW_HEIGHT;
-                    addTextField(leftX, y, controlWidth, "Lose Message", autoGgLoseMessage, "gg", value -> autoGgLoseMessage = value); y += ROW_HEIGHT;
-                    labels.add(new DrawLabel("Sends once after detected CatPVP, Minemen, or MCPVP match results.", leftX + 8, y + 4, 0xAAAAAA));
-                    y += 22;
                 }
             }
             y += 10;
@@ -1109,6 +1148,94 @@ public class AtomicsClientScreen extends Screen {
         return field;
     }
 
+    private int addDropdown(int x, int y, int controlWidth, String key, String label, List<? extends AutoVillagerTradeCatalog.Choice> options, String currentValue, String defaultValue, Consumer<String> setter) {
+        if (options == null || options.isEmpty()) {
+            return y;
+        }
+
+        AutoVillagerTradeCatalog.Choice selected = findChoice(options, currentValue);
+        if (selected == null) {
+            selected = options.get(0);
+            setter.accept(selected.id());
+        }
+
+        boolean open = key.equals(openDropdownKey);
+        if (isWidgetVisible(y)) {
+            AutoVillagerTradeCatalog.Choice selectedForButton = selected;
+            addDrawableChild(new DropdownButtonWidget(x, y, controlWidth, BUTTON_HEIGHT, label, selectedForButton.label(), open, () -> {
+                openDropdownKey = open ? null : key;
+                clearAndInit();
+            }));
+
+            String resetValue = choiceIdOrFirst(options, defaultValue);
+            ButtonWidget reset = ButtonWidget.builder(Text.literal("↻"), b -> {
+                setter.accept(resetValue);
+                openDropdownKey = null;
+                normalizeAutoVillagerTraderSelection();
+                changed();
+                clearAndInit();
+            }).dimensions(x + controlWidth + 6, y, RESET_WIDTH, BUTTON_HEIGHT).build();
+            reset.active = !selected.id().equals(resetValue);
+            addDrawableChild(reset);
+        }
+
+        y += ROW_HEIGHT;
+        if (open) {
+            for (AutoVillagerTradeCatalog.Choice option : options) {
+                int optionY = y;
+                if (isWidgetVisible(optionY)) {
+                    ButtonWidget button = ButtonWidget.builder(Text.literal(option.label()), b -> {
+                        setter.accept(option.id());
+                        openDropdownKey = null;
+                        normalizeAutoVillagerTraderSelection();
+                        changed();
+                        clearAndInit();
+                    }).dimensions(x + 8, optionY, controlWidth - 8, BUTTON_HEIGHT).build();
+                    button.active = !option.id().equals(selectedForId(selected));
+                    addDrawableChild(button);
+                }
+                y += ROW_HEIGHT;
+            }
+        }
+
+        return y;
+    }
+
+    private static AutoVillagerTradeCatalog.Choice findChoice(List<? extends AutoVillagerTradeCatalog.Choice> options, String id) {
+        if (id == null) {
+            return null;
+        }
+        String normalizedId = id.trim();
+        for (AutoVillagerTradeCatalog.Choice option : options) {
+            if (option.id().equals(normalizedId)) {
+                return option;
+            }
+        }
+        return null;
+    }
+
+    private static String choiceIdOrFirst(List<? extends AutoVillagerTradeCatalog.Choice> options, String id) {
+        AutoVillagerTradeCatalog.Choice choice = findChoice(options, id);
+        return choice == null ? options.get(0).id() : choice.id();
+    }
+
+    private static String selectedForId(AutoVillagerTradeCatalog.Choice choice) {
+        return choice == null ? "" : choice.id();
+    }
+
+    private void normalizeAutoVillagerTraderSelection() {
+        autoVillagerTraderProfession = AutoVillagerTradeCatalog.normalizeProfessionId(autoVillagerTraderProfession);
+        autoVillagerTraderTrade = AutoVillagerTradeCatalog.normalizeTradeId(autoVillagerTraderProfession, autoVillagerTraderTrade);
+        if (autoVillagerTraderEnchantment == null) {
+            autoVillagerTraderEnchantment = "";
+        } else {
+            autoVillagerTraderEnchantment = autoVillagerTraderEnchantment.trim();
+            if (autoVillagerTraderEnchantment.length() > 64) {
+                autoVillagerTraderEnchantment = autoVillagerTraderEnchantment.substring(0, 64);
+            }
+        }
+    }
+
     private ValueSlider addIntSlider(int x, int y, int controlWidth, String label, int initialValue, int min, int max, int step, int defaultValue, IntSetter setter) {
         return addDoubleSlider(x, y, controlWidth, label, initialValue, min, max, step, defaultValue, value -> setter.set((int) Math.round(value)), value -> Integer.toString((int) Math.round(value)));
     }
@@ -1189,9 +1316,6 @@ public class AtomicsClientScreen extends Screen {
         nametagItemOrder.addAll(normalizeNametagItemOrder(cfg.pvp.nametagItemOrder));
         nametagItemsBeforeName.clear();
         nametagItemsBeforeName.addAll(normalizeNametagItemsBeforeName(cfg.pvp.nametagItemsBeforeName));
-        autoGgEnabled = cfg.pvp.autoGgEnabled;
-        autoGgWinMessage = cfg.pvp.autoGgWinMessage;
-        autoGgLoseMessage = cfg.pvp.autoGgLoseMessage;
         dualSpectateEnabled = cfg.pvp.dualSpectateEnabled;
         dualSpectateAutoFill = cfg.pvp.dualSpectateAutoFill;
         dualSpectatePlayerOne = cfg.pvp.dualSpectatePlayerOne;
@@ -1202,7 +1326,13 @@ public class AtomicsClientScreen extends Screen {
         dualSpectateMaxDistance = cfg.pvp.dualSpectateMaxDistance;
         friendFoeOverlayEnabled = cfg.pvp.friendFoeOverlayEnabled;
         friendFoeOverlayStyle = TpsConfig.normalizeFriendFoeStyle(cfg.pvp.friendFoeOverlayStyle);
+        legionsRatingNametagsEnabled = cfg.pvp.legionsRatingNametagsEnabled;
+        legionsAutomaticFoeOverlayEnabled = cfg.pvp.legionsAutomaticFoeOverlayEnabled;
+        legionsSpectatorTeamGlowEnabled = cfg.pvp.legionsSpectatorTeamGlowEnabled;
+        legionsTeamScoresEnabled = cfg.pvp.legionsTeamScoresEnabled;
         teamCountOverlayEnabled = cfg.pvp.teamCountOverlayEnabled;
+        teamCountOverlayServerFilterEnabled = cfg.pvp.teamCountOverlayServerFilterEnabled;
+        teamCountOverlayAllowedServers = cfg.pvp.teamCountOverlayAllowedServers;
         teamCountOverlayX = cfg.pvp.teamCountOverlayX;
         teamCountOverlayY = cfg.pvp.teamCountOverlayY;
         friendOverlayR = cfg.pvp.friendOverlayR;
@@ -1243,6 +1373,15 @@ public class AtomicsClientScreen extends Screen {
         zoomMultiplier = cfg.visual.zoomMultiplier;
         freelookEnabled = cfg.visual.freelookEnabled;
         freelookToggleMode = cfg.visual.freelookToggleMode;
+        autoVillagerTraderEnabled = cfg.utility.autoVillagerTraderEnabled;
+        autoVillagerTraderProfession = cfg.utility.autoVillagerTraderProfession;
+        autoVillagerTraderTrade = cfg.utility.autoVillagerTraderTrade;
+        autoVillagerTraderEnchantment = cfg.utility.autoVillagerTraderEnchantment;
+        autoVillagerTraderCheckChests = cfg.utility.autoVillagerTraderCheckChests;
+        autoVillagerTraderAutoCloseMerchant = cfg.utility.autoVillagerTraderAutoCloseMerchant;
+        autoVillagerTraderRange = TpsConfig.DEFAULT_AUTO_VILLAGER_TRADER_RANGE;
+        villagerLevelerAutoDropItems = cfg.utility.villagerLevelerAutoDropItems;
+        normalizeAutoVillagerTraderSelection();
         chatMacrosEnabled = cfg.macros.enabled;
         macroMessages.clear();
         for (String message : cfg.macros.messages) {
@@ -1373,9 +1512,6 @@ public class AtomicsClientScreen extends Screen {
         nametagItemOrder.addAll(TpsConfig.defaultNametagItemOrder());
         nametagItemsBeforeName.clear();
         nametagItemsBeforeName.add(TpsConfig.NAMETAG_ITEM_OPPONENT_STATS);
-        autoGgEnabled = false;
-        autoGgWinMessage = "gg";
-        autoGgLoseMessage = "gg";
         dualSpectateEnabled = false;
         dualSpectateAutoFill = false;
         dualSpectatePlayerOne = "";
@@ -1386,7 +1522,13 @@ public class AtomicsClientScreen extends Screen {
         dualSpectateMaxDistance = 80.0f;
         friendFoeOverlayEnabled = TpsConfig.DEFAULT_FRIEND_FOE_OVERLAY_ENABLED;
         friendFoeOverlayStyle = TpsConfig.DEFAULT_FRIEND_FOE_OVERLAY_STYLE;
+        legionsRatingNametagsEnabled = TpsConfig.DEFAULT_LEGIONS_RATING_NAMETAGS_ENABLED;
+        legionsAutomaticFoeOverlayEnabled = TpsConfig.DEFAULT_LEGIONS_AUTOMATIC_FOE_OVERLAY_ENABLED;
+        legionsSpectatorTeamGlowEnabled = TpsConfig.DEFAULT_LEGIONS_SPECTATOR_TEAM_GLOW_ENABLED;
+        legionsTeamScoresEnabled = TpsConfig.DEFAULT_LEGIONS_TEAM_SCORES_ENABLED;
         teamCountOverlayEnabled = TpsConfig.DEFAULT_TEAM_COUNT_OVERLAY_ENABLED;
+        teamCountOverlayServerFilterEnabled = TpsConfig.DEFAULT_TEAM_COUNT_OVERLAY_SERVER_FILTER_ENABLED;
+        teamCountOverlayAllowedServers = "";
         teamCountOverlayX = TpsConfig.DEFAULT_TEAM_COUNT_OVERLAY_X;
         teamCountOverlayY = TpsConfig.DEFAULT_TEAM_COUNT_OVERLAY_Y;
         friendOverlayR = TpsConfig.DEFAULT_FRIEND_OVERLAY_R;
@@ -1427,6 +1569,15 @@ public class AtomicsClientScreen extends Screen {
         zoomMultiplier = TpsConfig.DEFAULT_ZOOM_MULTIPLIER;
         freelookEnabled = TpsConfig.DEFAULT_FREELOOK_ENABLED;
         freelookToggleMode = TpsConfig.DEFAULT_FREELOOK_TOGGLE_MODE;
+        autoVillagerTraderEnabled = TpsConfig.DEFAULT_AUTO_VILLAGER_TRADER_ENABLED;
+        autoVillagerTraderProfession = TpsConfig.DEFAULT_AUTO_VILLAGER_TRADER_PROFESSION;
+        autoVillagerTraderTrade = TpsConfig.DEFAULT_AUTO_VILLAGER_TRADER_TRADE;
+        autoVillagerTraderEnchantment = TpsConfig.DEFAULT_AUTO_VILLAGER_TRADER_ENCHANTMENT;
+        autoVillagerTraderCheckChests = TpsConfig.DEFAULT_AUTO_VILLAGER_TRADER_CHECK_CHESTS;
+        autoVillagerTraderAutoCloseMerchant = TpsConfig.DEFAULT_AUTO_VILLAGER_TRADER_AUTO_CLOSE_MERCHANT;
+        autoVillagerTraderRange = TpsConfig.DEFAULT_AUTO_VILLAGER_TRADER_RANGE;
+        villagerLevelerAutoDropItems = TpsConfig.DEFAULT_VILLAGER_LEVELER_AUTO_DROP_ITEMS;
+        openDropdownKey = null;
         chatMacrosEnabled = false;
         macroMessages.clear();
         for (int i = 0; i < TpsConfig.MIN_MACRO_SLOTS; i++) {
@@ -1441,6 +1592,8 @@ public class AtomicsClientScreen extends Screen {
             AtomicsClient.CONFIG.pvp.friendNames = new ArrayList<>();
             AtomicsClient.CONFIG.pvp.foeNames = new ArrayList<>();
             AtomicsClient.CONFIG.inventorySorter = new TpsConfig.InventorySorterSettings();
+            AtomicsClient.CONFIG.utility.villagerLevelerTargetUuid = TpsConfig.DEFAULT_VILLAGER_LEVELER_TARGET_UUID;
+            AtomicsClient.CONFIG.utility.villagerLevelerAutoDropItems = TpsConfig.DEFAULT_VILLAGER_LEVELER_AUTO_DROP_ITEMS;
         }
         changed();
         clearAndInit();
@@ -1501,19 +1654,6 @@ public class AtomicsClientScreen extends Screen {
         cfg.pvp.pingNametagEnabled = pingNametagEnabled;
         cfg.pvp.nametagItemOrder = normalizeNametagItemOrder(nametagItemOrder);
         cfg.pvp.nametagItemsBeforeName = normalizeNametagItemsBeforeName(nametagItemsBeforeName);
-        cfg.pvp.autoGgEnabled = autoGgEnabled;
-        cfg.pvp.autoGgWinMessage = autoGgWinMessage == null || autoGgWinMessage.trim().isEmpty() ? "gg" : autoGgWinMessage.trim();
-        cfg.pvp.autoGgLoseMessage = autoGgLoseMessage == null || autoGgLoseMessage.trim().isEmpty() ? "gg" : autoGgLoseMessage.trim();
-        cfg.pvp.autoGgMessage = cfg.pvp.autoGgWinMessage;
-        if (cfg.pvp.autoGgMessage.length() > 64) {
-            cfg.pvp.autoGgMessage = cfg.pvp.autoGgMessage.substring(0, 64);
-        }
-        if (cfg.pvp.autoGgWinMessage.length() > 64) {
-            cfg.pvp.autoGgWinMessage = cfg.pvp.autoGgWinMessage.substring(0, 64);
-        }
-        if (cfg.pvp.autoGgLoseMessage.length() > 64) {
-            cfg.pvp.autoGgLoseMessage = cfg.pvp.autoGgLoseMessage.substring(0, 64);
-        }
         cfg.pvp.spoofedHealthMode = TpsConfig.PVP_HEALTH_MODE_PREFER_SRV;
         cfg.pvp.dualSpectateEnabled = dualSpectateEnabled;
         cfg.pvp.dualSpectateAutoFill = dualSpectateAutoFill;
@@ -1525,7 +1665,17 @@ public class AtomicsClientScreen extends Screen {
         cfg.pvp.dualSpectateMaxDistance = Math.max(10.0f, Math.min(160.0f, dualSpectateMaxDistance));
         cfg.pvp.friendFoeOverlayEnabled = friendFoeOverlayEnabled;
         cfg.pvp.friendFoeOverlayStyle = TpsConfig.normalizeFriendFoeStyle(friendFoeOverlayStyle);
+        cfg.pvp.legionsRatingNametagsEnabled = legionsRatingNametagsEnabled;
+        cfg.pvp.legionsAutomaticFoeOverlayEnabled = legionsAutomaticFoeOverlayEnabled;
+        cfg.pvp.legionsSpectatorTeamGlowEnabled = legionsSpectatorTeamGlowEnabled;
+        cfg.pvp.legionsTeamScoresEnabled = legionsTeamScoresEnabled;
+        cfg.pvp.legionsFeaturesEnabled = legionsRatingNametagsEnabled
+                || legionsAutomaticFoeOverlayEnabled
+                || legionsSpectatorTeamGlowEnabled
+                || legionsTeamScoresEnabled;
         cfg.pvp.teamCountOverlayEnabled = teamCountOverlayEnabled;
+        cfg.pvp.teamCountOverlayServerFilterEnabled = teamCountOverlayServerFilterEnabled;
+        cfg.pvp.teamCountOverlayAllowedServers = teamCountOverlayAllowedServers == null ? "" : teamCountOverlayAllowedServers.trim();
         cfg.pvp.teamCountOverlayX = Math.max(-1, Math.min(10000, teamCountOverlayX));
         cfg.pvp.teamCountOverlayY = Math.max(-1, Math.min(10000, teamCountOverlayY));
         cfg.pvp.friendOverlayR = Math.max(0, Math.min(255, friendOverlayR));
@@ -1573,6 +1723,15 @@ public class AtomicsClientScreen extends Screen {
         cfg.visual.zoomMultiplier = Math.max(TpsConfig.MIN_ZOOM_MULTIPLIER, Math.min(TpsConfig.MAX_ZOOM_MULTIPLIER, zoomMultiplier));
         cfg.visual.freelookEnabled = freelookEnabled;
         cfg.visual.freelookToggleMode = freelookToggleMode;
+        normalizeAutoVillagerTraderSelection();
+        cfg.utility.autoVillagerTraderEnabled = autoVillagerTraderEnabled;
+        cfg.utility.autoVillagerTraderProfession = autoVillagerTraderProfession == null ? "" : autoVillagerTraderProfession.trim();
+        cfg.utility.autoVillagerTraderTrade = autoVillagerTraderTrade == null ? "" : autoVillagerTraderTrade.trim();
+        cfg.utility.autoVillagerTraderEnchantment = autoVillagerTraderEnchantment == null ? "" : autoVillagerTraderEnchantment.trim();
+        cfg.utility.autoVillagerTraderCheckChests = autoVillagerTraderCheckChests;
+        cfg.utility.autoVillagerTraderAutoCloseMerchant = autoVillagerTraderAutoCloseMerchant;
+        cfg.utility.autoVillagerTraderRange = TpsConfig.DEFAULT_AUTO_VILLAGER_TRADER_RANGE;
+        cfg.utility.villagerLevelerAutoDropItems = villagerLevelerAutoDropItems;
         cfg.macros.enabled = chatMacrosEnabled;
         int macroCount = Math.max(TpsConfig.MIN_MACRO_SLOTS, Math.min(TpsConfig.MAX_MACRO_SLOTS, macroMessages.size()));
         String[] normalizedMacros = new String[macroCount];
@@ -2213,7 +2372,10 @@ public class AtomicsClientScreen extends Screen {
             context.fill(x + width - 1, y, x + width, y + height, PANEL_BORDER);
 
             String marker = open ? "^" : "v";
-            String right = value + "  " + marker;
+            String suffix = "  " + marker;
+            int valueWidth = Math.max(24, width - textRenderer.getWidth(label) - textRenderer.getWidth(suffix) - 28);
+            String trimmedValue = textRenderer.trimToWidth(value, valueWidth);
+            String right = trimmedValue + suffix;
             context.drawTextWithShadow(textRenderer, Text.literal(label), x + 8, y + 7, TEXT_MAIN);
             context.drawTextWithShadow(textRenderer, Text.literal(right), x + width - textRenderer.getWidth(right) - 8, y + 7, open ? ACCENT : TEXT_MUTED);
         }

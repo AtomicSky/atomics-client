@@ -27,8 +27,10 @@ import net.minecraft.registry.Registries;
 import net.minecraft.resource.ResourceManager;
 import net.minecraft.resource.ResourceType;
 import net.minecraft.scoreboard.Team;
+import net.minecraft.util.Formatting;
 import net.minecraft.util.hit.EntityHitResult;
 import net.minecraft.util.Identifier;
+import net.minecraft.util.math.ColorHelper;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
 import org.lwjgl.glfw.GLFW;
@@ -47,6 +49,7 @@ import java.util.regex.Pattern;
 public class AtomicsClient implements ClientModInitializer {
     public static final String MOD_ID = "atomics_client";
     private static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
+    private static final boolean VULKAN_MOD_LOADED = FabricLoader.getInstance().isModLoaded("vulkanmod");
     private static final Pattern LEGIONS_RATING_PATTERN = Pattern.compile("\\[\\s*(\\d+(?:\\.\\d+)?)\\s*\\]");
     private static final float LEGIONS_LOW_RATING = 0.5f;
     private static final float LEGIONS_HIGH_RATING = 2.0f;
@@ -57,12 +60,13 @@ public class AtomicsClient implements ClientModInitializer {
     private static KeyBinding zoomKey;
     private static KeyBinding freelookKey;
     private static KeyBinding resetTotemCounterKey;
-    private static KeyBinding toggleAutoGgKey;
     private static KeyBinding toggleDualSpectateKey;
     private static KeyBinding toggleFullBrightKey;
     private static KeyBinding toggleTimeChangerKey;
     private static KeyBinding toggleProjectileTrailKey;
     private static KeyBinding toggleStreamerModeKey;
+    private static KeyBinding toggleAutoTraderKey;
+    private static KeyBinding markVillagerLevelerKey;
     private static KeyBinding cycleFriendFoeKey;
     private static final List<KeyBinding> macroKeys = new ArrayList<>();
     private static String cachedReplacementItemId;
@@ -112,12 +116,13 @@ public class AtomicsClient implements ClientModInitializer {
             ));
 
             resetTotemCounterKey = registerUnboundKey("key.atomics_client.reset_totem_counter");
-            toggleAutoGgKey = registerUnboundKey("key.atomics_client.toggle_auto_gg");
             toggleDualSpectateKey = registerUnboundKey("key.atomics_client.toggle_dual_spectate");
             toggleFullBrightKey = registerUnboundKey("key.atomics_client.toggle_full_bright");
             toggleTimeChangerKey = registerUnboundKey("key.atomics_client.toggle_time_changer");
             toggleProjectileTrailKey = registerUnboundKey("key.atomics_client.toggle_projectile_trail");
             toggleStreamerModeKey = registerUnboundKey("key.atomics_client.toggle_streamer_mode");
+            toggleAutoTraderKey = registerUnboundKey("key.atomics_client.toggle_auto_trader");
+            markVillagerLevelerKey = registerUnboundKey("key.atomics_client.mark_villager_leveler");
             cycleFriendFoeKey = registerUnboundKey("key.atomics_client.cycle_friend_foe");
 
             registerMacroKeys(TpsConfig.MAX_MACRO_SLOTS);
@@ -142,9 +147,6 @@ public class AtomicsClient implements ClientModInitializer {
                 client.setScreen(new AtomicsClientScreen(client.currentScreen));
             }
 
-            while (toggleAutoGgKey != null && toggleAutoGgKey.wasPressed()) {
-                toggleAutoGg(client);
-            }
             while (toggleDualSpectateKey != null && toggleDualSpectateKey.wasPressed()) {
                 toggleDualSpectate(client);
             }
@@ -159,6 +161,12 @@ public class AtomicsClient implements ClientModInitializer {
             }
             while (toggleStreamerModeKey != null && toggleStreamerModeKey.wasPressed()) {
                 toggleStreamerMode(client);
+            }
+            while (toggleAutoTraderKey != null && toggleAutoTraderKey.wasPressed()) {
+                toggleAutoTrader(client);
+            }
+            while (markVillagerLevelerKey != null && markVillagerLevelerKey.wasPressed()) {
+                VillagerProfessionLeveler.markLookedAtVillager(client);
             }
             while (cycleFriendFoeKey != null && cycleFriendFoeKey.wasPressed()) {
                 cycleLookedAtPlayerFriendFoe(client);
@@ -178,6 +186,9 @@ public class AtomicsClient implements ClientModInitializer {
             FreelookManager.tick(client);
             ClientFeatureManager.tick(client);
             InventorySorter.tick(client);
+            if (!VillagerProfessionLeveler.tick(client)) {
+                AutoVillagerTrader.tick(client);
+            }
         });
 
         HudRenderCallback.EVENT.register((context, tickCounter) -> ClientFeatureManager.renderHud(context));
@@ -243,10 +254,6 @@ public class AtomicsClient implements ClientModInitializer {
         return resetTotemCounterKey;
     }
 
-    public static KeyBinding getToggleAutoGgKeyBinding() {
-        return toggleAutoGgKey;
-    }
-
     public static KeyBinding getToggleDualSpectateKeyBinding() {
         return toggleDualSpectateKey;
     }
@@ -265,6 +272,14 @@ public class AtomicsClient implements ClientModInitializer {
 
     public static KeyBinding getToggleStreamerModeKeyBinding() {
         return toggleStreamerModeKey;
+    }
+
+    public static KeyBinding getToggleAutoTraderKeyBinding() {
+        return toggleAutoTraderKey;
+    }
+
+    public static KeyBinding getMarkVillagerLevelerKeyBinding() {
+        return markVillagerLevelerKey;
     }
 
     public static KeyBinding getCycleFriendFoeKeyBinding() {
@@ -298,12 +313,6 @@ public class AtomicsClient implements ClientModInitializer {
         return keyBinding.getBoundKeyLocalizedText().getString();
     }
 
-    private static void toggleAutoGg(MinecraftClient client) {
-        if (CONFIG == null) return;
-        CONFIG.pvp.autoGgEnabled = !CONFIG.pvp.autoGgEnabled;
-        sendToggleMessage(client, "Auto GG", CONFIG.pvp.autoGgEnabled);
-    }
-
     private static void toggleDualSpectate(MinecraftClient client) {
         if (CONFIG == null) return;
         CONFIG.pvp.dualSpectateEnabled = !CONFIG.pvp.dualSpectateEnabled;
@@ -332,6 +341,15 @@ public class AtomicsClient implements ClientModInitializer {
         if (CONFIG == null) return;
         CONFIG.visual.streamerModeEnabled = !CONFIG.visual.streamerModeEnabled;
         sendToggleMessage(client, "Streamer Mode", CONFIG.visual.streamerModeEnabled);
+    }
+
+    private static void toggleAutoTrader(MinecraftClient client) {
+        if (CONFIG == null) {
+            CONFIG = new TpsConfig();
+        }
+        CONFIG.normalize();
+        CONFIG.utility.autoVillagerTraderEnabled = !CONFIG.utility.autoVillagerTraderEnabled;
+        sendToggleMessage(client, "Auto Trader", CONFIG.utility.autoVillagerTraderEnabled);
     }
 
     private static void resetTotemCounter(MinecraftClient client) {
@@ -433,7 +451,7 @@ public class AtomicsClient implements ClientModInitializer {
         }
     }
 
-    private static void saveConfigQuietly() {
+    public static void saveConfigQuietly() {
         if (CONFIG == null) return;
         try {
             CONFIG.save(FabricLoader.getInstance().getConfigDir().resolve("atomics_client.json"));
@@ -622,11 +640,15 @@ public class AtomicsClient implements ClientModInitializer {
     }
 
     public static int getPlayerFriendFoeOverlayColor(PlayerEntity player) {
-        syncFriendFoeCache();
         if (player == null) {
             return -1;
         }
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (usesLegionsSpectatorTeamGlow(client)) {
+            return getLegionsSpectatorTeamGlowColor(client, player);
+        }
 
+        syncFriendFoeCache();
         if (isAutomaticLegionsFoe(player)) {
             return getLegionsFoeOverlayColor(player);
         }
@@ -651,9 +673,100 @@ public class AtomicsClient implements ClientModInitializer {
     }
 
     public static int getPlayerFriendFoeOverlayStyle(PlayerEntity player) {
-        return getPlayerFriendFoeOverlayColor(player) == -1
-                ? PlayerOverlayColorContext.STYLE_FULL
+        int color = getPlayerFriendFoeOverlayColor(player);
+        return getPlayerFriendFoeOverlayStyle(player, color);
+    }
+
+    public static int getPlayerFriendFoeOverlayStyle(PlayerEntity player, int color) {
+        if (color == -1) {
+            return PlayerOverlayColorContext.STYLE_FULL;
+        }
+        MinecraftClient client = MinecraftClient.getInstance();
+        return usesLegionsSpectatorTeamGlow(client) && getLegionsSpectatorTeamGlowColor(client, player) != -1
+                ? PlayerOverlayColorContext.STYLE_OUTLINE
                 : cachedFriendFoeOverlayStyle;
+    }
+
+    public static boolean usesLegionsSpectatorTeamGlow(PlayerEntity player) {
+        MinecraftClient client = MinecraftClient.getInstance();
+        return usesLegionsSpectatorTeamGlow(client) && getLegionsSpectatorTeamGlowColor(client, player) != -1;
+    }
+
+    private static boolean usesLegionsSpectatorTeamGlow(MinecraftClient client) {
+        return client != null
+                && client.player != null
+                && client.player.isSpectator()
+                && areLegionsSpectatorTeamGlowEnabled(client);
+    }
+
+    public static boolean isOnLegionsServer() {
+        return isLegionsServer(MinecraftClient.getInstance());
+    }
+
+    public static boolean isOnLegionsServer(MinecraftClient client) {
+        return isLegionsServer(client);
+    }
+
+    public static boolean areLegionsFeaturesEnabled(MinecraftClient client) {
+        TpsConfig.PvpSettings pvp = legionsPvpSettings(client);
+        return pvp != null
+                && (pvp.legionsRatingNametagsEnabled
+                || pvp.legionsAutomaticFoeOverlayEnabled
+                || pvp.legionsSpectatorTeamGlowEnabled
+                || pvp.legionsTeamScoresEnabled);
+    }
+
+    public static boolean areLegionsRatingNametagsEnabled(MinecraftClient client) {
+        TpsConfig.PvpSettings pvp = legionsPvpSettings(client);
+        return pvp != null && pvp.legionsRatingNametagsEnabled;
+    }
+
+    public static boolean areLegionsAutomaticFoeOverlayEnabled(MinecraftClient client) {
+        TpsConfig.PvpSettings pvp = legionsPvpSettings(client);
+        return pvp != null && pvp.legionsAutomaticFoeOverlayEnabled;
+    }
+
+    public static boolean areLegionsSpectatorTeamGlowEnabled(MinecraftClient client) {
+        TpsConfig.PvpSettings pvp = legionsPvpSettings(client);
+        return pvp != null && pvp.legionsSpectatorTeamGlowEnabled;
+    }
+
+    public static boolean areLegionsTeamScoresEnabled(MinecraftClient client) {
+        TpsConfig.PvpSettings pvp = legionsPvpSettings(client);
+        return pvp != null && pvp.legionsTeamScoresEnabled;
+    }
+
+    private static TpsConfig.PvpSettings legionsPvpSettings(MinecraftClient client) {
+        return client != null
+                && CONFIG != null
+                && CONFIG.enabled
+                && CONFIG.pvp != null
+                && isLegionsServer(client)
+                ? CONFIG.pvp
+                : null;
+    }
+
+    public static int getRendererOutlineColor(int color) {
+        int opaqueColor = ColorHelper.fullAlpha(color);
+        return VULKAN_MOD_LOADED ? ColorHelper.toAbgr(opaqueColor) : opaqueColor;
+    }
+
+    public static float getLegionsRating(PlayerListEntry entry) {
+        if (entry == null) {
+            return Float.NaN;
+        }
+
+        String text = entry.getDisplayName() == null ? "" : entry.getDisplayName().getString();
+        String username = entry.getProfile() == null ? "" : entry.getProfile().name();
+        String rating = parseLastLegionsRating(text, username);
+        if (rating.isBlank()) {
+            return Float.NaN;
+        }
+        try {
+            return Float.parseFloat(rating);
+        } catch (NumberFormatException ignored) {
+            return Float.NaN;
+        }
     }
 
     public static boolean usesFriendFoeOutline(int style) {
@@ -822,7 +935,7 @@ public class AtomicsClient implements ClientModInitializer {
         if (client == null || client.player == null || player == null || player == client.player) {
             return false;
         }
-        if (CONFIG == null || !CONFIG.enabled || CONFIG.pvp == null || !isLegionsServer(client)) {
+        if (!areLegionsAutomaticFoeOverlayEnabled(client)) {
             return false;
         }
 
@@ -834,16 +947,45 @@ public class AtomicsClient implements ClientModInitializer {
     }
 
     private static int getLegionsFoeOverlayColor(PlayerEntity player) {
+        int teamRgb = scoreboardTeamRgb(player);
         float rating = getLegionsRating(player);
         if (!Float.isFinite(rating)) {
-            return cachedFoeOverlayColor;
+            return colorWithAlpha(teamRgb, cachedFoeOverlayColor, cachedFoeOverlayAlpha);
         }
 
         float strength = Math.max(0.0f, Math.min(1.0f, (rating - LEGIONS_LOW_RATING) / (LEGIONS_HIGH_RATING - LEGIONS_LOW_RATING)));
         float minAlpha = Math.min(1.0f, Math.max(0.16f, cachedFoeOverlayAlpha * 0.45f));
         float maxAlpha = Math.min(1.0f, Math.max(cachedFoeOverlayAlpha, 0.85f));
         float alpha = minAlpha + (maxAlpha - minAlpha) * strength;
-        return colorWithAlpha(cachedFoeOverlayR, cachedFoeOverlayG, cachedFoeOverlayB, alpha);
+        return colorWithAlpha(teamRgb, colorWithAlpha(cachedFoeOverlayR, cachedFoeOverlayG, cachedFoeOverlayB, alpha), alpha);
+    }
+
+    private static int getLegionsSpectatorTeamGlowColor(MinecraftClient client, PlayerEntity player) {
+        if (client == null || client.player == null || player == null || player == client.player) {
+            return -1;
+        }
+        if (!client.player.isSpectator() || !areLegionsSpectatorTeamGlowEnabled(client)) {
+            return -1;
+        }
+
+        Team team = player.getScoreboardTeam();
+        if (team == null) {
+            return -1;
+        }
+
+        Formatting formatting = team.getColor();
+        Integer rgb = formatting == null ? null : formatting.getColorValue();
+        return rgb == null ? 0xFFFFFFFF : 0xFF000000 | (rgb & 0xFFFFFF);
+    }
+
+    private static int scoreboardTeamRgb(PlayerEntity player) {
+        if (player == null) {
+            return -1;
+        }
+        Team team = player.getScoreboardTeam();
+        Formatting formatting = team == null ? null : team.getColor();
+        Integer rgb = formatting == null ? null : formatting.getColorValue();
+        return rgb == null ? -1 : rgb & 0xFFFFFF;
     }
 
     private static float getLegionsRating(PlayerEntity player) {
@@ -938,6 +1080,13 @@ public class AtomicsClient implements ClientModInitializer {
         int cg = Math.max(0, Math.min(255, g));
         int cb = Math.max(0, Math.min(255, b));
         return (a << 24) | (cr << 16) | (cg << 8) | cb;
+    }
+
+    private static int colorWithAlpha(int rgb, int fallbackColor, float alpha) {
+        if (rgb < 0) {
+            return fallbackColor;
+        }
+        return colorWithAlpha((rgb >> 16) & 255, (rgb >> 8) & 255, rgb & 255, alpha);
     }
 
     public static boolean isTotemHueShiftCandidate(ItemStack stack) {

@@ -22,6 +22,7 @@ import net.minecraft.util.Formatting;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.math.random.Random;
+import net.minecraft.world.GameMode;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -170,9 +171,30 @@ public final class ClientFeatureManager {
         if (cfg.visual.armorHudEnabled || cfg.visual.armorDurabilityWarningEnabled) {
             renderArmorHudAndWarnings(context, client, cfg.visual);
         }
-        if (cfg.pvp.teamCountOverlayEnabled) {
+        if (shouldRenderTeamCountOverlay(client, cfg.pvp)) {
             renderTeamCountOverlay(context, client, cfg.pvp.teamCountOverlayX, cfg.pvp.teamCountOverlayY, false);
         }
+    }
+
+    private static boolean shouldRenderTeamCountOverlay(MinecraftClient client, TpsConfig.PvpSettings pvp) {
+        if (pvp == null || !pvp.teamCountOverlayEnabled) {
+            return false;
+        }
+        if (!pvp.teamCountOverlayServerFilterEnabled) {
+            return true;
+        }
+
+        String currentServer = currentServerAddress(client);
+        if (currentServer.isBlank() || pvp.teamCountOverlayAllowedServers == null || pvp.teamCountOverlayAllowedServers.isBlank()) {
+            return false;
+        }
+
+        for (String allowedServer : pvp.teamCountOverlayAllowedServers.split("[,;\\s]+")) {
+            if (serverMatches(allowedServer, currentServer)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public static int teamCountOverlayPreviewWidth(MinecraftClient client) {
@@ -197,6 +219,60 @@ public final class ClientFeatureManager {
     public static void renderTeamCountOverlayPreview(DrawContext context, MinecraftClient client, int x, int y) {
         MinecraftClient renderClient = client == null ? MinecraftClient.getInstance() : client;
         renderTeamCountOverlay(context, renderClient, x, y, true);
+    }
+
+    private static String currentServerAddress(MinecraftClient client) {
+        if (client == null || client.isInSingleplayer()) {
+            return "";
+        }
+        if (client.getCurrentServerEntry() != null && client.getCurrentServerEntry().address != null) {
+            String address = client.getCurrentServerEntry().address.trim();
+            if (!address.isBlank()) {
+                return address;
+            }
+        }
+        if (client.getNetworkHandler() != null
+                && client.getNetworkHandler().getServerInfo() != null
+                && client.getNetworkHandler().getServerInfo().address != null) {
+            return client.getNetworkHandler().getServerInfo().address.trim();
+        }
+        return "";
+    }
+
+    private static boolean serverMatches(String allowedServer, String currentServer) {
+        String allowed = normalizeServerAddress(allowedServer);
+        String current = normalizeServerAddress(currentServer);
+        if (allowed.isBlank() || current.isBlank()) {
+            return false;
+        }
+        return allowed.equals(current) || serverHost(allowed).equals(serverHost(current));
+    }
+
+    private static String normalizeServerAddress(String address) {
+        String normalized = address == null ? "" : address.trim().toLowerCase(Locale.ROOT);
+        while (normalized.endsWith(".")) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
+        return normalized;
+    }
+
+    private static String serverHost(String address) {
+        String normalized = normalizeServerAddress(address);
+        if (normalized.isBlank()) {
+            return "";
+        }
+        if (normalized.startsWith("[")) {
+            int bracket = normalized.indexOf(']');
+            return bracket > 0 ? normalized.substring(1, bracket) : normalized;
+        }
+        int portIndex = normalized.indexOf(':');
+        if (portIndex > 0) {
+            normalized = normalized.substring(0, portIndex);
+        }
+        while (normalized.endsWith(".")) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
+        return normalized;
     }
 
     public static boolean shouldMaskPlayerNames() {
@@ -415,10 +491,11 @@ public final class ClientFeatureManager {
         x = Math.max(0, Math.min(screenWidth - width, x));
         y = Math.max(0, Math.min(screenHeight - height, y));
 
+        String title = teamCountTitle(counts);
         context.fill(x, y, x + width, y + height, 0x66000000);
         context.fill(x, y, x + width, y + TEAM_COUNT_HEADER_HEIGHT, 0x99000000);
-        int titleX = x + width / 2 - client.textRenderer.getWidth(TEAM_COUNT_TITLE) / 2;
-        context.drawTextWithShadow(client.textRenderer, TEAM_COUNT_TITLE, titleX, y + 2, 0xFFFFFF55);
+        int titleX = x + width / 2 - client.textRenderer.getWidth(title) / 2;
+        context.drawTextWithShadow(client.textRenderer, title, titleX, y + 2, 0xFFFFFF55);
 
         int rowY = y + TEAM_COUNT_HEADER_HEIGHT + 2;
         for (int i = 0; i < counts.size(); i++) {
@@ -426,16 +503,16 @@ public final class ClientFeatureManager {
             int rowTop = rowY + i * TEAM_COUNT_ROW_HEIGHT;
             context.fill(x, rowTop, x + width, rowTop + TEAM_COUNT_ROW_HEIGHT, (i & 1) == 0 ? 0x52000000 : 0x3F000000);
             context.drawTextWithShadow(client.textRenderer, count.name(), x + TEAM_COUNT_PADDING_X, rowTop + 1, count.color());
-            String value = String.valueOf(count.count());
+            String value = count.valueText();
             int valueX = x + width - TEAM_COUNT_PADDING_X - client.textRenderer.getWidth(value);
             context.drawTextWithShadow(client.textRenderer, value, valueX, rowTop + 1, 0xFFFFFFFF);
         }
     }
 
     private static int teamCountOverlayWidth(MinecraftClient client, List<TeamCount> counts) {
-        int width = client.textRenderer.getWidth(TEAM_COUNT_TITLE) + TEAM_COUNT_PADDING_X * 2;
+        int width = client.textRenderer.getWidth(teamCountTitle(counts)) + TEAM_COUNT_PADDING_X * 2;
         for (TeamCount count : counts) {
-            String value = String.valueOf(count.count());
+            String value = count.valueText();
             int rowWidth = client.textRenderer.getWidth(count.name()) + client.textRenderer.getWidth(value) + TEAM_COUNT_PADDING_X * 3 + 8;
             width = Math.max(width, rowWidth);
         }
@@ -444,6 +521,15 @@ public final class ClientFeatureManager {
 
     private static int teamCountOverlayHeight(List<TeamCount> counts) {
         return TEAM_COUNT_HEADER_HEIGHT + 4 + counts.size() * TEAM_COUNT_ROW_HEIGHT;
+    }
+
+    private static String teamCountTitle(List<TeamCount> counts) {
+        for (TeamCount count : counts) {
+            if (count.hasScore()) {
+                return "Team Scores";
+            }
+        }
+        return TEAM_COUNT_TITLE;
     }
 
     private static List<TeamCount> displayTeamCounts(MinecraftClient client, boolean preview) {
@@ -456,26 +542,31 @@ public final class ClientFeatureManager {
 
     private static List<TeamCount> collectTeamCounts(MinecraftClient client) {
         LinkedHashMap<String, TeamCount> counts = new LinkedHashMap<>();
-        if (client == null || client.world == null) {
+        if (client == null || client.getNetworkHandler() == null) {
             return new ArrayList<>();
         }
 
-        for (PlayerEntity player : client.world.getPlayers()) {
-            if (player == null || player.isSpectator() || player.isDead() || !player.isAlive()) {
+        boolean legions = AtomicsClient.areLegionsTeamScoresEnabled(client);
+        for (PlayerListEntry entry : client.getNetworkHandler().getPlayerList()) {
+            if (entry == null || entry.getGameMode() == GameMode.SPECTATOR) {
                 continue;
             }
 
-            Team team = player.getScoreboardTeam();
+            Team team = entry.getScoreboardTeam();
             if (team == null || team.getName() == null || team.getName().isBlank()) {
                 continue;
             }
 
             String key = team.getName();
             TeamCount current = counts.get(key);
+            float rating = legions ? AtomicsClient.getLegionsRating(entry) : Float.NaN;
+            boolean hasRating = Float.isFinite(rating);
             if (current == null) {
-                counts.put(key, new TeamCount(teamDisplayName(team), teamTextColor(team), 1));
+                counts.put(key, new TeamCount(teamDisplayName(team), teamTextColor(team), 1, hasRating ? rating : 0.0, hasRating));
             } else {
-                counts.put(key, new TeamCount(current.name(), current.color(), current.count() + 1));
+                counts.put(key, new TeamCount(current.name(), current.color(), current.count() + 1,
+                        current.score() + (hasRating ? rating : 0.0),
+                        current.hasScore() || hasRating));
             }
         }
         return new ArrayList<>(counts.values());
@@ -483,8 +574,8 @@ public final class ClientFeatureManager {
 
     private static List<TeamCount> sampleTeamCounts() {
         ArrayList<TeamCount> counts = new ArrayList<>();
-        counts.add(new TeamCount("BLUE", 0xFF5555FF, 8));
-        counts.add(new TeamCount("RED", 0xFFFF5555, 7));
+        counts.add(new TeamCount("BLUE", 0xFF5555FF, 8, 0.0, false));
+        counts.add(new TeamCount("RED", 0xFFFF5555, 7, 0.0, false));
         return counts;
     }
 
@@ -869,7 +960,13 @@ public final class ClientFeatureManager {
         return AtomicsClient.CONFIG;
     }
 
-    private record TeamCount(String name, int color, int count) {
+    private record TeamCount(String name, int color, int count, double score, boolean hasScore) {
+        String valueText() {
+            if (!hasScore) {
+                return String.valueOf(count);
+            }
+            return count + " | " + String.format(Locale.US, "%.1f", score);
+        }
     }
 
     private record PreparedParticleBurst(TpsConfig.ParticleBurst burst, ParticleEffect effect, int count) {

@@ -8,7 +8,10 @@ import net.minecraft.client.option.Perspective;
 import net.minecraft.client.render.Camera;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.scoreboard.Team;
+import net.minecraft.util.hit.HitResult;
+import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.RaycastContext;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -28,6 +31,11 @@ public final class DualSpectateCamera {
     private static final double ONE_SIDED_FACING_DOT = 0.72;
     private static final double ACTIVE_PAIR_SWITCH_MARGIN = 8.0;
     private static final double ACTIVE_FIGHT_SWITCH_MARGIN = 18.0;
+    private static final double CAMERA_COLLISION_PADDING = 0.35;
+    private static final double MIN_CLIPPED_CAMERA_DISTANCE = 1.5;
+    private static final double[] CAMERA_SIDE_ANGLES = new double[]{0.0, -35.0, 35.0, -70.0, 70.0, -110.0, 110.0, 180.0};
+    private static final double[] CAMERA_HEIGHT_OFFSETS = new double[]{0.0, 0.9, -0.45, 1.7};
+    private static final double[] CAMERA_DISTANCE_FACTORS = new double[]{1.0, 0.78, 0.58};
 
     private static boolean active;
     private static boolean initialized;
@@ -103,10 +111,11 @@ public final class DualSpectateCamera {
         side = chooseStableSide(midpoint, side);
         Vec3d rawCameraPos = midpoint.add(side.multiply(distance)).add(0.0, DEFAULT_HEIGHT, 0.0);
         Vec3d rawLookTarget = midpoint.add(0.0, DEFAULT_HEIGHT * 0.55, 0.0);
-        float positionSmoothing = initialized ? positionSmoothingAmount(currentCameraPos.distanceTo(rawCameraPos)) : 1.0f;
+        Vec3d resolvedCameraPos = resolveCameraPosition(client, first, second, midpoint, side, distance, rawLookTarget, rawCameraPos, pvp);
+        float positionSmoothing = initialized ? positionSmoothingAmount(currentCameraPos.distanceTo(resolvedCameraPos)) : 1.0f;
         Vec3d targetCameraPos = initialized
-                ? smoothStep(currentCameraPos, rawCameraPos, positionSmoothing)
-                : rawCameraPos;
+                ? smoothStep(currentCameraPos, resolvedCameraPos, positionSmoothing)
+                : resolvedCameraPos;
         Vec3d targetLookTarget = initialized
                 ? smoothStep(currentLookTarget, rawLookTarget, positionSmoothing)
                 : rawLookTarget;
@@ -427,6 +436,145 @@ public final class DualSpectateCamera {
         return clamp(needed, Math.max(DEFAULT_DISTANCE, pvp.dualSpectateMinDistance), pvp.dualSpectateMaxDistance);
     }
 
+    private static Vec3d resolveCameraPosition(MinecraftClient client, PlayerEntity first, PlayerEntity second, Vec3d midpoint, Vec3d side, float distance, Vec3d lookTarget, Vec3d preferredCameraPos, TpsConfig.PvpSettings pvp) {
+        if (client == null || client.world == null || first == null || second == null || side.horizontalLengthSquared() < 0.0001) {
+            return preferredCameraPos;
+        }
+
+        CameraCandidate best = null;
+        for (double angle : CAMERA_SIDE_ANGLES) {
+            Vec3d candidateSide = rotateSide(side, angle);
+            if (candidateSide.horizontalLengthSquared() < 0.0001) {
+                continue;
+            }
+            for (double heightOffset : CAMERA_HEIGHT_OFFSETS) {
+                for (double distanceFactor : CAMERA_DISTANCE_FACTORS) {
+                    double candidateDistance = Math.max(MIN_CLIPPED_CAMERA_DISTANCE, distance * distanceFactor);
+                    Vec3d candidate = midpoint
+                            .add(candidateSide.multiply(candidateDistance))
+                            .add(0.0, DEFAULT_HEIGHT + heightOffset, 0.0);
+                    Vec3d clipped = clipCameraToBlocks(client, lookTarget, candidate);
+                    double score = scoreCameraCandidate(client, clipped, preferredCameraPos, lookTarget, first, second, distance, angle, heightOffset);
+                    if (best == null || score < best.score()) {
+                        best = new CameraCandidate(clipped, score);
+                    }
+                }
+            }
+        }
+
+        return best == null ? clipCameraToBlocks(client, lookTarget, preferredCameraPos) : best.position();
+    }
+
+    private static double scoreCameraCandidate(MinecraftClient client, Vec3d cameraPos, Vec3d preferredCameraPos, Vec3d lookTarget, PlayerEntity first, PlayerEntity second, double preferredDistance, double angle, double heightOffset) {
+        double score = cameraPos.squaredDistanceTo(preferredCameraPos) * 0.16;
+        score += visibilityPenalty(client, cameraPos, first);
+        score += visibilityPenalty(client, cameraPos, second);
+
+        double cameraDistance = cameraPos.distanceTo(lookTarget);
+        double minimumUsefulDistance = Math.max(MIN_CLIPPED_CAMERA_DISTANCE, Math.min(preferredDistance * 0.65, 7.0));
+        if (cameraDistance < minimumUsefulDistance) {
+            score += (minimumUsefulDistance - cameraDistance) * 90.0;
+        }
+
+        score += anglePenalty(angle);
+        score += Math.abs(heightOffset) * 7.0;
+        if (initialized) {
+            score += cameraPos.squaredDistanceTo(currentCameraPos) * 0.018;
+        }
+        return score;
+    }
+
+    private static double visibilityPenalty(MinecraftClient client, Vec3d cameraPos, PlayerEntity player) {
+        if (player == null) {
+            return 900.0;
+        }
+
+        int visibleSamples = 0;
+        if (hasLineOfSight(client, cameraPos, player.getEyePos())) {
+            visibleSamples++;
+        }
+        if (hasLineOfSight(client, cameraPos, playerBodyTarget(player))) {
+            visibleSamples++;
+        }
+        return switch (visibleSamples) {
+            case 2 -> 0.0;
+            case 1 -> 85.0;
+            default -> 900.0;
+        };
+    }
+
+    private static Vec3d playerBodyTarget(PlayerEntity player) {
+        Box box = player.getBoundingBox();
+        return new Vec3d(
+                (box.minX + box.maxX) * 0.5,
+                box.minY + (box.maxY - box.minY) * 0.58,
+                (box.minZ + box.maxZ) * 0.5
+        );
+    }
+
+    private static Vec3d clipCameraToBlocks(MinecraftClient client, Vec3d from, Vec3d desired) {
+        HitResult hit = raycastBlocks(client, from, desired);
+        if (hit == null || hit.getType() == HitResult.Type.MISS) {
+            return desired;
+        }
+
+        Vec3d delta = desired.subtract(from);
+        double length = delta.length();
+        if (length < 0.0001) {
+            return desired;
+        }
+
+        double hitDistance = from.distanceTo(hit.getPos());
+        double clippedDistance = Math.max(0.0, hitDistance - CAMERA_COLLISION_PADDING);
+        return from.add(delta.multiply(clippedDistance / length));
+    }
+
+    private static boolean hasLineOfSight(MinecraftClient client, Vec3d from, Vec3d to) {
+        HitResult hit = raycastBlocks(client, from, to);
+        return hit == null
+                || hit.getType() == HitResult.Type.MISS
+                || hit.getPos().squaredDistanceTo(to) <= CAMERA_COLLISION_PADDING * CAMERA_COLLISION_PADDING;
+    }
+
+    private static HitResult raycastBlocks(MinecraftClient client, Vec3d from, Vec3d to) {
+        if (client == null || client.world == null || client.player == null || from == null || to == null) {
+            return null;
+        }
+        return client.world.raycast(new RaycastContext(
+                from,
+                to,
+                RaycastContext.ShapeType.COLLIDER,
+                RaycastContext.FluidHandling.NONE,
+                client.player
+        ));
+    }
+
+    private static Vec3d rotateSide(Vec3d side, double degrees) {
+        double radians = Math.toRadians(degrees);
+        double cos = Math.cos(radians);
+        double sin = Math.sin(radians);
+        Vec3d rotated = new Vec3d(side.x * cos - side.z * sin, 0.0, side.x * sin + side.z * cos);
+        return rotated.horizontalLengthSquared() < 0.0001 ? side : rotated.normalize();
+    }
+
+    private static double anglePenalty(double angle) {
+        double normalized = Math.abs(angle) % 360.0;
+        normalized = Math.min(normalized, 360.0 - normalized);
+        if (normalized <= 1.0) {
+            return 0.0;
+        }
+        if (normalized <= 40.0) {
+            return 4.0;
+        }
+        if (normalized <= 80.0) {
+            return 11.0;
+        }
+        if (normalized <= 120.0) {
+            return 18.0;
+        }
+        return 26.0;
+    }
+
     private static Vec3d orthogonal(Vec3d vector) {
         return new Vec3d(vector.z, 0.0, -vector.x);
     }
@@ -514,5 +662,8 @@ public final class DualSpectateCamera {
     }
 
     private record PairScore(boolean clearlyFighting, double score) {
+    }
+
+    private record CameraCandidate(Vec3d position, double score) {
     }
 }
