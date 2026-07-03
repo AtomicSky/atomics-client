@@ -89,6 +89,7 @@ public class AtomicsClientScreen extends Screen {
     private boolean dualSpectateEnabled;
     private boolean dualSpectateAutoFill;
     private boolean dualSpectateForceThirdPerson;
+    private boolean dualSpectateOverheadEnabled;
     private boolean friendFoeOverlayEnabled;
     private boolean legionsRatingNametagsEnabled;
     private boolean legionsAutomaticFoeOverlayEnabled;
@@ -155,6 +156,8 @@ public class AtomicsClientScreen extends Screen {
     private float dualSpectatePadding;
     private float dualSpectateMinDistance;
     private float dualSpectateMaxDistance;
+    private float dualSpectateOverheadGroupDistance;
+    private float dualSpectateMaxYDifference;
     private float friendOverlayAlpha;
     private float foeOverlayAlpha;
     private float shieldWarningOverlayAlpha;
@@ -757,7 +760,7 @@ public class AtomicsClientScreen extends Screen {
             y += 10;
         }
 
-        if (shouldShowFeature("pvp.dual_spectate", "Dual Spectate Camera", "fight camera", "autofill", "third person")) {
+        if (shouldShowFeature("pvp.dual_spectate", "Dual Spectate Camera", "fight camera", "autofill", "third person", "overhead", "top down", "group distance", "y-level", "vertical")) {
             y = addFeatureSection(y, "pvp.dual_spectate", "Dual Spectate Camera");
             if (!isFeatureCollapsed("pvp.dual_spectate")) {
                 addToggle(leftX, y, controlWidth, "Enable Dual Spectate Camera", dualSpectateEnabled, false, () -> dualSpectateEnabled, value -> dualSpectateEnabled = value, true); y += ROW_HEIGHT;
@@ -767,10 +770,15 @@ public class AtomicsClientScreen extends Screen {
                     addTextField(leftX, y, controlWidth, "Player Two", dualSpectatePlayerTwo, "Username", value -> dualSpectatePlayerTwo = value); y += ROW_HEIGHT;
                     addWideButton(leftX, y, controlWidth, "Autofill Nearest Pair", b -> autofillDualSpectatePlayers()); y += ROW_HEIGHT;
                     addToggle(leftX, y, controlWidth, "Force Third Person", dualSpectateForceThirdPerson, true, () -> dualSpectateForceThirdPerson, value -> dualSpectateForceThirdPerson = value, false); y += ROW_HEIGHT;
+                    addToggle(leftX, y, controlWidth, "Overhead View", dualSpectateOverheadEnabled, TpsConfig.DEFAULT_DUAL_SPECTATE_OVERHEAD_ENABLED, () -> dualSpectateOverheadEnabled, value -> dualSpectateOverheadEnabled = value, true); y += ROW_HEIGHT;
+                    if (dualSpectateOverheadEnabled) {
+                        addDoubleSlider(leftX, y, controlWidth, "Overhead Group Distance", dualSpectateOverheadGroupDistance, 4.0, 80.0, 1.0, TpsConfig.DEFAULT_DUAL_SPECTATE_OVERHEAD_GROUP_DISTANCE, value -> dualSpectateOverheadGroupDistance = (float) value, value -> formatDecimal(value, 0)); y += ROW_HEIGHT;
+                    }
                     addDoubleSlider(leftX, y, controlWidth, "Frame Padding", dualSpectatePadding, 1.0, 2.5, 0.05, 1.35, value -> dualSpectatePadding = (float) value, value -> formatDecimal(value, 2) + "x"); y += ROW_HEIGHT;
                     addDoubleSlider(leftX, y, controlWidth, "Min Distance", dualSpectateMinDistance, 2.0, 30.0, 0.5, 6.0, value -> dualSpectateMinDistance = (float) value, value -> formatDecimal(value, 1)); y += ROW_HEIGHT;
                     addDoubleSlider(leftX, y, controlWidth, "Max Distance", dualSpectateMaxDistance, 10.0, 160.0, 1.0, 80.0, value -> dualSpectateMaxDistance = (float) value, value -> formatDecimal(value, 0)); y += ROW_HEIGHT;
-                    labels.add(new DrawLabel("Frames both players from a smooth side-on fight camera.", leftX + 8, y + 4, 0xAAAAAA));
+                    addDoubleSlider(leftX, y, controlWidth, "Max Y Difference", dualSpectateMaxYDifference, 2.0, 48.0, 1.0, TpsConfig.DEFAULT_DUAL_SPECTATE_MAX_Y_DIFFERENCE, value -> dualSpectateMaxYDifference = (float) value, value -> formatDecimal(value, 0)); y += ROW_HEIGHT;
+                    labels.add(new DrawLabel(dualSpectateOverheadEnabled ? "Frames nearby active players from above." : "Frames both players from a smooth side-on fight camera.", leftX + 8, y + 4, 0xAAAAAA));
                     y += 22;
                 }
             }
@@ -1324,6 +1332,9 @@ public class AtomicsClientScreen extends Screen {
         dualSpectatePadding = cfg.pvp.dualSpectatePadding;
         dualSpectateMinDistance = cfg.pvp.dualSpectateMinDistance;
         dualSpectateMaxDistance = cfg.pvp.dualSpectateMaxDistance;
+        dualSpectateOverheadEnabled = cfg.pvp.dualSpectateOverheadEnabled;
+        dualSpectateOverheadGroupDistance = cfg.pvp.dualSpectateOverheadGroupDistance;
+        dualSpectateMaxYDifference = cfg.pvp.dualSpectateMaxYDifference;
         friendFoeOverlayEnabled = cfg.pvp.friendFoeOverlayEnabled;
         friendFoeOverlayStyle = TpsConfig.normalizeFriendFoeStyle(cfg.pvp.friendFoeOverlayStyle);
         legionsRatingNametagsEnabled = cfg.pvp.legionsRatingNametagsEnabled;
@@ -1520,6 +1531,9 @@ public class AtomicsClientScreen extends Screen {
         dualSpectatePadding = 1.35f;
         dualSpectateMinDistance = 6.0f;
         dualSpectateMaxDistance = 80.0f;
+        dualSpectateOverheadEnabled = TpsConfig.DEFAULT_DUAL_SPECTATE_OVERHEAD_ENABLED;
+        dualSpectateOverheadGroupDistance = TpsConfig.DEFAULT_DUAL_SPECTATE_OVERHEAD_GROUP_DISTANCE;
+        dualSpectateMaxYDifference = TpsConfig.DEFAULT_DUAL_SPECTATE_MAX_Y_DIFFERENCE;
         friendFoeOverlayEnabled = TpsConfig.DEFAULT_FRIEND_FOE_OVERLAY_ENABLED;
         friendFoeOverlayStyle = TpsConfig.DEFAULT_FRIEND_FOE_OVERLAY_STYLE;
         legionsRatingNametagsEnabled = TpsConfig.DEFAULT_LEGIONS_RATING_NAMETAGS_ENABLED;
@@ -1663,6 +1677,9 @@ public class AtomicsClientScreen extends Screen {
         cfg.pvp.dualSpectatePadding = Math.max(1.0f, Math.min(2.5f, dualSpectatePadding));
         cfg.pvp.dualSpectateMinDistance = Math.max(2.0f, Math.min(30.0f, dualSpectateMinDistance));
         cfg.pvp.dualSpectateMaxDistance = Math.max(10.0f, Math.min(160.0f, dualSpectateMaxDistance));
+        cfg.pvp.dualSpectateOverheadEnabled = dualSpectateOverheadEnabled;
+        cfg.pvp.dualSpectateOverheadGroupDistance = Math.max(4.0f, Math.min(80.0f, dualSpectateOverheadGroupDistance));
+        cfg.pvp.dualSpectateMaxYDifference = Math.max(2.0f, Math.min(48.0f, dualSpectateMaxYDifference));
         cfg.pvp.friendFoeOverlayEnabled = friendFoeOverlayEnabled;
         cfg.pvp.friendFoeOverlayStyle = TpsConfig.normalizeFriendFoeStyle(friendFoeOverlayStyle);
         cfg.pvp.legionsRatingNametagsEnabled = legionsRatingNametagsEnabled;

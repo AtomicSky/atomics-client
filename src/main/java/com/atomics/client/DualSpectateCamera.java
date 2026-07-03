@@ -22,6 +22,8 @@ import java.util.Set;
 public final class DualSpectateCamera {
     private static final float DEFAULT_DISTANCE = 6.0f;
     private static final float DEFAULT_HEIGHT = 1.5f;
+    private static final double OVERHEAD_PLAYER_MARGIN = 1.5;
+    private static final double MIN_OVERHEAD_HALF_EXTENT = 1.25;
     private static final float MIN_POSITION_SMOOTHING = 0.045f;
     private static final float MAX_POSITION_SMOOTHING = 0.42f;
     private static final float PITCH_SMOOTHING = 0.18f;
@@ -68,9 +70,9 @@ public final class DualSpectateCamera {
 
         PlayerEntity first;
         PlayerEntity second;
-        boolean requireOpposingTeams = shouldRequireOpposingScoreboardTeams(client);
+        TeamRules teamRules = scoreboardTeamRules(client);
         if (pvp.dualSpectateAutoFill) {
-            PlayerPair pair = findAutoSpectatePair(client, pvp, requireOpposingTeams);
+            PlayerPair pair = findAutoSpectatePair(client, pvp, teamRules);
             if (pair != null) {
                 pvp.dualSpectatePlayerOne = pair.first.getNameForScoreboard();
                 pvp.dualSpectatePlayerTwo = pair.second.getNameForScoreboard();
@@ -89,29 +91,38 @@ public final class DualSpectateCamera {
             reset();
             return;
         }
-        if (!isAllowedSpectatePair(first, second, requireOpposingTeams)) {
+        if (!isAllowedSpectatePair(client, first, second, pvp, teamRules)) {
             reset();
             return;
         }
         spectatedFirst = first;
         spectatedSecond = second;
 
-        Vec3d firstPos = first.getEyePos();
-        Vec3d secondPos = second.getEyePos();
-        Vec3d midpoint = firstPos.add(secondPos).multiply(0.5);
-        Vec3d difference = firstPos.subtract(secondPos);
-        Vec3d side = orthogonal(difference);
-        if (side.horizontalLengthSquared() < 0.0001) {
-            side = fallbackSide(client);
+        Vec3d rawLookTarget;
+        Vec3d resolvedCameraPos;
+        if (pvp.dualSpectateOverheadEnabled) {
+            OverheadFrame frame = calculateOverheadFrame(client, pvp, teamRules, first, second);
+            rawLookTarget = frame.lookTarget();
+            resolvedCameraPos = frame.cameraPos();
         } else {
-            side = side.normalize();
+            Vec3d firstPos = first.getEyePos();
+            Vec3d secondPos = second.getEyePos();
+            Vec3d midpoint = firstPos.add(secondPos).multiply(0.5);
+            Vec3d difference = firstPos.subtract(secondPos);
+            Vec3d side = orthogonal(difference);
+            if (side.horizontalLengthSquared() < 0.0001) {
+                side = fallbackSide(client);
+            } else {
+                side = side.normalize();
+            }
+
+            float distance = calculateAutoDistance(client, difference, pvp);
+            side = chooseStableSide(midpoint, side);
+            Vec3d rawCameraPos = midpoint.add(side.multiply(distance)).add(0.0, DEFAULT_HEIGHT, 0.0);
+            rawLookTarget = midpoint.add(0.0, DEFAULT_HEIGHT * 0.55, 0.0);
+            resolvedCameraPos = resolveCameraPosition(client, first, second, midpoint, side, distance, rawLookTarget, rawCameraPos, pvp);
         }
 
-        float distance = calculateAutoDistance(client, difference, pvp);
-        side = chooseStableSide(midpoint, side);
-        Vec3d rawCameraPos = midpoint.add(side.multiply(distance)).add(0.0, DEFAULT_HEIGHT, 0.0);
-        Vec3d rawLookTarget = midpoint.add(0.0, DEFAULT_HEIGHT * 0.55, 0.0);
-        Vec3d resolvedCameraPos = resolveCameraPosition(client, first, second, midpoint, side, distance, rawLookTarget, rawCameraPos, pvp);
         float positionSmoothing = initialized ? positionSmoothingAmount(currentCameraPos.distanceTo(resolvedCameraPos)) : 1.0f;
         Vec3d targetCameraPos = initialized
                 ? smoothStep(currentCameraPos, resolvedCameraPos, positionSmoothing)
@@ -213,7 +224,10 @@ public final class DualSpectateCamera {
     }
 
     public static String[] findNearestPair(MinecraftClient client) {
-        PlayerPair pair = findBestPlayerPair(client, shouldRequireOpposingScoreboardTeams(client));
+        TpsConfig.PvpSettings pvp = AtomicsClient.CONFIG == null || AtomicsClient.CONFIG.pvp == null
+                ? new TpsConfig.PvpSettings()
+                : AtomicsClient.CONFIG.pvp;
+        PlayerPair pair = findBestPlayerPair(client, pvp, scoreboardTeamRules(client));
         if (pair == null) {
             return null;
         }
@@ -221,9 +235,9 @@ public final class DualSpectateCamera {
         return new String[]{pair.first.getNameForScoreboard(), pair.second.getNameForScoreboard()};
     }
 
-    private static PlayerPair findAutoSpectatePair(MinecraftClient client, TpsConfig.PvpSettings pvp, boolean requireOpposingTeams) {
-        PlayerPair configured = findConfiguredPair(client, pvp, requireOpposingTeams);
-        PlayerPair best = findBestPlayerPair(client, requireOpposingTeams);
+    private static PlayerPair findAutoSpectatePair(MinecraftClient client, TpsConfig.PvpSettings pvp, TeamRules teamRules) {
+        PlayerPair configured = findConfiguredPair(client, pvp, teamRules);
+        PlayerPair best = findBestPlayerPair(client, pvp, teamRules);
         if (configured == null) {
             return best;
         }
@@ -236,7 +250,7 @@ public final class DualSpectateCamera {
         return shouldSwitchPair(configuredScore, bestScore) ? best : configured;
     }
 
-    private static PlayerPair findBestPlayerPair(MinecraftClient client, boolean requireOpposingTeams) {
+    private static PlayerPair findBestPlayerPair(MinecraftClient client, TpsConfig.PvpSettings pvp, TeamRules teamRules) {
         List<PlayerEntity> candidates = autofillCandidates(client);
         PlayerPair bestPair = null;
         PairScore bestScore = null;
@@ -244,7 +258,7 @@ public final class DualSpectateCamera {
             PlayerEntity first = candidates.get(i);
             for (int j = i + 1; j < candidates.size(); j++) {
                 PlayerEntity second = candidates.get(j);
-                if (!isAllowedSpectatePair(first, second, requireOpposingTeams)) {
+                if (!isAllowedSpectatePair(client, first, second, pvp, teamRules)) {
                     continue;
                 }
 
@@ -259,12 +273,10 @@ public final class DualSpectateCamera {
         return bestPair;
     }
 
-    private static PlayerPair findConfiguredPair(MinecraftClient client, TpsConfig.PvpSettings pvp, boolean requireOpposingTeams) {
+    private static PlayerPair findConfiguredPair(MinecraftClient client, TpsConfig.PvpSettings pvp, TeamRules teamRules) {
         PlayerEntity first = findPlayer(client, pvp.dualSpectatePlayerOne);
         PlayerEntity second = findPlayer(client, pvp.dualSpectatePlayerTwo);
-        if (isAutofillCandidate(client, first, second)
-                && isAutofillCandidate(client, second, first)
-                && isAllowedSpectatePair(first, second, requireOpposingTeams)) {
+        if (isAllowedSpectatePair(client, first, second, pvp, teamRules)) {
             return new PlayerPair(first, second);
         }
         return null;
@@ -284,59 +296,81 @@ public final class DualSpectateCamera {
     }
 
     private static boolean isAutofillCandidate(MinecraftClient client, PlayerEntity player, PlayerEntity excluded) {
+        return isSpectateCandidate(client, player)
+                && (excluded == null || !player.getUuid().equals(excluded.getUuid()))
+                && player.isAlive();
+    }
+
+    private static boolean isSpectateCandidate(MinecraftClient client, PlayerEntity player) {
         return player != null
+                && client != null
                 && client.player != null
                 && !player.getUuid().equals(client.player.getUuid())
-                && (excluded == null || !player.getUuid().equals(excluded.getUuid()))
                 && !player.isSpectator()
                 && !player.isDead()
                 && player.isAlive();
     }
 
-    private static boolean shouldRequireOpposingScoreboardTeams(MinecraftClient client) {
+    private static TeamRules scoreboardTeamRules(MinecraftClient client) {
         if (client == null || client.world == null) {
-            return false;
+            return new TeamRules(false, false);
         }
 
         Set<String> teams = new HashSet<>();
         for (PlayerEntity player : client.world.getPlayers()) {
-            if (player == null) {
-                continue;
-            }
-            if (player == client.player) {
-                if (player.isSpectator() || player.isDead() || !player.isAlive()) {
-                    continue;
-                }
-            } else if (!isAutofillCandidate(client, player, null)) {
+            if (!isTeamRuleCandidate(client, player)) {
                 continue;
             }
 
             Team team = player.getScoreboardTeam();
             if (team != null && team.getName() != null && !team.getName().isBlank()) {
                 teams.add(team.getName());
-                if (teams.size() > 1) {
-                    return true;
-                }
             }
         }
-        return false;
+        return new TeamRules(!teams.isEmpty(), teams.size() > 1);
     }
 
-    private static boolean isAllowedSpectatePair(PlayerEntity first, PlayerEntity second, boolean requireOpposingTeams) {
+    private static boolean isTeamRuleCandidate(MinecraftClient client, PlayerEntity player) {
+        if (player == null || player.isSpectator() || player.isDead() || !player.isAlive()) {
+            return false;
+        }
+        return client == null || client.player == null || !player.getUuid().equals(client.player.getUuid()) || !client.player.isSpectator();
+    }
+
+    private static boolean isAllowedSpectatePair(MinecraftClient client, PlayerEntity first, PlayerEntity second, TpsConfig.PvpSettings pvp, TeamRules teamRules) {
         if (first == null || second == null || first.getUuid().equals(second.getUuid())) {
             return false;
         }
-        if (!requireOpposingTeams) {
+        if (!isSpectateCandidate(client, first) || !isSpectateCandidate(client, second)) {
+            return false;
+        }
+        if (!isWithinYDifference(first, second, pvp)) {
+            return false;
+        }
+        if (!teamRules.hasScoreboardTeams()) {
             return true;
         }
 
         Team firstTeam = first.getScoreboardTeam();
         Team secondTeam = second.getScoreboardTeam();
-        return firstTeam != null
-                && secondTeam != null
-                && firstTeam.getName() != null
-                && secondTeam.getName() != null
-                && !firstTeam.getName().equals(secondTeam.getName());
+        String firstTeamName = validTeamName(firstTeam);
+        String secondTeamName = validTeamName(secondTeam);
+        if (firstTeamName.isEmpty() || secondTeamName.isEmpty()) {
+            return false;
+        }
+        return !teamRules.requireOpposingTeams() || !firstTeamName.equals(secondTeamName);
+    }
+
+    private static String validTeamName(Team team) {
+        return team == null || team.getName() == null ? "" : team.getName().trim();
+    }
+
+    private static boolean isWithinYDifference(PlayerEntity first, PlayerEntity second, TpsConfig.PvpSettings pvp) {
+        return Math.abs(first.getY() - second.getY()) <= maxYDifference(pvp);
+    }
+
+    private static double maxYDifference(TpsConfig.PvpSettings pvp) {
+        return pvp == null ? TpsConfig.DEFAULT_DUAL_SPECTATE_MAX_Y_DIFFERENCE : Math.max(2.0, Math.min(48.0, pvp.dualSpectateMaxYDifference));
     }
 
     private static PairScore scorePair(MinecraftClient client, PlayerPair pair) {
@@ -417,23 +451,149 @@ public final class DualSpectateCamera {
     }
 
     private static float calculateAutoDistance(MinecraftClient client, Vec3d difference, TpsConfig.PvpSettings pvp) {
-        double fovDegrees = 70.0;
-        try {
-            fovDegrees = Math.max(30.0, Math.min(110.0, client.options.getFov().getValue()));
-        } catch (RuntimeException ignored) {
-            fovDegrees = 70.0;
-        }
-
-        double aspectRatio = 16.0 / 9.0;
-        if (client.getWindow() != null && client.getWindow().getScaledHeight() > 0) {
-            aspectRatio = (double) client.getWindow().getScaledWidth() / (double) client.getWindow().getScaledHeight();
-        }
+        double fovDegrees = clientFovDegrees(client);
+        double aspectRatio = clientAspectRatio(client);
 
         double horizontalFov = fovDegrees * aspectRatio * 0.8;
         double horizontalDistance = Math.abs((difference.horizontalLength() * 0.5) / Math.tan(Math.toRadians(horizontalFov * 0.5)));
         double verticalDistance = Math.abs((difference.y * 0.5) / Math.tan(Math.toRadians(fovDegrees * 0.5)));
         float needed = (float) (Math.max(horizontalDistance, verticalDistance) * pvp.dualSpectatePadding);
         return clamp(needed, Math.max(DEFAULT_DISTANCE, pvp.dualSpectateMinDistance), pvp.dualSpectateMaxDistance);
+    }
+
+    private static OverheadFrame calculateOverheadFrame(MinecraftClient client, TpsConfig.PvpSettings pvp, TeamRules teamRules, PlayerEntity first, PlayerEntity second) {
+        List<PlayerEntity> players = findOverheadPlayers(client, pvp, teamRules, first, second);
+        OverheadBounds bounds = overheadBounds(players);
+        Vec3d lookTarget = new Vec3d(bounds.centerX(), bounds.centerY(), bounds.centerZ());
+        float distance = calculateOverheadDistance(client, bounds, pvp);
+        Vec3d cameraPos = new Vec3d(lookTarget.x, bounds.maxY() + distance, lookTarget.z);
+        return new OverheadFrame(cameraPos, lookTarget);
+    }
+
+    private static List<PlayerEntity> findOverheadPlayers(MinecraftClient client, TpsConfig.PvpSettings pvp, TeamRules teamRules, PlayerEntity first, PlayerEntity second) {
+        ArrayList<PlayerEntity> players = new ArrayList<>();
+        addUniquePlayer(players, first);
+        addUniquePlayer(players, second);
+
+        List<PlayerEntity> candidates = autofillCandidates(client);
+        double groupDistance = Math.max(4.0, Math.min(80.0, pvp.dualSpectateOverheadGroupDistance));
+        double groupDistanceSq = groupDistance * groupDistance;
+        double maxYDifference = maxYDifference(pvp);
+        boolean changed;
+        do {
+            changed = false;
+            for (PlayerEntity candidate : candidates) {
+                if (containsPlayer(players, candidate)
+                        || !isAllowedOverheadPlayer(candidate, teamRules)
+                        || !isNearAnyPlayer(candidate, players, groupDistanceSq, maxYDifference)) {
+                    continue;
+                }
+                players.add(candidate);
+                changed = true;
+            }
+        } while (changed);
+
+        return players;
+    }
+
+    private static boolean isAllowedOverheadPlayer(PlayerEntity player, TeamRules teamRules) {
+        if (!teamRules.hasScoreboardTeams()) {
+            return true;
+        }
+        return !validTeamName(player.getScoreboardTeam()).isEmpty();
+    }
+
+    private static void addUniquePlayer(List<PlayerEntity> players, PlayerEntity player) {
+        if (player != null && !containsPlayer(players, player)) {
+            players.add(player);
+        }
+    }
+
+    private static boolean containsPlayer(List<PlayerEntity> players, PlayerEntity player) {
+        if (player == null) {
+            return false;
+        }
+        for (PlayerEntity existing : players) {
+            if (existing != null && existing.getUuid().equals(player.getUuid())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isNearAnyPlayer(PlayerEntity candidate, List<PlayerEntity> players, double maxDistanceSq, double maxYDifference) {
+        if (candidate == null) {
+            return false;
+        }
+        for (PlayerEntity player : players) {
+            if (player != null
+                    && horizontalDistanceSquared(candidate, player) <= maxDistanceSq
+                    && Math.abs(candidate.getY() - player.getY()) <= maxYDifference) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static double horizontalDistanceSquared(PlayerEntity first, PlayerEntity second) {
+        double x = first.getX() - second.getX();
+        double z = first.getZ() - second.getZ();
+        return x * x + z * z;
+    }
+
+    private static OverheadBounds overheadBounds(List<PlayerEntity> players) {
+        double minX = Double.POSITIVE_INFINITY;
+        double minY = Double.POSITIVE_INFINITY;
+        double minZ = Double.POSITIVE_INFINITY;
+        double maxX = Double.NEGATIVE_INFINITY;
+        double maxY = Double.NEGATIVE_INFINITY;
+        double maxZ = Double.NEGATIVE_INFINITY;
+
+        for (PlayerEntity player : players) {
+            if (player == null) {
+                continue;
+            }
+            Box box = player.getBoundingBox();
+            minX = Math.min(minX, box.minX);
+            minY = Math.min(minY, box.minY);
+            minZ = Math.min(minZ, box.minZ);
+            maxX = Math.max(maxX, box.maxX);
+            maxY = Math.max(maxY, box.maxY);
+            maxZ = Math.max(maxZ, box.maxZ);
+        }
+
+        if (!Double.isFinite(minX)) {
+            return new OverheadBounds(0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+        }
+        return new OverheadBounds(minX, minY, minZ, maxX, maxY, maxZ);
+    }
+
+    private static float calculateOverheadDistance(MinecraftClient client, OverheadBounds bounds, TpsConfig.PvpSettings pvp) {
+        double verticalFovRadians = Math.toRadians(clientFovDegrees(client));
+        double horizontalFovRadians = 2.0 * Math.atan(Math.tan(verticalFovRadians * 0.5) * clientAspectRatio(client));
+        double halfWidth = Math.max(MIN_OVERHEAD_HALF_EXTENT, bounds.width() * 0.5 + OVERHEAD_PLAYER_MARGIN);
+        double halfDepth = Math.max(MIN_OVERHEAD_HALF_EXTENT, bounds.depth() * 0.5 + OVERHEAD_PLAYER_MARGIN);
+        double horizontalDistance = halfWidth / Math.tan(horizontalFovRadians * 0.5);
+        double verticalDistance = halfDepth / Math.tan(verticalFovRadians * 0.5);
+        float needed = (float) (Math.max(horizontalDistance, verticalDistance) * pvp.dualSpectatePadding);
+        return clamp(needed, Math.max(DEFAULT_DISTANCE, pvp.dualSpectateMinDistance), pvp.dualSpectateMaxDistance);
+    }
+
+    private static double clientFovDegrees(MinecraftClient client) {
+        try {
+            if (client != null && client.options != null) {
+                return Math.max(30.0, Math.min(110.0, client.options.getFov().getValue()));
+            }
+        } catch (RuntimeException ignored) {
+        }
+        return 70.0;
+    }
+
+    private static double clientAspectRatio(MinecraftClient client) {
+        if (client != null && client.getWindow() != null && client.getWindow().getScaledHeight() > 0) {
+            return (double) client.getWindow().getScaledWidth() / (double) client.getWindow().getScaledHeight();
+        }
+        return 16.0 / 9.0;
     }
 
     private static Vec3d resolveCameraPosition(MinecraftClient client, PlayerEntity first, PlayerEntity second, Vec3d midpoint, Vec3d side, float distance, Vec3d lookTarget, Vec3d preferredCameraPos, TpsConfig.PvpSettings pvp) {
@@ -664,6 +824,34 @@ public final class DualSpectateCamera {
     private record PairScore(boolean clearlyFighting, double score) {
     }
 
+    private record TeamRules(boolean hasScoreboardTeams, boolean requireOpposingTeams) {
+    }
+
     private record CameraCandidate(Vec3d position, double score) {
+    }
+
+    private record OverheadFrame(Vec3d cameraPos, Vec3d lookTarget) {
+    }
+
+    private record OverheadBounds(double minX, double minY, double minZ, double maxX, double maxY, double maxZ) {
+        private double centerX() {
+            return (minX + maxX) * 0.5;
+        }
+
+        private double centerY() {
+            return (minY + maxY) * 0.5;
+        }
+
+        private double centerZ() {
+            return (minZ + maxZ) * 0.5;
+        }
+
+        private double width() {
+            return maxX - minX;
+        }
+
+        private double depth() {
+            return maxZ - minZ;
+        }
     }
 }

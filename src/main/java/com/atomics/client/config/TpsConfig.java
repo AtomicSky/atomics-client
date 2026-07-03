@@ -49,6 +49,9 @@ public class TpsConfig {
     public static final boolean DEFAULT_EMPTY_BUCKET_OVERLAY_ENABLED = false;
     public static final boolean DEFAULT_REACH_DISPLAY_ENABLED = false;
     public static final boolean DEFAULT_OPPONENT_INFO_ENABLED = false;
+    public static final boolean DEFAULT_DUAL_SPECTATE_OVERHEAD_ENABLED = false;
+    public static final float DEFAULT_DUAL_SPECTATE_OVERHEAD_GROUP_DISTANCE = 24.0f;
+    public static final float DEFAULT_DUAL_SPECTATE_MAX_Y_DIFFERENCE = 12.0f;
     public static final boolean DEFAULT_FRIEND_FOE_OVERLAY_ENABLED = false;
     public static final int DEFAULT_FRIEND_OVERLAY_R = 60;
     public static final int DEFAULT_FRIEND_OVERLAY_G = 255;
@@ -284,6 +287,8 @@ public class TpsConfig {
         pvp.dualSpectatePadding = Math.max(1.0f, Math.min(2.5f, pvp.dualSpectatePadding));
         pvp.dualSpectateMinDistance = Math.max(2.0f, Math.min(30.0f, pvp.dualSpectateMinDistance));
         pvp.dualSpectateMaxDistance = Math.max(10.0f, Math.min(160.0f, pvp.dualSpectateMaxDistance));
+        pvp.dualSpectateOverheadGroupDistance = clampFloat(pvp.dualSpectateOverheadGroupDistance, 4.0f, 80.0f);
+        pvp.dualSpectateMaxYDifference = clampFloat(pvp.dualSpectateMaxYDifference, 2.0f, 48.0f);
         if (pvp.dualSpectateMaxDistance < pvp.dualSpectateMinDistance) {
             pvp.dualSpectateMaxDistance = pvp.dualSpectateMinDistance;
         }
@@ -715,6 +720,9 @@ public class TpsConfig {
         public float dualSpectatePadding = 1.35f;
         public float dualSpectateMinDistance = 6.0f;
         public float dualSpectateMaxDistance = 80.0f;
+        public boolean dualSpectateOverheadEnabled = DEFAULT_DUAL_SPECTATE_OVERHEAD_ENABLED;
+        public float dualSpectateOverheadGroupDistance = DEFAULT_DUAL_SPECTATE_OVERHEAD_GROUP_DISTANCE;
+        public float dualSpectateMaxYDifference = DEFAULT_DUAL_SPECTATE_MAX_Y_DIFFERENCE;
         public boolean friendFoeOverlayEnabled = DEFAULT_FRIEND_FOE_OVERLAY_ENABLED;
         public String friendFoeOverlayStyle = DEFAULT_FRIEND_FOE_OVERLAY_STYLE;
         public boolean legionsFeaturesEnabled = DEFAULT_LEGIONS_FEATURES_ENABLED;
