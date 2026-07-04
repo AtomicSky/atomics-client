@@ -1,24 +1,23 @@
 {
   "schemaVersion": 1,
-  "id": "atomics_client",
+  "id": "legions_client",
   "version": "${version}",
-  "name": "Atomics Client",
-  "description": "Atomics Client is a mod that provides some nice QOL features for PvP",
+  "name": "Legions Client",
+  "description": "Client-side team coordination tools for the Legions Minecraft server.",
   "authors": ["AtomicSky1"],
   "contact": {
-    "homepage": "https://modrinth.com/mod/atomics-client"
+    "sources": "https://github.com/AtomicSky/atomics-client/tree/legions-client"
   },
-  "icon": "assets/atomics_client/icon.png",
   "license": "MIT",
   "environment": "client",
   "entrypoints": {
-    "client": ["com.atomics.client.AtomicsClient"],
-    "modmenu": ["com.atomics.client.compat.AtomicsModMenuApi"]
+    "client": ["com.legions.client.LegionsClient"],
+    "modmenu": ["com.legions.client.compat.LegionsModMenuApi"]
   },
-  "mixins": ["atomics_client.mixins.json"],
+  "mixins": ["legions_client.mixins.json"],
   "depends": {
-    "fabricloader": ">=0.18.1",
-    "minecraft": "1.21.11",
+    "fabricloader": ">=${loader_version}",
+    "minecraft": "${minecraft_version}",
     "java": ">=21",
     "fabric-api": "*"
   }

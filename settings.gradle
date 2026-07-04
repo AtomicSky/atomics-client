@@ -12,4 +12,4 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-rootProject.name = 'AtomicsClient'
+rootProject.name = 'LegionsClient'

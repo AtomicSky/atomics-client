@@ -1,0 +1,6 @@
+{
+  "key.categories.legions_client.main": "Legions Client",
+  "key.legions_client.open_config": "Open Legions Client",
+  "key.legions_client.ping_target": "Ping Target",
+  "modmenu.descriptionTranslation.legions_client": "Client-side team coordination tools for the Legions Minecraft server."
+}
