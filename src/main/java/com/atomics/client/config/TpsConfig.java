@@ -61,12 +61,6 @@ public class TpsConfig {
     public static final int DEFAULT_FOE_OVERLAY_G = 60;
     public static final int DEFAULT_FOE_OVERLAY_B = 60;
     public static final float DEFAULT_FOE_OVERLAY_ALPHA = 0.35f;
-    public static final boolean DEFAULT_LEGIONS_FEATURES_ENABLED = true;
-    public static final boolean DEFAULT_LEGIONS_RATING_NAMETAGS_ENABLED = DEFAULT_LEGIONS_FEATURES_ENABLED;
-    public static final boolean DEFAULT_LEGIONS_AUTOMATIC_FOE_OVERLAY_ENABLED = DEFAULT_LEGIONS_FEATURES_ENABLED;
-    public static final boolean DEFAULT_LEGIONS_SPECTATOR_TEAM_GLOW_ENABLED = DEFAULT_LEGIONS_FEATURES_ENABLED;
-    public static final boolean DEFAULT_LEGIONS_TEAM_SCORES_ENABLED = DEFAULT_LEGIONS_FEATURES_ENABLED;
-    public static final boolean DEFAULT_LEGIONS_END_ROD_WARNINGS_ENABLED = DEFAULT_LEGIONS_FEATURES_ENABLED;
     public static final boolean DEFAULT_TEAM_COUNT_OVERLAY_ENABLED = false;
     public static final boolean DEFAULT_TEAM_COUNT_OVERLAY_SERVER_FILTER_ENABLED = false;
     public static final int DEFAULT_TEAM_COUNT_OVERLAY_X = -1;
@@ -272,18 +266,6 @@ public class TpsConfig {
         pvp.foeOverlayG = clampInt(pvp.foeOverlayG, 0, 255);
         pvp.foeOverlayB = clampInt(pvp.foeOverlayB, 0, 255);
         pvp.foeOverlayAlpha = clampFloat(pvp.foeOverlayAlpha, 0.0f, 1.0f);
-        if (!pvp.legionsFeaturesEnabled) {
-            pvp.legionsRatingNametagsEnabled = false;
-            pvp.legionsAutomaticFoeOverlayEnabled = false;
-            pvp.legionsSpectatorTeamGlowEnabled = false;
-            pvp.legionsTeamScoresEnabled = false;
-            pvp.legionsEndRodWarningsEnabled = false;
-        }
-        pvp.legionsFeaturesEnabled = pvp.legionsRatingNametagsEnabled
-                || pvp.legionsAutomaticFoeOverlayEnabled
-                || pvp.legionsSpectatorTeamGlowEnabled
-                || pvp.legionsTeamScoresEnabled
-                || pvp.legionsEndRodWarningsEnabled;
         pvp.nametagItemOrder = normalizeNametagItems(pvp.nametagItemOrder, false);
         pvp.nametagItemsBeforeName = normalizeNametagItems(pvp.nametagItemsBeforeName, true);
         pvp.opponentStatsNametagFormat = normalizeOpponentStatsNametagFormat(pvp.opponentStatsNametagFormat);
@@ -728,12 +710,6 @@ public class TpsConfig {
         public float dualSpectateMaxYDifference = DEFAULT_DUAL_SPECTATE_MAX_Y_DIFFERENCE;
         public boolean friendFoeOverlayEnabled = DEFAULT_FRIEND_FOE_OVERLAY_ENABLED;
         public String friendFoeOverlayStyle = DEFAULT_FRIEND_FOE_OVERLAY_STYLE;
-        public boolean legionsFeaturesEnabled = DEFAULT_LEGIONS_FEATURES_ENABLED;
-        public boolean legionsRatingNametagsEnabled = DEFAULT_LEGIONS_RATING_NAMETAGS_ENABLED;
-        public boolean legionsAutomaticFoeOverlayEnabled = DEFAULT_LEGIONS_AUTOMATIC_FOE_OVERLAY_ENABLED;
-        public boolean legionsSpectatorTeamGlowEnabled = DEFAULT_LEGIONS_SPECTATOR_TEAM_GLOW_ENABLED;
-        public boolean legionsTeamScoresEnabled = DEFAULT_LEGIONS_TEAM_SCORES_ENABLED;
-        public boolean legionsEndRodWarningsEnabled = DEFAULT_LEGIONS_END_ROD_WARNINGS_ENABLED;
         public boolean teamCountOverlayEnabled = DEFAULT_TEAM_COUNT_OVERLAY_ENABLED;
         public boolean teamCountOverlayServerFilterEnabled = DEFAULT_TEAM_COUNT_OVERLAY_SERVER_FILTER_ENABLED;
         public String teamCountOverlayAllowedServers = "";

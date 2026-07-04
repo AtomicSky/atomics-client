@@ -546,7 +546,6 @@ public final class ClientFeatureManager {
             return new ArrayList<>();
         }
 
-        boolean legions = AtomicsClient.areLegionsTeamScoresEnabled(client);
         for (PlayerListEntry entry : client.getNetworkHandler().getPlayerList()) {
             if (entry == null || entry.getGameMode() == GameMode.SPECTATOR) {
                 continue;
@@ -559,14 +558,10 @@ public final class ClientFeatureManager {
 
             String key = team.getName();
             TeamCount current = counts.get(key);
-            float rating = legions ? AtomicsClient.getLegionsRating(entry) : Float.NaN;
-            boolean hasRating = Float.isFinite(rating);
             if (current == null) {
-                counts.put(key, new TeamCount(teamDisplayName(team), teamTextColor(team), 1, hasRating ? rating : 0.0, hasRating));
+                counts.put(key, new TeamCount(teamDisplayName(team), teamTextColor(team), 1, 0.0, false));
             } else {
-                counts.put(key, new TeamCount(current.name(), current.color(), current.count() + 1,
-                        current.score() + (hasRating ? rating : 0.0),
-                        current.hasScore() || hasRating));
+                counts.put(key, new TeamCount(current.name(), current.color(), current.count() + 1, 0.0, false));
             }
         }
         return new ArrayList<>(counts.values());

@@ -25,8 +25,7 @@ public class PlayerEntityRendererMixin {
             access.atomics_client$setFriendFoeOverlayStyle(style);
             if (color != -1 && AtomicsClient.usesFriendFoeOutline(style)) {
                 MinecraftClient client = MinecraftClient.getInstance();
-                state.outlineColor = AtomicsClient.usesLegionsSpectatorTeamGlow(playerEntity)
-                        || client.player != null && client.player.canSee(playerEntity)
+                state.outlineColor = client.player != null && client.player.canSee(playerEntity)
                         ? AtomicsClient.getRendererOutlineColor(color)
                         : 0;
             }

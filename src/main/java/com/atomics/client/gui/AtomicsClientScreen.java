@@ -87,11 +87,6 @@ public class AtomicsClientScreen extends Screen {
     private boolean dualSpectateForceThirdPerson;
     private boolean dualSpectateOverheadEnabled;
     private boolean friendFoeOverlayEnabled;
-    private boolean legionsRatingNametagsEnabled;
-    private boolean legionsAutomaticFoeOverlayEnabled;
-    private boolean legionsSpectatorTeamGlowEnabled;
-    private boolean legionsTeamScoresEnabled;
-    private boolean legionsEndRodWarningsEnabled;
     private boolean teamCountOverlayEnabled;
     private boolean teamCountOverlayServerFilterEnabled;
     private boolean reachDisplayEnabled;
@@ -674,18 +669,6 @@ public class AtomicsClientScreen extends Screen {
             y += 10;
         }
 
-        if (shouldShowFeature("pvp.legions", "Legions", "legions", "rating", "nametag", "automatic foe", "spectator glow", "team score", "end rod", "warning", "triangle", "particle")) {
-            y = addFeatureSection(y, "pvp.legions", "Legions");
-            if (!isFeatureCollapsed("pvp.legions")) {
-                addToggle(leftX, y, controlWidth, "Rating Nametags", legionsRatingNametagsEnabled, TpsConfig.DEFAULT_LEGIONS_RATING_NAMETAGS_ENABLED, () -> legionsRatingNametagsEnabled, value -> legionsRatingNametagsEnabled = value, false); y += ROW_HEIGHT;
-                addToggle(leftX, y, controlWidth, "Automatic Foe Overlay", legionsAutomaticFoeOverlayEnabled, TpsConfig.DEFAULT_LEGIONS_AUTOMATIC_FOE_OVERLAY_ENABLED, () -> legionsAutomaticFoeOverlayEnabled, value -> legionsAutomaticFoeOverlayEnabled = value, false); y += ROW_HEIGHT;
-                addToggle(leftX, y, controlWidth, "Spectator Team Glow", legionsSpectatorTeamGlowEnabled, TpsConfig.DEFAULT_LEGIONS_SPECTATOR_TEAM_GLOW_ENABLED, () -> legionsSpectatorTeamGlowEnabled, value -> legionsSpectatorTeamGlowEnabled = value, false); y += ROW_HEIGHT;
-                addToggle(leftX, y, controlWidth, "Team Score Totals", legionsTeamScoresEnabled, TpsConfig.DEFAULT_LEGIONS_TEAM_SCORES_ENABLED, () -> legionsTeamScoresEnabled, value -> legionsTeamScoresEnabled = value, false); y += ROW_HEIGHT;
-                addToggle(leftX, y, controlWidth, "End Rod Warning Particles", legionsEndRodWarningsEnabled, TpsConfig.DEFAULT_LEGIONS_END_ROD_WARNINGS_ENABLED, () -> legionsEndRodWarningsEnabled, value -> legionsEndRodWarningsEnabled = value, false); y += ROW_HEIGHT;
-            }
-            y += 10;
-        }
-
         if (shouldShowFeature("pvp.friend_foe_overlay", "Friend/Foe Overlay", "friends", "foes", "highlight", "green", "red")) {
             y = addFeatureSection(y, "pvp.friend_foe_overlay", "Friend/Foe Overlay");
             if (!isFeatureCollapsed("pvp.friend_foe_overlay")) {
@@ -725,8 +708,6 @@ public class AtomicsClientScreen extends Screen {
                         addTextField(leftX, y, controlWidth, "Server IPs", teamCountOverlayAllowedServers, "ip1, ip2", value -> teamCountOverlayAllowedServers = value); y += ROW_HEIGHT;
                     }
                     labels.add(new DrawLabel("Counts tab-list players by scoreboard team.", leftX + 8, y + 4, 0xAAAAAA));
-                    y += 14;
-                    labels.add(new DrawLabel("Legions adds total tab rating per team.", leftX + 8, y + 4, 0xAAAAAA));
                     y += 22;
                 }
             }
@@ -1335,11 +1316,6 @@ public class AtomicsClientScreen extends Screen {
         dualSpectateMaxYDifference = cfg.pvp.dualSpectateMaxYDifference;
         friendFoeOverlayEnabled = cfg.pvp.friendFoeOverlayEnabled;
         friendFoeOverlayStyle = TpsConfig.normalizeFriendFoeStyle(cfg.pvp.friendFoeOverlayStyle);
-        legionsRatingNametagsEnabled = cfg.pvp.legionsRatingNametagsEnabled;
-        legionsAutomaticFoeOverlayEnabled = cfg.pvp.legionsAutomaticFoeOverlayEnabled;
-        legionsSpectatorTeamGlowEnabled = cfg.pvp.legionsSpectatorTeamGlowEnabled;
-        legionsTeamScoresEnabled = cfg.pvp.legionsTeamScoresEnabled;
-        legionsEndRodWarningsEnabled = cfg.pvp.legionsEndRodWarningsEnabled;
         teamCountOverlayEnabled = cfg.pvp.teamCountOverlayEnabled;
         teamCountOverlayServerFilterEnabled = cfg.pvp.teamCountOverlayServerFilterEnabled;
         teamCountOverlayAllowedServers = cfg.pvp.teamCountOverlayAllowedServers;
@@ -1535,11 +1511,6 @@ public class AtomicsClientScreen extends Screen {
         dualSpectateMaxYDifference = TpsConfig.DEFAULT_DUAL_SPECTATE_MAX_Y_DIFFERENCE;
         friendFoeOverlayEnabled = TpsConfig.DEFAULT_FRIEND_FOE_OVERLAY_ENABLED;
         friendFoeOverlayStyle = TpsConfig.DEFAULT_FRIEND_FOE_OVERLAY_STYLE;
-        legionsRatingNametagsEnabled = TpsConfig.DEFAULT_LEGIONS_RATING_NAMETAGS_ENABLED;
-        legionsAutomaticFoeOverlayEnabled = TpsConfig.DEFAULT_LEGIONS_AUTOMATIC_FOE_OVERLAY_ENABLED;
-        legionsSpectatorTeamGlowEnabled = TpsConfig.DEFAULT_LEGIONS_SPECTATOR_TEAM_GLOW_ENABLED;
-        legionsTeamScoresEnabled = TpsConfig.DEFAULT_LEGIONS_TEAM_SCORES_ENABLED;
-        legionsEndRodWarningsEnabled = TpsConfig.DEFAULT_LEGIONS_END_ROD_WARNINGS_ENABLED;
         teamCountOverlayEnabled = TpsConfig.DEFAULT_TEAM_COUNT_OVERLAY_ENABLED;
         teamCountOverlayServerFilterEnabled = TpsConfig.DEFAULT_TEAM_COUNT_OVERLAY_SERVER_FILTER_ENABLED;
         teamCountOverlayAllowedServers = "";
@@ -1682,16 +1653,6 @@ public class AtomicsClientScreen extends Screen {
         cfg.pvp.dualSpectateMaxYDifference = Math.max(2.0f, Math.min(48.0f, dualSpectateMaxYDifference));
         cfg.pvp.friendFoeOverlayEnabled = friendFoeOverlayEnabled;
         cfg.pvp.friendFoeOverlayStyle = TpsConfig.normalizeFriendFoeStyle(friendFoeOverlayStyle);
-        cfg.pvp.legionsRatingNametagsEnabled = legionsRatingNametagsEnabled;
-        cfg.pvp.legionsAutomaticFoeOverlayEnabled = legionsAutomaticFoeOverlayEnabled;
-        cfg.pvp.legionsSpectatorTeamGlowEnabled = legionsSpectatorTeamGlowEnabled;
-        cfg.pvp.legionsTeamScoresEnabled = legionsTeamScoresEnabled;
-        cfg.pvp.legionsEndRodWarningsEnabled = legionsEndRodWarningsEnabled;
-        cfg.pvp.legionsFeaturesEnabled = legionsRatingNametagsEnabled
-                || legionsAutomaticFoeOverlayEnabled
-                || legionsSpectatorTeamGlowEnabled
-                || legionsTeamScoresEnabled
-                || legionsEndRodWarningsEnabled;
         cfg.pvp.teamCountOverlayEnabled = teamCountOverlayEnabled;
         cfg.pvp.teamCountOverlayServerFilterEnabled = teamCountOverlayServerFilterEnabled;
         cfg.pvp.teamCountOverlayAllowedServers = teamCountOverlayAllowedServers == null ? "" : teamCountOverlayAllowedServers.trim();

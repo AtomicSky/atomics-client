@@ -6,7 +6,6 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.network.PlayerListEntry;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.Identifier;
@@ -46,10 +45,6 @@ public final class TierWeightManager {
     private static final Map<String, CompletableFuture<TierProfile>> PENDING = new ConcurrentHashMap<>();
     private static final Map<String, Map<String, String>> MODE_TITLE_CACHE = new ConcurrentHashMap<>();
     private static final Pattern NUMERIC_TIER_PATTERN = Pattern.compile("[1-5]");
-    private static final Pattern LEGIONS_RATING_PATTERN = Pattern.compile("\\[\\s*(\\d+(?:\\.\\d+)?)\\s*\\]");
-    private static final Pattern LEGIONS_UNKNOWN_RATING_PATTERN = Pattern.compile("\\[\\s*\\?\\s*\\]");
-    private static final double[] LEGIONS_RATING_COLOR_VALUES = {0.5, 0.8, 1.0, 1.4, 1.8};
-    private static final int[] LEGIONS_RATING_COLORS = {0x5555FF, 0x55FFFF, 0x55FF55, 0xFFFF55, 0xFF5555};
     private static final int HEADER_ORANGE = 0xFF9A2E;
     private static final StyleSpriteSource.Font TIER_TAGGER_ICON_FONT = new StyleSpriteSource.Font(Identifier.of(AtomicsClient.MOD_ID, "tiertagger_icons"));
     private static final ProviderEndpoint[] PROVIDER_ENDPOINTS = new ProviderEndpoint[] {
@@ -76,10 +71,6 @@ public final class TierWeightManager {
     public static Text getNameSuffix(PlayerEntity player) {
         if (!shouldShowNameSuffix(player)) {
             return null;
-        }
-
-        if (isLegionsRatingServer()) {
-            return getLegionsNameSuffix(player);
         }
 
         return getTierNameSuffix(player);
@@ -120,129 +111,6 @@ public final class TierWeightManager {
                 && AtomicsClient.CONFIG.enabled
                 && AtomicsClient.CONFIG.pvp != null
                 && AtomicsClient.CONFIG.pvp.opponentStatsNametagEnabled;
-    }
-
-    private static Text getLegionsNameSuffix(PlayerEntity player) {
-        LegionsRating rating = legionsRating(player);
-        if (rating.hasNumericRating()) {
-            return getLegionsRatingSuffix(rating.numericRating());
-        }
-
-        Text tierSuffix = getTierNameSuffix(player);
-        if (tierSuffix != null) {
-            return tierSuffix;
-        }
-
-        if (rating.unknownRating()) {
-            return unknownLegionsRatingSuffix();
-        }
-        return null;
-    }
-
-    private static Text getLegionsRatingSuffix(String rating) {
-        MutableText result = Text.literal("[").formatted(Formatting.GRAY);
-        result.append(Text.literal(rating).withColor(legionsRatingColor(rating)));
-        result.append(Text.literal("]").formatted(Formatting.GRAY));
-        return result;
-    }
-
-    private static Text unknownLegionsRatingSuffix() {
-        MutableText result = Text.literal("[").formatted(Formatting.GRAY);
-        result.append(Text.literal("?").formatted(Formatting.GRAY));
-        result.append(Text.literal("]").formatted(Formatting.GRAY));
-        return result;
-    }
-
-    private static LegionsRating legionsRating(PlayerEntity player) {
-        if (player == null) {
-            return LegionsRating.none();
-        }
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client == null || client.getNetworkHandler() == null) {
-            return LegionsRating.none();
-        }
-
-        PlayerListEntry entry = client.getNetworkHandler().getPlayerListEntry(player.getUuid());
-        Text displayName = entry == null ? null : entry.getDisplayName();
-        String text = displayName == null ? "" : displayName.getString();
-        if (text.isBlank() && player.getDisplayName() != null) {
-            text = player.getDisplayName().getString();
-        }
-        return parseLegionsRating(text, player.getGameProfile().name());
-    }
-
-    private static LegionsRating parseLegionsRating(String displayName, String username) {
-        if (displayName == null || displayName.isBlank()) {
-            return LegionsRating.none();
-        }
-
-        int usernameIndex = indexOfIgnoreCase(displayName, username);
-        String beforeName = usernameIndex > 0 ? displayName.substring(0, usernameIndex) : displayName;
-        LegionsRating rating = legionsRatingInText(beforeName);
-        if (rating.hasAnyRating()) {
-            return rating;
-        }
-
-        return legionsRatingInText(displayName);
-    }
-
-    private static LegionsRating legionsRatingInText(String text) {
-        String rating = lastLegionsRating(text);
-        if (!rating.isBlank()) {
-            return LegionsRating.numeric(rating);
-        }
-        return hasUnknownLegionsRating(text) ? LegionsRating.unknown() : LegionsRating.none();
-    }
-
-    private static String lastLegionsRating(String text) {
-        if (text == null || text.isBlank()) {
-            return "";
-        }
-        Matcher matcher = LEGIONS_RATING_PATTERN.matcher(text);
-        String rating = "";
-        while (matcher.find()) {
-            rating = matcher.group(1);
-        }
-        return rating;
-    }
-
-    private static boolean hasUnknownLegionsRating(String text) {
-        return text != null && LEGIONS_UNKNOWN_RATING_PATTERN.matcher(text).find();
-    }
-
-    private static int indexOfIgnoreCase(String text, String needle) {
-        if (text == null || needle == null || needle.isBlank()) {
-            return -1;
-        }
-        return text.toLowerCase(Locale.ROOT).indexOf(needle.toLowerCase(Locale.ROOT));
-    }
-
-    private static int legionsRatingColor(String rating) {
-        try {
-            double value = Double.parseDouble(rating);
-            if (value <= LEGIONS_RATING_COLOR_VALUES[0]) {
-                return LEGIONS_RATING_COLORS[0];
-            }
-            for (int i = 1; i < LEGIONS_RATING_COLOR_VALUES.length; i++) {
-                double max = LEGIONS_RATING_COLOR_VALUES[i];
-                if (value <= max) {
-                    double min = LEGIONS_RATING_COLOR_VALUES[i - 1];
-                    float progress = (float) ((value - min) / (max - min));
-                    return lerpColor(LEGIONS_RATING_COLORS[i - 1], LEGIONS_RATING_COLORS[i], progress);
-                }
-            }
-            return LEGIONS_RATING_COLORS[LEGIONS_RATING_COLORS.length - 1];
-        } catch (NumberFormatException ignored) {
-            return 0xFFFFFF;
-        }
-    }
-
-    private static int lerpColor(int from, int to, float progress) {
-        float amount = Math.max(0.0f, Math.min(1.0f, progress));
-        int red = Math.round(((from >> 16) & 0xFF) + (((to >> 16) & 0xFF) - ((from >> 16) & 0xFF)) * amount);
-        int green = Math.round(((from >> 8) & 0xFF) + (((to >> 8) & 0xFF) - ((from >> 8) & 0xFF)) * amount);
-        int blue = Math.round((from & 0xFF) + ((to & 0xFF) - (from & 0xFF)) * amount);
-        return (red << 16) | (green << 8) | blue;
     }
 
     public static void sendOpponentInfoChat(String username) {
@@ -961,10 +829,6 @@ public final class TierWeightManager {
         return client.player != null && player.getUuid().equals(client.player.getUuid());
     }
 
-    private static boolean isLegionsRatingServer() {
-        return AtomicsClient.areLegionsRatingNametagsEnabled(MinecraftClient.getInstance());
-    }
-
     private static String joinSummaries(Set<String> summaries) {
         if (summaries == null || summaries.isEmpty()) {
             return "";
@@ -1020,28 +884,6 @@ public final class TierWeightManager {
                     || (summary != null && !summary.isBlank())
                     || (providers != null && !providers.isEmpty())
                     || (lines != null && !lines.isEmpty());
-        }
-    }
-
-    private record LegionsRating(String numericRating, boolean unknownRating) {
-        static LegionsRating numeric(String rating) {
-            return new LegionsRating(rating == null ? "" : rating, false);
-        }
-
-        static LegionsRating unknown() {
-            return new LegionsRating("", true);
-        }
-
-        static LegionsRating none() {
-            return new LegionsRating("", false);
-        }
-
-        boolean hasNumericRating() {
-            return numericRating != null && !numericRating.isBlank();
-        }
-
-        boolean hasAnyRating() {
-            return hasNumericRating() || unknownRating;
         }
     }
 
