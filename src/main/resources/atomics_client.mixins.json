@@ -3,6 +3,7 @@
   "package": "com.atomics.client.mixin",
   "compatibilityLevel": "JAVA_21",
   "client": [
+    "BillboardParticleAccessor",
     "CameraAccessor",
     "CameraMixin",
     "ClientPlayNetworkHandlerMixin",
@@ -20,6 +21,7 @@
     "MouseMixin",
     "MinecraftClientMixin",
     "PerspectiveMixin",
+    "ParticleManagerMixin",
     "PlayerEntityRenderStateMixin",
     "PlayerEntityRendererMixin",
     "RenderCommandQueueMixin",

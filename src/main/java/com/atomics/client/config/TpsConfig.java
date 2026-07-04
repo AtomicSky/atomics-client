@@ -66,6 +66,7 @@ public class TpsConfig {
     public static final boolean DEFAULT_LEGIONS_AUTOMATIC_FOE_OVERLAY_ENABLED = DEFAULT_LEGIONS_FEATURES_ENABLED;
     public static final boolean DEFAULT_LEGIONS_SPECTATOR_TEAM_GLOW_ENABLED = DEFAULT_LEGIONS_FEATURES_ENABLED;
     public static final boolean DEFAULT_LEGIONS_TEAM_SCORES_ENABLED = DEFAULT_LEGIONS_FEATURES_ENABLED;
+    public static final boolean DEFAULT_LEGIONS_END_ROD_WARNINGS_ENABLED = DEFAULT_LEGIONS_FEATURES_ENABLED;
     public static final boolean DEFAULT_TEAM_COUNT_OVERLAY_ENABLED = false;
     public static final boolean DEFAULT_TEAM_COUNT_OVERLAY_SERVER_FILTER_ENABLED = false;
     public static final int DEFAULT_TEAM_COUNT_OVERLAY_X = -1;
@@ -276,11 +277,13 @@ public class TpsConfig {
             pvp.legionsAutomaticFoeOverlayEnabled = false;
             pvp.legionsSpectatorTeamGlowEnabled = false;
             pvp.legionsTeamScoresEnabled = false;
+            pvp.legionsEndRodWarningsEnabled = false;
         }
         pvp.legionsFeaturesEnabled = pvp.legionsRatingNametagsEnabled
                 || pvp.legionsAutomaticFoeOverlayEnabled
                 || pvp.legionsSpectatorTeamGlowEnabled
-                || pvp.legionsTeamScoresEnabled;
+                || pvp.legionsTeamScoresEnabled
+                || pvp.legionsEndRodWarningsEnabled;
         pvp.nametagItemOrder = normalizeNametagItems(pvp.nametagItemOrder, false);
         pvp.nametagItemsBeforeName = normalizeNametagItems(pvp.nametagItemsBeforeName, true);
         pvp.opponentStatsNametagFormat = normalizeOpponentStatsNametagFormat(pvp.opponentStatsNametagFormat);
@@ -730,6 +733,7 @@ public class TpsConfig {
         public boolean legionsAutomaticFoeOverlayEnabled = DEFAULT_LEGIONS_AUTOMATIC_FOE_OVERLAY_ENABLED;
         public boolean legionsSpectatorTeamGlowEnabled = DEFAULT_LEGIONS_SPECTATOR_TEAM_GLOW_ENABLED;
         public boolean legionsTeamScoresEnabled = DEFAULT_LEGIONS_TEAM_SCORES_ENABLED;
+        public boolean legionsEndRodWarningsEnabled = DEFAULT_LEGIONS_END_ROD_WARNINGS_ENABLED;
         public boolean teamCountOverlayEnabled = DEFAULT_TEAM_COUNT_OVERLAY_ENABLED;
         public boolean teamCountOverlayServerFilterEnabled = DEFAULT_TEAM_COUNT_OVERLAY_SERVER_FILTER_ENABLED;
         public String teamCountOverlayAllowedServers = "";

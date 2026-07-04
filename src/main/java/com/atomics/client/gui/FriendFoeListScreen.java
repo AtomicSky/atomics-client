@@ -107,13 +107,15 @@ public class FriendFoeListScreen extends Screen {
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        context.fill(0, 0, this.width, this.height, 0xE0101010);
-        context.drawCenteredTextWithShadow(this.textRenderer, this.title, this.width / 2, 12, 0xFFFFFF);
+        AtomicsGuiStyle.drawBackground(context, this.width, this.height);
+        AtomicsGuiStyle.drawBars(context, this.width, this.height, 36, 34);
+        AtomicsGuiStyle.drawTitle(context, this.textRenderer, this.title, this.width);
+        AtomicsGuiStyle.drawPanel(context, 18, 40, this.width - 36, this.height - 80);
         for (RowLabel label : labels) {
-            context.drawTextWithShadow(this.textRenderer, Text.literal(label.text), label.x, label.y, 0xFFBDBDBD);
+            context.drawTextWithShadow(this.textRenderer, Text.literal(label.text), label.x, label.y, AtomicsGuiStyle.TEXT_MUTED);
         }
         super.render(context, mouseX, mouseY, delta);
-        context.drawTextWithShadow(this.textRenderer, status, 234, this.height - 22, 0xFFFFFF);
+        AtomicsGuiStyle.drawStatus(context, this.textRenderer, status, 234, this.height - 24, AtomicsGuiStyle.ACCENT);
     }
 
     @Override

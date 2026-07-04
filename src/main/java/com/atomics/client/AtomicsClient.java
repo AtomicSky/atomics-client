@@ -713,7 +713,8 @@ public class AtomicsClient implements ClientModInitializer {
                 && (pvp.legionsRatingNametagsEnabled
                 || pvp.legionsAutomaticFoeOverlayEnabled
                 || pvp.legionsSpectatorTeamGlowEnabled
-                || pvp.legionsTeamScoresEnabled);
+                || pvp.legionsTeamScoresEnabled
+                || pvp.legionsEndRodWarningsEnabled);
     }
 
     public static boolean areLegionsRatingNametagsEnabled(MinecraftClient client) {
@@ -734,6 +735,11 @@ public class AtomicsClient implements ClientModInitializer {
     public static boolean areLegionsTeamScoresEnabled(MinecraftClient client) {
         TpsConfig.PvpSettings pvp = legionsPvpSettings(client);
         return pvp != null && pvp.legionsTeamScoresEnabled;
+    }
+
+    public static boolean areLegionsEndRodWarningsEnabled(MinecraftClient client) {
+        TpsConfig.PvpSettings pvp = legionsPvpSettings(client);
+        return pvp != null && pvp.legionsEndRodWarningsEnabled;
     }
 
     private static TpsConfig.PvpSettings legionsPvpSettings(MinecraftClient client) {

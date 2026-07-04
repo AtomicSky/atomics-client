@@ -23,13 +23,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class InventorySortScreen extends Screen {
-    private static final int BG = 0xE0100D0A;
-    private static final int PANEL = 0xAA1A130F;
-    private static final int PANEL_BORDER = 0x70684A32;
-    private static final int ACCENT = 0xFFFFA13D;
-    private static final int ACCENT_SOFT = 0x55FF7A21;
-    private static final int TEXT_MAIN = 0xFFFFF2E4;
-    private static final int TEXT_MUTED = 0xFFCDB59C;
+    private static final int TEXT_MAIN = AtomicsGuiStyle.TEXT;
+    private static final int TEXT_MUTED = AtomicsGuiStyle.TEXT_MUTED;
     private static final int SLOT = 18;
     private static final int ITEM_OFFSET = 1;
     private static final int BUTTON_H = 20;
@@ -257,8 +252,8 @@ public class InventorySortScreen extends Screen {
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        context.fill(0, 0, this.width, this.height, BG);
-        context.drawCenteredTextWithShadow(this.textRenderer, this.title, this.width / 2, 14, TEXT_MAIN);
+        AtomicsGuiStyle.drawBackground(context, this.width, this.height);
+        AtomicsGuiStyle.drawTitle(context, this.textRenderer, this.title, this.width);
         drawPanel(context, sidebarX - 8, sidebarY - 8, sidebarW + 16, sidebarH + 16);
         int detailX = sidebarX + sidebarW + 18;
         drawPanel(context, detailX - 8, 48, this.width - detailX - 10, this.height - 88);
@@ -531,12 +526,7 @@ public class InventorySortScreen extends Screen {
     }
 
     private void drawPanel(DrawContext context, int x, int y, int width, int height) {
-        context.fill(x, y, x + width, y + height, PANEL);
-        context.fill(x, y, x + width, y + 1, PANEL_BORDER);
-        context.fill(x, y + height - 1, x + width, y + height, PANEL_BORDER);
-        context.fill(x, y, x + 1, y + height, PANEL_BORDER);
-        context.fill(x + width - 1, y, x + width, y + height, PANEL_BORDER);
-        context.fill(x, y, x + 3, y + height, ACCENT_SOFT);
+        AtomicsGuiStyle.drawPanel(context, x, y, width, height);
     }
 
     private void save() {

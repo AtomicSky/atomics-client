@@ -34,24 +34,20 @@ import java.util.function.DoubleConsumer;
 import java.util.function.DoubleFunction;
 
 public class AtomicsClientScreen extends Screen {
-    private static final int TOP_BAR_HEIGHT = 112;
-    private static final int FOOTER_HEIGHT = 34;
-    private static final int OUTER_MARGIN = 16;
-    private static final int COLUMN_GAP = 18;
+    private static final int TOP_BAR_HEIGHT = 96;
+    private static final int FOOTER_HEIGHT = 32;
+    private static final int OUTER_MARGIN = 18;
+    private static final int COLUMN_GAP = 16;
     private static final int ROW_HEIGHT = 28;
     private static final int SECTION_HEIGHT = 24;
     private static final int RESET_WIDTH = 24;
     private static final int BUTTON_HEIGHT = 22;
     private static final int PREVIEW_MIN_WIDTH = 300;
-    private static final int BG = 0xE0110D08;
-    private static final int TOP_BAR = 0xCC24160D;
-    private static final int FOOTER_BAR = 0xCC24160D;
-    private static final int PANEL = 0xAA1B120D;
-    private static final int PANEL_BORDER = 0x606B4A31;
-    private static final int ACCENT = 0xFFFFA13D;
-    private static final int ACCENT_SOFT = 0x55FF7A21;
-    private static final int TEXT_MAIN = 0xFFFFF2E4;
-    private static final int TEXT_MUTED = 0xFFCDB59C;
+    private static final int PANEL_BORDER = AtomicsGuiStyle.PANEL_BORDER;
+    private static final int ACCENT = AtomicsGuiStyle.ACCENT;
+    private static final int ACCENT_SOFT = AtomicsGuiStyle.ACCENT_SOFT;
+    private static final int TEXT_MAIN = AtomicsGuiStyle.TEXT;
+    private static final int TEXT_MUTED = AtomicsGuiStyle.TEXT_MUTED;
 
     private final Screen parent;
     private final List<DrawLabel> labels = new ArrayList<>();
@@ -95,6 +91,7 @@ public class AtomicsClientScreen extends Screen {
     private boolean legionsAutomaticFoeOverlayEnabled;
     private boolean legionsSpectatorTeamGlowEnabled;
     private boolean legionsTeamScoresEnabled;
+    private boolean legionsEndRodWarningsEnabled;
     private boolean teamCountOverlayEnabled;
     private boolean teamCountOverlayServerFilterEnabled;
     private boolean reachDisplayEnabled;
@@ -287,7 +284,7 @@ public class AtomicsClientScreen extends Screen {
         int tabH = 26;
         int total = tabW * tabs.length + gap * (tabs.length - 1);
         int x = this.width / 2 - total / 2;
-        int y = 42;
+        int y = 38;
         for (int i = 0; i < tabs.length; i++) {
             addTabButton(tabs[i], x + (tabW + gap) * i, y, tabW, tabH);
         }
@@ -304,7 +301,7 @@ public class AtomicsClientScreen extends Screen {
     private void addSettingsSearchField() {
         int width = Math.min(320, Math.max(180, this.width / 3));
         int x = this.width / 2 - width / 2;
-        int y = 76;
+        int y = 68;
         TextFieldWidget field = new TextFieldWidget(this.textRenderer, x, y, width, BUTTON_HEIGHT, Text.literal("Search settings"));
         settingsSearchField = field;
         field.setText(settingsSearch == null ? "" : settingsSearch);
@@ -677,13 +674,14 @@ public class AtomicsClientScreen extends Screen {
             y += 10;
         }
 
-        if (shouldShowFeature("pvp.legions", "Legions", "legions", "rating", "nametag", "automatic foe", "spectator glow", "team score")) {
+        if (shouldShowFeature("pvp.legions", "Legions", "legions", "rating", "nametag", "automatic foe", "spectator glow", "team score", "end rod", "warning", "triangle", "particle")) {
             y = addFeatureSection(y, "pvp.legions", "Legions");
             if (!isFeatureCollapsed("pvp.legions")) {
                 addToggle(leftX, y, controlWidth, "Rating Nametags", legionsRatingNametagsEnabled, TpsConfig.DEFAULT_LEGIONS_RATING_NAMETAGS_ENABLED, () -> legionsRatingNametagsEnabled, value -> legionsRatingNametagsEnabled = value, false); y += ROW_HEIGHT;
                 addToggle(leftX, y, controlWidth, "Automatic Foe Overlay", legionsAutomaticFoeOverlayEnabled, TpsConfig.DEFAULT_LEGIONS_AUTOMATIC_FOE_OVERLAY_ENABLED, () -> legionsAutomaticFoeOverlayEnabled, value -> legionsAutomaticFoeOverlayEnabled = value, false); y += ROW_HEIGHT;
                 addToggle(leftX, y, controlWidth, "Spectator Team Glow", legionsSpectatorTeamGlowEnabled, TpsConfig.DEFAULT_LEGIONS_SPECTATOR_TEAM_GLOW_ENABLED, () -> legionsSpectatorTeamGlowEnabled, value -> legionsSpectatorTeamGlowEnabled = value, false); y += ROW_HEIGHT;
                 addToggle(leftX, y, controlWidth, "Team Score Totals", legionsTeamScoresEnabled, TpsConfig.DEFAULT_LEGIONS_TEAM_SCORES_ENABLED, () -> legionsTeamScoresEnabled, value -> legionsTeamScoresEnabled = value, false); y += ROW_HEIGHT;
+                addToggle(leftX, y, controlWidth, "End Rod Warning Particles", legionsEndRodWarningsEnabled, TpsConfig.DEFAULT_LEGIONS_END_ROD_WARNINGS_ENABLED, () -> legionsEndRodWarningsEnabled, value -> legionsEndRodWarningsEnabled = value, false); y += ROW_HEIGHT;
             }
             y += 10;
         }
@@ -1145,7 +1143,7 @@ public class AtomicsClientScreen extends Screen {
     }
 
     private TextFieldWidget addTextField(int x, int y, int controlWidth, String label, String initialValue, String defaultValue, Consumer<String> setter) {
-        labels.add(new DrawLabel(label, x + 4, y - 11, 0xF0F0F0));
+        labels.add(new DrawLabel(label, x + 4, y - 11, TEXT_MUTED));
         if (!isWidgetVisible(y)) return null;
         TextFieldWidget field = new TextFieldWidget(this.textRenderer, x, y, controlWidth, BUTTON_HEIGHT, Text.literal(label));
         field.setText(initialValue == null ? "" : initialValue);
@@ -1341,6 +1339,7 @@ public class AtomicsClientScreen extends Screen {
         legionsAutomaticFoeOverlayEnabled = cfg.pvp.legionsAutomaticFoeOverlayEnabled;
         legionsSpectatorTeamGlowEnabled = cfg.pvp.legionsSpectatorTeamGlowEnabled;
         legionsTeamScoresEnabled = cfg.pvp.legionsTeamScoresEnabled;
+        legionsEndRodWarningsEnabled = cfg.pvp.legionsEndRodWarningsEnabled;
         teamCountOverlayEnabled = cfg.pvp.teamCountOverlayEnabled;
         teamCountOverlayServerFilterEnabled = cfg.pvp.teamCountOverlayServerFilterEnabled;
         teamCountOverlayAllowedServers = cfg.pvp.teamCountOverlayAllowedServers;
@@ -1540,6 +1539,7 @@ public class AtomicsClientScreen extends Screen {
         legionsAutomaticFoeOverlayEnabled = TpsConfig.DEFAULT_LEGIONS_AUTOMATIC_FOE_OVERLAY_ENABLED;
         legionsSpectatorTeamGlowEnabled = TpsConfig.DEFAULT_LEGIONS_SPECTATOR_TEAM_GLOW_ENABLED;
         legionsTeamScoresEnabled = TpsConfig.DEFAULT_LEGIONS_TEAM_SCORES_ENABLED;
+        legionsEndRodWarningsEnabled = TpsConfig.DEFAULT_LEGIONS_END_ROD_WARNINGS_ENABLED;
         teamCountOverlayEnabled = TpsConfig.DEFAULT_TEAM_COUNT_OVERLAY_ENABLED;
         teamCountOverlayServerFilterEnabled = TpsConfig.DEFAULT_TEAM_COUNT_OVERLAY_SERVER_FILTER_ENABLED;
         teamCountOverlayAllowedServers = "";
@@ -1686,10 +1686,12 @@ public class AtomicsClientScreen extends Screen {
         cfg.pvp.legionsAutomaticFoeOverlayEnabled = legionsAutomaticFoeOverlayEnabled;
         cfg.pvp.legionsSpectatorTeamGlowEnabled = legionsSpectatorTeamGlowEnabled;
         cfg.pvp.legionsTeamScoresEnabled = legionsTeamScoresEnabled;
+        cfg.pvp.legionsEndRodWarningsEnabled = legionsEndRodWarningsEnabled;
         cfg.pvp.legionsFeaturesEnabled = legionsRatingNametagsEnabled
                 || legionsAutomaticFoeOverlayEnabled
                 || legionsSpectatorTeamGlowEnabled
-                || legionsTeamScoresEnabled;
+                || legionsTeamScoresEnabled
+                || legionsEndRodWarningsEnabled;
         cfg.pvp.teamCountOverlayEnabled = teamCountOverlayEnabled;
         cfg.pvp.teamCountOverlayServerFilterEnabled = teamCountOverlayServerFilterEnabled;
         cfg.pvp.teamCountOverlayAllowedServers = teamCountOverlayAllowedServers == null ? "" : teamCountOverlayAllowedServers.trim();
@@ -1889,19 +1891,17 @@ public class AtomicsClientScreen extends Screen {
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        context.fill(0, 0, this.width, this.height, BG);
-        context.fill(0, 0, this.width, TOP_BAR_HEIGHT, TOP_BAR);
-        context.fill(0, TOP_BAR_HEIGHT, this.width, TOP_BAR_HEIGHT + 1, PANEL_BORDER);
-        context.fill(0, this.height - FOOTER_HEIGHT, this.width, this.height, FOOTER_BAR);
+        AtomicsGuiStyle.drawBackground(context, this.width, this.height);
+        AtomicsGuiStyle.drawBars(context, this.width, this.height, TOP_BAR_HEIGHT, FOOTER_HEIGHT);
 
         drawPanel(context, leftX - 8, contentTop - 8, leftWidth + 16, contentBottom - contentTop + 8);
         if (selectedTab.hasPreview) {
             drawPanel(context, previewX - 8, contentTop - 8, previewWidth + 16, contentBottom - contentTop + 8);
-            context.fill(previewX - 9, contentTop - 8, previewX - 8, contentBottom, ACCENT_SOFT);
+            context.fill(previewX - 9, contentTop - 8, previewX - 8, contentBottom, PANEL_BORDER);
         }
 
-        context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("Atomics Client"), this.width / 2, 14, TEXT_MAIN);
-        context.drawCenteredTextWithShadow(this.textRenderer, Text.literal(selectedTab.label + " Settings"), this.width / 2, 28, TEXT_MUTED);
+        AtomicsGuiStyle.drawTitle(context, this.textRenderer, Text.literal("Atomics Client"), this.width);
+        AtomicsGuiStyle.drawSubtitle(context, this.textRenderer, Text.literal(selectedTab.label + " Settings"), this.width);
 
         super.render(context, mouseX, mouseY, delta);
 
@@ -1924,23 +1924,19 @@ public class AtomicsClientScreen extends Screen {
     }
 
     private void drawPanel(DrawContext context, int x, int y, int width, int height) {
-        context.fill(x, y, x + width, y + height, PANEL);
-        context.fill(x, y, x + width, y + 1, PANEL_BORDER);
-        context.fill(x, y + height - 1, x + width, y + height, PANEL_BORDER);
-        context.fill(x, y, x + 1, y + height, PANEL_BORDER);
-        context.fill(x + width - 1, y, x + width, y + height, PANEL_BORDER);
+        AtomicsGuiStyle.drawPanel(context, x, y, width, height);
     }
 
     private void renderStatus(DrawContext context) {
         String text = status == null ? "" : status.getString();
         if (text.isBlank()) {
-            context.drawTextWithShadow(this.textRenderer, Text.literal("Changes are live. Save to keep them after restart."), OUTER_MARGIN, this.height - 14, TEXT_MUTED);
+            context.drawTextWithShadow(this.textRenderer, Text.literal("Changes are live. Save to keep them after restart."), OUTER_MARGIN, this.height - 13, TEXT_MUTED);
             return;
         }
         int width = this.textRenderer.getWidth(status) + 16;
         int x = OUTER_MARGIN;
-        int y = this.height - 24;
-        context.fill(x, y, x + width, y + 18, 0xAA10151E);
+        int y = this.height - 23;
+        context.fill(x, y, x + width, y + 17, AtomicsGuiStyle.ROW);
         context.fill(x, y, x + 3, y + 18, ACCENT);
         context.drawTextWithShadow(this.textRenderer, status, x + 8, y + 5, TEXT_MAIN);
     }
@@ -1950,12 +1946,12 @@ public class AtomicsClientScreen extends Screen {
         int y = contentTop;
         int w = previewWidth;
         ItemStack previewStack = AtomicsClient.getPreviewTotemStack();
-        context.drawTextWithShadow(this.textRenderer, Text.literal(selectedTab.label + " Preview"), x, y - 2, textColor(0xFFFFFF));
+        context.drawTextWithShadow(this.textRenderer, Text.literal(selectedTab.label + " Preview"), x, y - 2, TEXT_MAIN);
         int boxTop = y + 22;
         int boxBottom = contentBottom - 12;
-        context.fill(x, boxTop, x + w, boxBottom, 0xAA202020);
-        context.drawStrokedRectangle(x, boxTop, w, boxBottom - boxTop, 0x90FFFFFF);
-        context.drawCenteredTextWithShadow(this.textRenderer, Text.literal(selectedTab.label + " Preview"), x + w / 2, boxTop + 14, textColor(0xFFFFFF));
+        context.fill(x, boxTop, x + w, boxBottom, AtomicsGuiStyle.ROW);
+        context.drawStrokedRectangle(x, boxTop, w, boxBottom - boxTop, PANEL_BORDER);
+        context.drawCenteredTextWithShadow(this.textRenderer, Text.literal(selectedTab.label + " Preview"), x + w / 2, boxTop + 14, TEXT_MAIN);
 
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.player != null && selectedTab == Tab.TOTEM) {
@@ -1973,7 +1969,7 @@ public class AtomicsClientScreen extends Screen {
             renderTotemSizePreview(context, previewStack, "Held Totem", itemX, startY + gap, handScaleEnabled ? handScale : 1.0f);
             renderTotemSizePreview(context, previewStack, "Dropped Totem", itemX, startY + gap * 2, droppedScaleEnabled ? droppedScale : 1.0f);
         } else {
-            context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("Preview will appear here"), x + w / 2, boxTop + (boxBottom - boxTop) / 2, textColor(0xAAAAAA));
+            context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("Preview will appear here"), x + w / 2, boxTop + (boxBottom - boxTop) / 2, TEXT_MUTED);
         }
     }
     private int renderTextPanel(DrawContext context, String title, String[] lines, int x, int y, int width) {
@@ -1986,10 +1982,10 @@ public class AtomicsClientScreen extends Screen {
         }
         int visibleTop = Math.max(y, contentTop);
         int visibleBottom = Math.min(y + height, bottom);
-        context.fill(x, visibleTop, x + width, visibleBottom, 0xAA202020);
-        drawClippedPanelBorder(context, x, y, width, height, visibleTop, visibleBottom, 0x70FFFFFF);
+        context.fill(x, visibleTop, x + width, visibleBottom, AtomicsGuiStyle.ROW);
+        drawClippedPanelBorder(context, x, y, width, height, visibleTop, visibleBottom, PANEL_BORDER);
         if (y + padding >= contentTop && y + padding <= bottom) {
-            context.drawTextWithShadow(this.textRenderer, Text.literal(title), x + padding, y + padding, textColor(0xFFFFFF));
+            context.drawTextWithShadow(this.textRenderer, Text.literal(title), x + padding, y + padding, TEXT_MAIN);
         }
         for (int i = 0; i < lines.length; i++) {
             int textY = y + padding + 16 + i * lineHeight;
@@ -2015,7 +2011,7 @@ public class AtomicsClientScreen extends Screen {
 
     private void renderTotemSizePreview(DrawContext context, ItemStack stack, String label, int centerX, int centerY, float scale) {
         String display = label + "  " + formatDecimal(scale, 2) + "x";
-        context.drawCenteredTextWithShadow(this.textRenderer, Text.literal(display), centerX, centerY - 22, textColor(0xFFFFFF));
+        context.drawCenteredTextWithShadow(this.textRenderer, Text.literal(display), centerX, centerY - 22, TEXT_MAIN);
         renderScaledItem(context, stack, centerX, centerY, scale);
     }
 
@@ -2024,11 +2020,11 @@ public class AtomicsClientScreen extends Screen {
         int barX = leftX + leftWidth + 4;
         int trackTop = contentTop;
         int trackBottom = contentBottom - 4;
-        context.fill(barX, trackTop, barX + 4, trackBottom, 0x60000000);
+        context.fill(barX, trackTop, barX + 4, trackBottom, 0x66000000);
         int trackH = trackBottom - trackTop;
         int thumbH = Math.max(24, trackH * trackH / (trackH + maxScroll));
         int thumbY = trackTop + (trackH - thumbH) * scrollOffset / maxScroll;
-        context.fill(barX, thumbY, barX + 4, thumbY + thumbH, 0xCCFFFFFF);
+        context.fill(barX, thumbY, barX + 4, thumbY + thumbH, ACCENT);
     }
 
     private void renderScaledItem(DrawContext context, ItemStack stack, int centerX, int centerY, float scale) {
@@ -2296,15 +2292,15 @@ public class AtomicsClientScreen extends Screen {
         protected void renderWidget(DrawContext context, int mouseX, int mouseY, float delta) {
             int x = getX();
             int y = getY();
-            int bg = selected ? 0xFF3A2415 : isHovered() ? 0xDD2C1D13 : 0xAA1D130D;
-            int border = selected ? ACCENT : isHovered() ? 0xAA9A6A42 : PANEL_BORDER;
+            int bg = selected ? AtomicsGuiStyle.PANEL_SELECTED : isHovered() ? AtomicsGuiStyle.ROW_HOVER : AtomicsGuiStyle.ROW;
+            int border = selected ? ACCENT : isHovered() ? AtomicsGuiStyle.PANEL_BORDER_HOVER : PANEL_BORDER;
             context.fill(x, y, x + width, y + height, bg);
             context.fill(x, y, x + width, y + 1, border);
             context.fill(x, y + height - 1, x + width, y + height, border);
             context.fill(x, y, x + 1, y + height, border);
             context.fill(x + width - 1, y, x + width, y + height, border);
             if (selected) {
-                context.fill(x + 5, y + height - 4, x + width - 5, y + height - 2, ACCENT);
+                context.fill(x + 4, y + height - 3, x + width - 4, y + height - 1, ACCENT);
             }
             context.drawCenteredTextWithShadow(textRenderer, Text.literal(label), x + width / 2, y + 8, selected ? TEXT_MAIN : TEXT_MUTED);
         }
@@ -2336,20 +2332,17 @@ public class AtomicsClientScreen extends Screen {
         protected void renderWidget(DrawContext context, int mouseX, int mouseY, float delta) {
             int x = getX();
             int y = getY();
-            int bg = collapsed ? 0xAA121821 : 0xCC1B2430;
-            if (isHovered()) {
-                bg = collapsed ? 0xCC1A2230 : 0xE0222D3B;
-            }
+            int bg = isHovered() ? AtomicsGuiStyle.ROW_HOVER : AtomicsGuiStyle.ROW;
             context.fill(x, y, x + width, y + height, bg);
             context.fill(x, y, x + width, y + 1, PANEL_BORDER);
             context.fill(x, y + height - 1, x + width, y + height, PANEL_BORDER);
-            context.fill(x, y, x + 3, y + height, collapsed ? 0xFF75808F : ACCENT);
+            context.fill(x, y, x + 3, y + height, collapsed ? AtomicsGuiStyle.TEXT_DIM : ACCENT);
 
-            String marker = collapsed ? "+" : "-";
-            context.fill(x + 10, y + 6, x + 20, y + 16, collapsed ? 0x553F4654 : ACCENT_SOFT);
+            String marker = collapsed ? ">" : "v";
             context.drawCenteredTextWithShadow(textRenderer, Text.literal(marker), x + 15, y + 7, collapsed ? TEXT_MUTED : TEXT_MAIN);
             context.drawTextWithShadow(textRenderer, Text.literal(title), x + 28, y + 7, TEXT_MAIN);
-            context.drawTextWithShadow(textRenderer, Text.literal(collapsed ? "collapsed" : "expanded"), x + width - textRenderer.getWidth(collapsed ? "collapsed" : "expanded") - 10, y + 7, TEXT_MUTED);
+            String state = collapsed ? "show" : "hide";
+            context.drawTextWithShadow(textRenderer, Text.literal(state), x + width - textRenderer.getWidth(state) - 10, y + 7, TEXT_MUTED);
         }
 
         @Override
@@ -2381,7 +2374,7 @@ public class AtomicsClientScreen extends Screen {
         protected void renderWidget(DrawContext context, int mouseX, int mouseY, float delta) {
             int x = getX();
             int y = getY();
-            int bg = isHovered() ? 0xDD202A36 : 0xCC18202B;
+            int bg = isHovered() ? AtomicsGuiStyle.ROW_HOVER : AtomicsGuiStyle.ROW;
             context.fill(x, y, x + width, y + height, bg);
             context.fill(x, y, x + width, y + 1, open ? ACCENT : PANEL_BORDER);
             context.fill(x, y + height - 1, x + width, y + height, open ? ACCENT : PANEL_BORDER);

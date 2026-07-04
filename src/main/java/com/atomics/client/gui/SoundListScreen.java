@@ -69,10 +69,12 @@ public class SoundListScreen extends Screen {
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        context.fill(0, 0, this.width, this.height, 0xE0101010);
-        context.drawCenteredTextWithShadow(this.textRenderer, this.title, this.width / 2, 12, 0xFFFFFF);
+        AtomicsGuiStyle.drawBackground(context, this.width, this.height);
+        AtomicsGuiStyle.drawBars(context, this.width, this.height, 36, 34);
+        AtomicsGuiStyle.drawTitle(context, this.textRenderer, this.title, this.width);
+        AtomicsGuiStyle.drawPanel(context, 18, 40, this.width - 36, this.height - 80);
         super.render(context, mouseX, mouseY, delta);
-        context.drawTextWithShadow(this.textRenderer, status, 226, this.height - 22, 0xFFFFFF);
+        AtomicsGuiStyle.drawStatus(context, this.textRenderer, status, 226, this.height - 24, AtomicsGuiStyle.ACCENT);
     }
 
     @Override
