@@ -14,10 +14,13 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
 import java.util.Locale;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
+import java.util.function.IntSupplier;
 
 @Pseudo
 @Mixin(targets = "com.atomics.client.gui.AtomicsClientScreen")
@@ -30,6 +33,8 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
     private static final int LEGIONS_RESET_WIDTH = 24;
     @Unique
     private static final int LEGIONS_BUTTON_HEIGHT = 22;
+    @Unique
+    private static final String LEGIONS_FEATURE_KEY = "legions.client";
 
     @Unique
     private boolean legions_client$sectionCollapsed;
@@ -52,6 +57,11 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
         int leftX = legions_client$getIntField("leftX", 18);
         int leftWidth = legions_client$getIntField("leftWidth", Math.max(260, this.width - 36));
         int controlWidth = Math.max(80, leftWidth - LEGIONS_RESET_WIDTH - 6);
+        Integer nativeY = legions_client$buildNativeLegionsModule(y, leftX, controlWidth);
+        if (nativeY != null) {
+            return nativeY;
+        }
+
         boolean searchTab = legions_client$isSearchTab();
         boolean collapsed = searchTab ? legions_client$searchQuery().isBlank() : legions_client$sectionCollapsed;
 
@@ -77,6 +87,109 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
         y = legions_client$addIntSlider(leftX, y, controlWidth, "Ping Seconds", 3, 10, LegionsClient.CONFIG.pingDurationSeconds, value -> LegionsClient.CONFIG.pingDurationSeconds = value);
 
         return y + 10;
+    }
+
+    @Unique
+    private Integer legions_client$buildNativeLegionsModule(int y, int leftX, int controlWidth) {
+        try {
+            Class<?> screenClass = this.getClass();
+            Class<?> toggleSetterType = Class.forName("com.atomics.client.gui.AtomicsClientScreen$ToggleSetter");
+            Class<?> intSetterType = Class.forName("com.atomics.client.gui.AtomicsClientScreen$IntSetter");
+            Method addFeatureSection = legions_client$getMethod(screenClass, "addFeatureSection", int.class, String.class, String.class);
+            Method isFeatureCollapsed = legions_client$getMethod(screenClass, "isFeatureCollapsed", String.class);
+            Method addToggle = legions_client$getMethod(screenClass, "addToggle",
+                    int.class, int.class, int.class, String.class, boolean.class, boolean.class,
+                    BooleanSupplier.class, toggleSetterType, boolean.class);
+            Method addIntSlider = legions_client$getMethod(screenClass, "addIntSlider",
+                    int.class, int.class, int.class, String.class, int.class, int.class, int.class,
+                    int.class, int.class, intSetterType);
+
+            int rowY = (Integer) addFeatureSection.invoke(this, y, LEGIONS_FEATURE_KEY, "Legions");
+            if ((Boolean) isFeatureCollapsed.invoke(this, LEGIONS_FEATURE_KEY)) {
+                return rowY + 10;
+            }
+
+            rowY = legions_client$addNativeToggle(addToggle, toggleSetterType, leftX, rowY, controlWidth,
+                    "Enable Legions Client", true, () -> LegionsClient.CONFIG.enabled, value -> LegionsClient.CONFIG.enabled = value);
+            rowY = legions_client$addNativeToggle(addToggle, toggleSetterType, leftX, rowY, controlWidth,
+                    "Rating Nametags", true, () -> LegionsClient.CONFIG.ratingNametagsEnabled, value -> LegionsClient.CONFIG.ratingNametagsEnabled = value);
+            rowY = legions_client$addNativeToggle(addToggle, toggleSetterType, leftX, rowY, controlWidth,
+                    "Foe Outlines", false, () -> LegionsClient.CONFIG.automaticFoeOutlinesEnabled, value -> LegionsClient.CONFIG.automaticFoeOutlinesEnabled = value);
+            rowY = legions_client$addNativeToggle(addToggle, toggleSetterType, leftX, rowY, controlWidth,
+                    "Spectator Glow", true, () -> LegionsClient.CONFIG.spectatorGlowEnabled, value -> LegionsClient.CONFIG.spectatorGlowEnabled = value);
+            rowY = legions_client$addNativeToggle(addToggle, toggleSetterType, leftX, rowY, controlWidth,
+                    "Warning Particles", true, () -> LegionsClient.CONFIG.warningParticlesEnabled, value -> LegionsClient.CONFIG.warningParticlesEnabled = value);
+            rowY = legions_client$addNativeToggle(addToggle, toggleSetterType, leftX, rowY, controlWidth,
+                    "Team Ping", true, () -> LegionsClient.CONFIG.teamPingEnabled, value -> LegionsClient.CONFIG.teamPingEnabled = value);
+            rowY = legions_client$addNativeIntSlider(addIntSlider, intSetterType, leftX, rowY, controlWidth,
+                    "Opponents Shown", LegionsClient.CONFIG.opponentLimit, 1, 12, 1, 5,
+                    () -> LegionsClient.CONFIG.opponentLimit, value -> LegionsClient.CONFIG.opponentLimit = value);
+            rowY = legions_client$addNativeIntSlider(addIntSlider, intSetterType, leftX, rowY, controlWidth,
+                    "Ping Seconds", LegionsClient.CONFIG.pingDurationSeconds, 3, 10, 1, 10,
+                    () -> LegionsClient.CONFIG.pingDurationSeconds, value -> LegionsClient.CONFIG.pingDurationSeconds = value);
+
+            return rowY + 10;
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            LegionsClient.LOGGER.debug("Falling back to Legions Atomics-style widgets.", e);
+            return null;
+        }
+    }
+
+    @Unique
+    private int legions_client$addNativeToggle(Method addToggle, Class<?> toggleSetterType, int x, int y, int width,
+                                               String label, boolean defaultValue, BooleanSupplier getter,
+                                               Consumer<Boolean> setter) throws ReflectiveOperationException {
+        addToggle.invoke(this, x, y, width, label, getter.getAsBoolean(), defaultValue, getter,
+                legions_client$toggleSetter(toggleSetterType, getter, setter), false);
+        return y + LEGIONS_ROW_HEIGHT;
+    }
+
+    @Unique
+    private int legions_client$addNativeIntSlider(Method addIntSlider, Class<?> intSetterType, int x, int y, int width,
+                                                  String label, int current, int min, int max, int step, int defaultValue,
+                                                  IntSupplier getter, IntConsumer setter) throws ReflectiveOperationException {
+        addIntSlider.invoke(this, x, y, width, label, current, min, max, step, defaultValue,
+                legions_client$intSetter(intSetterType, getter, setter));
+        return y + LEGIONS_ROW_HEIGHT;
+    }
+
+    @Unique
+    private Object legions_client$toggleSetter(Class<?> setterType, BooleanSupplier getter, Consumer<Boolean> setter) {
+        return Proxy.newProxyInstance(setterType.getClassLoader(), new Class<?>[]{setterType}, (proxy, method, args) -> {
+            if ("set".equals(method.getName()) && args != null && args.length == 1 && args[0] instanceof Boolean value) {
+                if (getter.getAsBoolean() != value) {
+                    setter.accept(value);
+                    LegionsClient.saveConfig();
+                }
+                return null;
+            }
+            return legions_client$proxyObjectMethod(proxy, method, args);
+        });
+    }
+
+    @Unique
+    private Object legions_client$intSetter(Class<?> setterType, IntSupplier getter, IntConsumer setter) {
+        return Proxy.newProxyInstance(setterType.getClassLoader(), new Class<?>[]{setterType}, (proxy, method, args) -> {
+            if ("set".equals(method.getName()) && args != null && args.length == 1 && args[0] instanceof Integer value) {
+                if (getter.getAsInt() != value) {
+                    setter.accept(value);
+                    LegionsClient.CONFIG.normalize();
+                    LegionsClient.saveConfig();
+                }
+                return null;
+            }
+            return legions_client$proxyObjectMethod(proxy, method, args);
+        });
+    }
+
+    @Unique
+    private Object legions_client$proxyObjectMethod(Object proxy, Method method, Object[] args) {
+        return switch (method.getName()) {
+            case "toString" -> "LegionsClientAtomicsProxy";
+            case "hashCode" -> System.identityHashCode(proxy);
+            case "equals" -> args != null && args.length == 1 && proxy == args[0];
+            default -> null;
+        };
     }
 
     @Unique
@@ -147,5 +260,12 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
         } catch (ReflectiveOperationException | RuntimeException ignored) {
             return null;
         }
+    }
+
+    @Unique
+    private static Method legions_client$getMethod(Class<?> owner, String name, Class<?>... parameterTypes) throws NoSuchMethodException {
+        Method method = owner.getDeclaredMethod(name, parameterTypes);
+        method.setAccessible(true);
+        return method;
     }
 }
