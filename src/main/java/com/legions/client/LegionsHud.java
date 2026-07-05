@@ -19,7 +19,7 @@ public final class LegionsHud {
 
     public static void render(DrawContext context) {
         MinecraftClient client = MinecraftClient.getInstance();
-        if (!LegionsClient.enabled(client) || !LegionsClient.CONFIG.rosterHudEnabled || client.world == null || client.player == null) {
+        if (!LegionsClient.enabled(client) || client.world == null || client.player == null) {
             return;
         }
 
@@ -61,7 +61,7 @@ public final class LegionsHud {
     }
 
     private static String shortPlayerLine(PlayerEntity local, PlayerEntity player) {
-        String name = player.getName().getString();
+        String name = LegionsFeatures.realUsername(player);
         if (name.length() > 12) {
             name = name.substring(0, 12);
         }

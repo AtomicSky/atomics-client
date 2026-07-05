@@ -2,12 +2,13 @@ package com.legions.client.gui;
 
 import com.legions.client.LegionsClient;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.SliderWidget;
 import net.minecraft.text.Text;
+
+import java.util.function.BooleanSupplier;
 
 public class LegionsClientScreen extends Screen {
     private static final int BUTTON_HEIGHT = 20;
@@ -20,28 +21,26 @@ public class LegionsClientScreen extends Screen {
 
     @Override
     protected void init() {
-        int panelWidth = Math.min(320, this.width - 32);
+        int panelWidth = Math.max(220, Math.min(320, this.width - 32));
         int x = (this.width - panelWidth) / 2;
         int y = 52;
 
-        addToggle(x, y, panelWidth, "Enabled", LegionsClient.CONFIG.enabled, value -> LegionsClient.CONFIG.enabled = value);
+        addToggle(x, y, panelWidth, "Enabled", () -> LegionsClient.CONFIG.enabled, value -> LegionsClient.CONFIG.enabled = value);
         y += 24;
-        addToggle(x, y, panelWidth, "Rating Nametags", LegionsClient.CONFIG.ratingNametagsEnabled, value -> LegionsClient.CONFIG.ratingNametagsEnabled = value);
+        addToggle(x, y, panelWidth, "Rating Nametags", () -> LegionsClient.CONFIG.ratingNametagsEnabled, value -> LegionsClient.CONFIG.ratingNametagsEnabled = value);
         y += 24;
-        addToggle(x, y, panelWidth, "Foe Outlines", LegionsClient.CONFIG.automaticFoeOutlinesEnabled, value -> LegionsClient.CONFIG.automaticFoeOutlinesEnabled = value);
+        addToggle(x, y, panelWidth, "Foe Outlines", () -> LegionsClient.CONFIG.automaticFoeOutlinesEnabled, value -> LegionsClient.CONFIG.automaticFoeOutlinesEnabled = value);
         y += 24;
-        addToggle(x, y, panelWidth, "Spectator Glow", LegionsClient.CONFIG.spectatorGlowEnabled, value -> LegionsClient.CONFIG.spectatorGlowEnabled = value);
+        addToggle(x, y, panelWidth, "Spectator Glow", () -> LegionsClient.CONFIG.spectatorGlowEnabled, value -> LegionsClient.CONFIG.spectatorGlowEnabled = value);
         y += 24;
-        addToggle(x, y, panelWidth, "Warning Particles", LegionsClient.CONFIG.warningParticlesEnabled, value -> LegionsClient.CONFIG.warningParticlesEnabled = value);
+        addToggle(x, y, panelWidth, "Warning Particles", () -> LegionsClient.CONFIG.warningParticlesEnabled, value -> LegionsClient.CONFIG.warningParticlesEnabled = value);
         y += 24;
-        addToggle(x, y, panelWidth, "Roster HUD", LegionsClient.CONFIG.rosterHudEnabled, value -> LegionsClient.CONFIG.rosterHudEnabled = value);
-        y += 24;
-        addToggle(x, y, panelWidth, "Team Ping", LegionsClient.CONFIG.teamPingEnabled, value -> LegionsClient.CONFIG.teamPingEnabled = value);
+        addToggle(x, y, panelWidth, "Team Ping", () -> LegionsClient.CONFIG.teamPingEnabled, value -> LegionsClient.CONFIG.teamPingEnabled = value);
         y += 30;
 
         addDrawableChild(new IntSlider(x, y, panelWidth, "Opponents Shown", 1, 12, LegionsClient.CONFIG.opponentLimit, value -> LegionsClient.CONFIG.opponentLimit = value));
         y += 24;
-        addDrawableChild(new IntSlider(x, y, panelWidth, "Ping Seconds", 3, 30, LegionsClient.CONFIG.pingDurationSeconds, value -> LegionsClient.CONFIG.pingDurationSeconds = value));
+        addDrawableChild(new IntSlider(x, y, panelWidth, "Ping Seconds", 3, 10, LegionsClient.CONFIG.pingDurationSeconds, value -> LegionsClient.CONFIG.pingDurationSeconds = value));
         y += 34;
 
         addDrawableChild(ButtonWidget.builder(Text.literal("Save"), button -> {
@@ -58,10 +57,15 @@ public class LegionsClientScreen extends Screen {
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        renderBackground(context, mouseX, mouseY, delta);
-        int panelWidth = Math.min(360, this.width - 24);
+        context.fill(0, 0, this.width, this.height, 0x99000000);
+        int panelWidth = Math.max(240, Math.min(360, this.width - 24));
         int x = (this.width - panelWidth) / 2;
-        context.fill(x, 24, x + panelWidth, Math.min(this.height - 18, 330), 0xCC101317);
+        int bottom = Math.min(this.height - 18, 330);
+        if (bottom > 24) {
+            context.fill(x, 24, x + panelWidth, bottom, 0xD20F1318);
+            context.fill(x, 24, x + panelWidth, 25, 0xFF263241);
+            context.fill(x, bottom - 1, x + panelWidth, bottom, 0xFF263241);
+        }
         context.drawCenteredTextWithShadow(this.textRenderer, this.title, this.width / 2, 32, 0xFFE7F0FF);
         super.render(context, mouseX, mouseY, delta);
     }
@@ -72,9 +76,9 @@ public class LegionsClientScreen extends Screen {
         MinecraftClient.getInstance().setScreen(parent);
     }
 
-    private void addToggle(int x, int y, int width, String label, boolean initial, BooleanSetter setter) {
-        addDrawableChild(ButtonWidget.builder(toggleText(label, initial), button -> {
-            boolean value = !button.getMessage().getString().endsWith("ON");
+    private void addToggle(int x, int y, int width, String label, BooleanSupplier getter, BooleanSetter setter) {
+        addDrawableChild(ButtonWidget.builder(toggleText(label, getter.getAsBoolean()), button -> {
+            boolean value = !getter.getAsBoolean();
             setter.set(value);
             button.setMessage(toggleText(label, value));
         }).dimensions(x, y, width, BUTTON_HEIGHT).build());

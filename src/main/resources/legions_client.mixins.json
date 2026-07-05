@@ -3,7 +3,10 @@
   "package": "com.legions.client.mixin",
   "compatibilityLevel": "JAVA_21",
   "client": [
-    "PlayerEntityRendererMixin"
+    "PlayerEntityRendererMixin",
+    "LivingEntityRendererMixin",
+    "GameTestDebugRendererMixin",
+    "AtomicsClientScreenModuleMixin"
   ],
   "injectors": {
     "defaultRequire": 0

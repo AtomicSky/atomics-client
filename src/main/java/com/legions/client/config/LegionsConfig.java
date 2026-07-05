@@ -16,14 +16,12 @@ public class LegionsConfig {
 
     public boolean enabled = true;
     public boolean ratingNametagsEnabled = true;
-    public boolean automaticFoeOutlinesEnabled = true;
+    public boolean automaticFoeOutlinesEnabled = false;
     public boolean spectatorGlowEnabled = true;
-    public boolean teamScoresEnabled = true;
     public boolean warningParticlesEnabled = true;
-    public boolean rosterHudEnabled = true;
     public boolean teamPingEnabled = true;
     public int opponentLimit = 5;
-    public int pingDurationSeconds = 12;
+    public int pingDurationSeconds = 10;
 
     public static LegionsConfig load() {
         Path path = FabricLoader.getInstance().getConfigDir().resolve("legions_client.json");
@@ -44,7 +42,7 @@ public class LegionsConfig {
 
     public LegionsConfig normalize() {
         opponentLimit = clamp(opponentLimit, 1, 12);
-        pingDurationSeconds = clamp(pingDurationSeconds, 3, 30);
+        pingDurationSeconds = clamp(pingDurationSeconds, 3, 10);
         return this;
     }
 
