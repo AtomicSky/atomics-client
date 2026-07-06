@@ -31,7 +31,7 @@ public final class LegionsFeatures {
     private static final boolean ATOMICS_CLIENT_LOADED = FabricLoader.getInstance().isModLoaded("atomics_client");
     private static final int QUIP_UNKNOWN_COLOR = 0xA0A0A0;
     private static final Set<UUID> visibleOpponentCache = new HashSet<>();
-    private static final ArrayList<PlayerEntity> visibleOpponentScratch = new ArrayList<>();
+    private static final ArrayList<VisibleOpponent> visibleOpponentScratch = new ArrayList<>();
     private static final Map<String, TabListTag> tabListTagCache = new HashMap<>();
     private static long visibleOpponentCacheTick = Long.MIN_VALUE;
     private static UUID visibleOpponentCacheLocalPlayer;
@@ -57,11 +57,58 @@ public final class LegionsFeatures {
         if (server == null || server.address == null) {
             return client.isIntegratedServerRunning();
         }
-        String address = server.address.toLowerCase(Locale.ROOT);
-        return address.contains("legions");
+        String address = normalizeServerAddress(server.address);
+        if (LegionsClient.CONFIG == null || LegionsClient.CONFIG.allowedServerAddresses == null) {
+            return address.contains("legions");
+        }
+        for (String allowedAddress : LegionsClient.CONFIG.allowedServerAddresses) {
+            String normalizedAllowedAddress = normalizeServerAddress(allowedAddress);
+            if (!normalizedAllowedAddress.isBlank()
+                    && (address.equals(normalizedAllowedAddress) || address.contains(normalizedAllowedAddress))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public static void tick(MinecraftClient client) {
+    }
+
+    public static String serverAddressesText() {
+        if (LegionsClient.CONFIG == null || LegionsClient.CONFIG.allowedServerAddresses == null) {
+            return "legions";
+        }
+        return String.join(", ", LegionsClient.CONFIG.allowedServerAddresses);
+    }
+
+    public static void setServerAddressesText(String text) {
+        if (LegionsClient.CONFIG == null) {
+            return;
+        }
+        LegionsClient.CONFIG.allowedServerAddresses = new ArrayList<>();
+        if (text != null) {
+            for (String part : text.split(",")) {
+                String address = normalizeServerAddress(part);
+                if (!address.isBlank() && !LegionsClient.CONFIG.allowedServerAddresses.contains(address)) {
+                    LegionsClient.CONFIG.allowedServerAddresses.add(address);
+                }
+            }
+        }
+        LegionsClient.CONFIG.normalize();
+    }
+
+    private static String normalizeServerAddress(String address) {
+        if (address == null) {
+            return "";
+        }
+        String normalized = address.trim().toLowerCase(Locale.ROOT);
+        if (normalized.startsWith("http://")) {
+            normalized = normalized.substring("http://".length());
+        } else if (normalized.startsWith("https://")) {
+            normalized = normalized.substring("https://".length());
+        }
+        int slash = normalized.indexOf('/');
+        return slash >= 0 ? normalized.substring(0, slash) : normalized;
     }
 
     public static Text customizeNametag(PlayerEntity player, Text original) {
@@ -172,16 +219,16 @@ public final class LegionsFeatures {
         }
 
         visibleOpponentScratch.clear();
+        PlayerEntity localPlayer = client.player;
         for (PlayerEntity candidate : client.world.getPlayers()) {
-            if (isOpponent(client.player, candidate)) {
-                visibleOpponentScratch.add(candidate);
+            if (isOpponent(localPlayer, candidate)) {
+                visibleOpponentScratch.add(new VisibleOpponent(candidate, candidate.squaredDistanceTo(localPlayer)));
             }
         }
-        visibleOpponentScratch.sort((first, second) ->
-                Double.compare(first.squaredDistanceTo(client.player), second.squaredDistanceTo(client.player)));
+        visibleOpponentScratch.sort((first, second) -> Double.compare(first.distanceSquared, second.distanceSquared));
         int limit = Math.min(visibleOpponents, visibleOpponentScratch.size());
         for (int i = 0; i < limit; i++) {
-            visibleOpponentCache.add(visibleOpponentScratch.get(i).getUuid());
+            visibleOpponentCache.add(visibleOpponentScratch.get(i).player.getUuid());
         }
         visibleOpponentScratch.clear();
         return visibleOpponentCache;
@@ -342,10 +389,11 @@ public final class LegionsFeatures {
     }
 
     private static Text formatLegionsTag(TabListTag tag) {
+        Style style = quipStyle(tag);
         return Text.empty()
-                .append(Text.literal("[").setStyle(quipStyle(tag)))
-                .append(Text.literal(tag.value).setStyle(quipStyle(tag)))
-                .append(Text.literal("]").setStyle(quipStyle(tag)));
+                .append(Text.literal("[").setStyle(style))
+                .append(Text.literal(tag.value).setStyle(style))
+                .append(Text.literal("]").setStyle(style));
     }
 
     private static int quipColor(TabListTag tag) {
@@ -524,5 +572,8 @@ public final class LegionsFeatures {
         private boolean isUnknown() {
             return numericRating < 0;
         }
+    }
+
+    private record VisibleOpponent(PlayerEntity player, double distanceSquared) {
     }
 }

@@ -34,17 +34,16 @@ import java.util.regex.Pattern;
 public final class LegionsPingManager {
     private static final double RANGE = 100.0;
     private static final long DOUBLE_PRESS_WINDOW_MILLIS = 300L;
-    private static final float BLOCK_PING_OUTER_EXPAND = 0.025f;
-    private static final float BLOCK_PING_INNER_EXPAND = 0.04f;
-    private static final float BLOCK_PING_OUTER_WIDTH = 3.5f;
-    private static final float BLOCK_PING_INNER_WIDTH = 1.75f;
+    private static final float BLOCK_PING_EXPAND = 0.02f;
+    private static final float BLOCK_PING_STROKE_WIDTH = 2.25f;
     private static final float BLOCK_PING_FAR_MARKER_SIZE = 7.0f;
     private static final double BLOCK_PING_FAR_MARKER_DISTANCE_SQUARED = 40.0 * 40.0;
-    private static final int BLOCK_PING_OUTER_COLOR = 0x99FFD84A;
-    private static final int BLOCK_PING_INNER_COLOR = 0xFFFFFFB0;
+    private static final int BLOCK_PING_STROKE_COLOR = 0xFFFFD84A;
+    private static final int BLOCK_PING_FILL_COLOR = 0x35FFD84A;
     private static final int BLOCK_PING_MARKER_COLOR = 0xFFFFD84A;
     private static final int PING_LABEL_COLOR = 0xFF20FF4A;
     private static final float BLOCK_PING_LABEL_SCALE = 0.65f;
+    private static final DrawStyle BLOCK_PING_DRAW_STYLE = DrawStyle.filledAndStroked(BLOCK_PING_STROKE_COLOR, BLOCK_PING_STROKE_WIDTH, BLOCK_PING_FILL_COLOR);
     private static final Pattern BLOCK_PATTERN = Pattern.compile("\\[LC:B:([A-Za-z0-9_]{3,16}):(-?\\d+):(-?\\d+):(-?\\d+)]", Pattern.CASE_INSENSITIVE);
     private static final Pattern PLAYER_PATTERN = Pattern.compile("\\[LC:P:([A-Za-z0-9_]{3,16}):([A-Za-z0-9_]{3,16})]", Pattern.CASE_INSENSITIVE);
 
@@ -194,10 +193,12 @@ public final class LegionsPingManager {
 
     private static void renderBlockPingOutline(MinecraftClient client, BlockPos pos) {
         renderBlockShapeOutline(client, pos);
-        GizmoDrawing.blockLabel(bracketDistanceLabel(client, Vec3d.ofCenter(pos)), pos, 0, PING_LABEL_COLOR, BLOCK_PING_LABEL_SCALE).ignoreOcclusion();
+        Vec3d center = Vec3d.ofCenter(pos);
+        if (LegionsClient.CONFIG.blockPingDistanceLabelEnabled) {
+            GizmoDrawing.blockLabel(bracketDistanceLabel(client, center), pos, 0, PING_LABEL_COLOR, BLOCK_PING_LABEL_SCALE).ignoreOcclusion();
+        }
 
         Entity camera = client.getCameraEntity();
-        Vec3d center = Vec3d.ofCenter(pos);
         if (camera != null && camera.squaredDistanceTo(center) > BLOCK_PING_FAR_MARKER_DISTANCE_SQUARED) {
             GizmoDrawing.point(center, BLOCK_PING_MARKER_COLOR, BLOCK_PING_FAR_MARKER_SIZE).ignoreOcclusion();
         }
@@ -211,24 +212,26 @@ public final class LegionsPingManager {
         BlockState state = client.world.getBlockState(pos);
         VoxelShape shape = state.getOutlineShape(client.world, pos, ShapeContext.absent());
         if (shape.isEmpty()) {
-            renderBox(pos, BLOCK_PING_OUTER_EXPAND, BLOCK_PING_INNER_EXPAND);
+            renderBox(pos);
             return;
         }
 
         shape.forEachBox((minX, minY, minZ, maxX, maxY, maxZ) -> {
             Box box = new Box(minX, minY, minZ, maxX, maxY, maxZ).offset(pos);
-            renderBox(box, BLOCK_PING_OUTER_EXPAND, BLOCK_PING_INNER_EXPAND);
+            renderBox(box);
         });
     }
 
-    private static void renderBox(BlockPos pos, float outerExpand, float innerExpand) {
-        GizmoDrawing.box(pos, outerExpand, DrawStyle.stroked(BLOCK_PING_OUTER_COLOR, BLOCK_PING_OUTER_WIDTH)).ignoreOcclusion();
-        GizmoDrawing.box(pos, innerExpand, DrawStyle.stroked(BLOCK_PING_INNER_COLOR, BLOCK_PING_INNER_WIDTH)).ignoreOcclusion();
+    private static void renderBox(BlockPos pos) {
+        GizmoDrawing.box(pos, BLOCK_PING_EXPAND, blockPingDrawStyle()).ignoreOcclusion();
     }
 
-    private static void renderBox(Box box, float outerExpand, float innerExpand) {
-        GizmoDrawing.box(box.expand(outerExpand), DrawStyle.stroked(BLOCK_PING_OUTER_COLOR, BLOCK_PING_OUTER_WIDTH)).ignoreOcclusion();
-        GizmoDrawing.box(box.expand(innerExpand), DrawStyle.stroked(BLOCK_PING_INNER_COLOR, BLOCK_PING_INNER_WIDTH)).ignoreOcclusion();
+    private static void renderBox(Box box) {
+        GizmoDrawing.box(box.expand(BLOCK_PING_EXPAND), blockPingDrawStyle()).ignoreOcclusion();
+    }
+
+    private static DrawStyle blockPingDrawStyle() {
+        return BLOCK_PING_DRAW_STYLE;
     }
 
     private static String bracketDistanceLabel(MinecraftClient client, Vec3d pos) {
@@ -420,8 +423,9 @@ public final class LegionsPingManager {
         }
         Vec3d start = camera.getCameraPosVec(1.0f);
         Vec3d look = camera.getRotationVec(1.0f);
-        Vec3d end = start.add(look.multiply(RANGE));
-        Box searchBox = camera.getBoundingBox().stretch(look.multiply(RANGE)).expand(1.0);
+        Vec3d ray = look.multiply(RANGE);
+        Vec3d end = start.add(ray);
+        Box searchBox = camera.getBoundingBox().stretch(ray).expand(1.0);
         EntityHitResult result = ProjectileUtil.raycast(camera, start, end, searchBox,
                 entity -> entity instanceof PlayerEntity && entity.isAlive() && !entity.isSpectator(),
                 RANGE * RANGE

@@ -8,6 +8,8 @@
     "GameTestDebugRendererMixin",
     "ParticleSpriteManagerMixin",
     "EndRodParticleMixin",
+    "AtomicsDualSpectateCameraMixin",
+    "AtomicsDualSpectateLockUiMixin",
     "AtomicsClientScreenModuleMixin",
     "AtomicsTeamCountOverlayMixin",
     "AtomicsTierWeightManagerMixin"

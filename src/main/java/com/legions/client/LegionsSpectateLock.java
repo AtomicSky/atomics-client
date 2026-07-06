@@ -10,11 +10,16 @@ import net.minecraft.util.math.Vec3d;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 
 public final class LegionsSpectateLock {
     private static final double LOOK_RANGE = 128.0;
+    private static final double MAX_SECOND_PLAYER_DISTANCE = 96.0;
+    private static final double MAX_SECOND_PLAYER_DISTANCE_SQUARED =
+            MAX_SECOND_PLAYER_DISTANCE * MAX_SECOND_PLAYER_DISTANCE;
     private static String lockedPlayerName;
     private static boolean savedAtomicsState;
     private static boolean savedDualSpectateEnabled;
@@ -22,8 +27,52 @@ public final class LegionsSpectateLock {
     private static String savedDualSpectatePlayerOne = "";
     private static String savedDualSpectatePlayerTwo = "";
     private static String lastSecondPlayerName = "";
+    private static String lastLoggedPair = "";
+    private static Class<?> atomicsClientClass;
+    private static final Map<Class<?>, Map<String, Field>> FIELD_CACHE = new HashMap<>();
 
     private LegionsSpectateLock() {
+    }
+
+    public static void toggleLockToPlayer(MinecraftClient client, String playerName) {
+        if (!LegionsClient.isAtomicsClientLoaded()) {
+            sendAction(client, "Atomics Client is required for dual spectate lock");
+            return;
+        }
+        if (!isLockAvailable(client)) {
+            sendAction(client, "Dual spectate lock is unavailable");
+            return;
+        }
+        if (playerName == null || playerName.isBlank()) {
+            sendAction(client, "Enter a player name to lock dual spectate");
+            return;
+        }
+
+        PlayerEntity target = findPlayer(client, playerName);
+        if (!isDualSpectateCandidate(client, target)) {
+            sendAction(client, "Could not find spectate target: " + playerName.trim());
+            return;
+        }
+
+        String name = LegionsFeatures.realUsername(target);
+        if (name.equalsIgnoreCase(lockedPlayerName)) {
+            unlock(client, true);
+        } else {
+            lockTo(client, name);
+        }
+    }
+
+    public static boolean isLockedTo(String playerName) {
+        return lockedPlayerName != null && playerName != null && lockedPlayerName.equalsIgnoreCase(playerName.trim());
+    }
+
+    public static boolean isLockedPair(PlayerEntity first, PlayerEntity second) {
+        if (lockedPlayerName == null || first == null || second == null || first.getUuid().equals(second.getUuid())) {
+            return false;
+        }
+        return isExternalSpectateCandidate(first)
+                && isExternalSpectateCandidate(second)
+                && (isLockedTo(LegionsFeatures.realUsername(first)) || isLockedTo(LegionsFeatures.realUsername(second)));
     }
 
     public static void handleKeyPress(MinecraftClient client) {
@@ -31,15 +80,10 @@ public final class LegionsSpectateLock {
             sendAction(client, "Atomics Client is required for dual spectate lock");
             return;
         }
-        if (!LegionsClient.enabled(client) || client.player == null || client.world == null) {
-            sendAction(client, "Dual spectate lock only works on Legions");
+        if (!isLockAvailable(client)) {
+            sendAction(client, "Dual spectate lock is unavailable");
             return;
         }
-        if (!LegionsFeatures.isSpectatorTeam(client.player)) {
-            sendAction(client, "Dual spectate lock only works while spectating");
-            return;
-        }
-
         PlayerEntity target = findLookedAtPlayer(client);
         if (target == null) {
             if (lockedPlayerName != null) {
@@ -63,8 +107,8 @@ public final class LegionsSpectateLock {
         if (lockedPlayerName == null) {
             return;
         }
-        if (!LegionsClient.isAtomicsClientLoaded() || !LegionsClient.enabled(client) || client.player == null
-                || client.world == null || !LegionsFeatures.isSpectatorTeam(client.player)) {
+        if (!LegionsClient.isAtomicsClientLoaded() || !isLockAvailable(client) || client.player == null
+                || client.world == null) {
             unlock(client, false);
             return;
         }
@@ -86,6 +130,8 @@ public final class LegionsSpectateLock {
             String secondName = second == null ? "" : LegionsFeatures.realUsername(second);
             setField(pvp, "dualSpectatePlayerTwo", secondName);
             lastSecondPlayerName = secondName;
+            logPairChange(LegionsFeatures.realUsername(lockedPlayer), secondName,
+                    second == null ? -1.0 : Math.sqrt(lockedPlayer.squaredDistanceTo(second)));
         } catch (ReflectiveOperationException | RuntimeException e) {
             LegionsClient.LOGGER.debug("Failed to update Atomics dual spectate lock.", e);
             unlock(client, false);
@@ -105,6 +151,7 @@ public final class LegionsSpectateLock {
 
             lockedPlayerName = playerName;
             lastSecondPlayerName = "";
+            lastLoggedPair = "";
             tick(client);
             String suffix = lastSecondPlayerName == null || lastSecondPlayerName.isBlank() ? "" : " + " + lastSecondPlayerName;
             sendAction(client, "Dual spectate locked: " + playerName + suffix);
@@ -118,6 +165,7 @@ public final class LegionsSpectateLock {
         String previous = lockedPlayerName;
         lockedPlayerName = null;
         lastSecondPlayerName = "";
+        lastLoggedPair = "";
         try {
             if (savedAtomicsState) {
                 Object pvp = atomicsPvp();
@@ -154,6 +202,10 @@ public final class LegionsSpectateLock {
             }
 
             double distance = lockedPlayer.squaredDistanceTo(candidate);
+            if (distance > MAX_SECOND_PLAYER_DISTANCE_SQUARED) {
+                continue;
+            }
+
             double facingBonus = Math.max(0.0, facingDot(lockedPlayer, candidate))
                     + Math.max(0.0, facingDot(candidate, lockedPlayer));
             double score = distance - facingBonus * 10.0;
@@ -165,6 +217,22 @@ public final class LegionsSpectateLock {
         return best;
     }
 
+    private static void logPairChange(String lockedName, String secondName, double secondDistance) {
+        String pair = lockedName + "\u0000" + secondName;
+        if (pair.equals(lastLoggedPair)) {
+            return;
+        }
+
+        lastLoggedPair = pair;
+        if (secondName == null || secondName.isBlank()) {
+            LegionsClient.LOGGER.info("Dual spectate lock pair: {} + none nearby within {} blocks",
+                    lockedName, (int) MAX_SECOND_PLAYER_DISTANCE);
+        } else {
+            LegionsClient.LOGGER.info("Dual spectate lock pair: {} + {} ({} blocks)",
+                    lockedName, secondName, Math.round(secondDistance));
+        }
+    }
+
     private static double facingDot(PlayerEntity from, PlayerEntity to) {
         Vec3d direction = to.getEyePos().subtract(from.getEyePos());
         if (direction.lengthSquared() < 0.0001) {
@@ -173,14 +241,30 @@ public final class LegionsSpectateLock {
         return from.getRotationVec(1.0f).normalize().dotProduct(direction.normalize());
     }
 
+    private static boolean isLockAvailable(MinecraftClient client) {
+        return LegionsClient.CONFIG != null
+                && LegionsClient.CONFIG.enabled
+                && client != null
+                && client.player != null
+                && client.world != null;
+    }
+
     private static boolean isDualSpectateCandidate(MinecraftClient client, PlayerEntity player) {
         return player != null
                 && client != null
                 && client.player != null
                 && !player.getUuid().equals(client.player.getUuid())
+                && isExternalSpectateCandidate(player);
+    }
+
+    private static boolean isExternalSpectateCandidate(PlayerEntity player) {
+        return player != null
                 && !LegionsFeatures.isSpectatorTeam(player)
+                && !player.isSpectator()
+                && !player.isRemoved()
                 && !player.isDead()
-                && player.isAlive();
+                && player.isAlive()
+                && player.getHealth() > 0.0F;
     }
 
     private static PlayerEntity findLookedAtPlayer(MinecraftClient client) {
@@ -237,8 +321,7 @@ public final class LegionsSpectateLock {
     }
 
     private static Object atomicsPvp() throws ReflectiveOperationException {
-        Class<?> atomicsClient = Class.forName("com.atomics.client.AtomicsClient");
-        Object config = getStaticField(atomicsClient, "CONFIG");
+        Object config = getStaticField(atomicsClientClass(), "CONFIG");
         if (config == null) {
             throw new NoSuchFieldException("Atomics CONFIG is null");
         }
@@ -249,16 +332,19 @@ public final class LegionsSpectateLock {
         return pvp;
     }
 
+    private static Class<?> atomicsClientClass() throws ClassNotFoundException {
+        if (atomicsClientClass == null) {
+            atomicsClientClass = Class.forName("com.atomics.client.AtomicsClient");
+        }
+        return atomicsClientClass;
+    }
+
     private static Object getStaticField(Class<?> owner, String name) throws ReflectiveOperationException {
-        Field field = owner.getDeclaredField(name);
-        field.setAccessible(true);
-        return field.get(null);
+        return cachedField(owner, name).get(null);
     }
 
     private static Object getField(Object owner, String name) throws ReflectiveOperationException {
-        Field field = owner.getClass().getDeclaredField(name);
-        field.setAccessible(true);
-        return field.get(owner);
+        return cachedField(owner.getClass(), name).get(owner);
     }
 
     private static boolean getBooleanField(Object owner, String name) throws ReflectiveOperationException {
@@ -272,9 +358,18 @@ public final class LegionsSpectateLock {
     }
 
     private static void setField(Object owner, String name, Object value) throws ReflectiveOperationException {
-        Field field = owner.getClass().getDeclaredField(name);
-        field.setAccessible(true);
-        field.set(owner, value);
+        cachedField(owner.getClass(), name).set(owner, value);
+    }
+
+    private static Field cachedField(Class<?> owner, String name) throws NoSuchFieldException {
+        Map<String, Field> ownerFields = FIELD_CACHE.computeIfAbsent(owner, ignored -> new HashMap<>());
+        Field field = ownerFields.get(name);
+        if (field == null) {
+            field = owner.getDeclaredField(name);
+            field.setAccessible(true);
+            ownerFields.put(name, field);
+        }
+        return field;
     }
 
     private static void sendAction(MinecraftClient client, String message) {
