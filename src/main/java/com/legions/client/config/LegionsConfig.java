@@ -20,8 +20,17 @@ public class LegionsConfig {
     public boolean spectatorGlowEnabled = true;
     public boolean warningParticlesEnabled = true;
     public boolean teamPingEnabled = true;
+    public boolean teamHudEnabled = true;
+    public boolean teamCountOverlayEnabled = false;
+    public boolean opponentLimitEnabled = true;
+    public boolean playerRenderOptimizationEnabled = true;
     public int opponentLimit = 5;
+    public int playerRenderDistance = 64;
     public int pingDurationSeconds = 10;
+    public int teamHudX = 8;
+    public int teamHudY = 8;
+    public int teamCountOverlayX = -1;
+    public int teamCountOverlayY = -1;
 
     public static LegionsConfig load() {
         Path path = FabricLoader.getInstance().getConfigDir().resolve("legions_client.json");
@@ -42,7 +51,12 @@ public class LegionsConfig {
 
     public LegionsConfig normalize() {
         opponentLimit = clamp(opponentLimit, 1, 12);
+        playerRenderDistance = clamp(playerRenderDistance, 16, 160);
         pingDurationSeconds = clamp(pingDurationSeconds, 3, 10);
+        teamHudX = clamp(teamHudX, 0, 10000);
+        teamHudY = clamp(teamHudY, 0, 10000);
+        teamCountOverlayX = clamp(teamCountOverlayX, -1, 10000);
+        teamCountOverlayY = clamp(teamCountOverlayY, -1, 10000);
         return this;
     }
 

@@ -1,6 +1,8 @@
 package com.legions.client;
 
 import com.mojang.authlib.GameProfile;
+import net.minecraft.block.BlockState;
+import net.minecraft.block.ShapeContext;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.DrawStyle;
 import net.minecraft.entity.Entity;
@@ -13,6 +15,7 @@ import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
+import net.minecraft.util.shape.VoxelShape;
 import net.minecraft.world.RaycastContext;
 import net.minecraft.world.debug.gizmo.GizmoDrawing;
 
@@ -24,7 +27,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public final class LegionsPingManager {
-    private static final double RANGE = 96.0;
+    private static final double RANGE = 100.0;
     private static final long DOUBLE_PRESS_WINDOW_MILLIS = 300L;
     private static final float BLOCK_PING_OUTER_EXPAND = 0.025f;
     private static final float BLOCK_PING_INNER_EXPAND = 0.04f;
@@ -35,41 +38,52 @@ public final class LegionsPingManager {
     private static final int BLOCK_PING_OUTER_COLOR = 0x99FFD84A;
     private static final int BLOCK_PING_INNER_COLOR = 0xFFFFFFB0;
     private static final int BLOCK_PING_MARKER_COLOR = 0xFFFFD84A;
+    private static final int PING_LABEL_COLOR = 0xFF20FF4A;
+    private static final float BLOCK_PING_LABEL_SCALE = 0.65f;
     private static final Pattern BLOCK_PATTERN = Pattern.compile("\\[LC:B:([A-Za-z0-9_]{3,16}):(-?\\d+):(-?\\d+):(-?\\d+)]", Pattern.CASE_INSENSITIVE);
     private static final Pattern PLAYER_PATTERN = Pattern.compile("\\[LC:P:([A-Za-z0-9_]{3,16}):([A-Za-z0-9_]{3,16})]", Pattern.CASE_INSENSITIVE);
 
     private static final Map<BlockPos, Long> markedBlocks = new HashMap<>();
     private static final Map<String, Long> markedPlayers = new HashMap<>();
-    private static long pendingBlockPressAt;
-    private static BlockPos pendingBlockPingPos;
+    private static long pendingPlayerPressAt;
+    private static String pendingPlayerPingName;
 
     private LegionsPingManager() {
     }
 
     public static void handlePingKeyPress(MinecraftClient client) {
         if (!canUsePing(client)) {
-            clearPendingBlockPing();
+            clearPendingPlayerPing();
             return;
         }
 
         long now = System.currentTimeMillis();
-        if (pendingBlockPressAt > 0L && now - pendingBlockPressAt <= DOUBLE_PRESS_WINDOW_MILLIS) {
-            clearPendingBlockPing();
-            pingLookPlayer(client);
+        if (pendingPlayerPressAt > 0L && now - pendingPlayerPressAt <= DOUBLE_PRESS_WINDOW_MILLIS) {
+            clearPendingPlayerPing();
+            BlockPos pos = raycastBlockPos(client);
+            if (pos != null) {
+                pingBlock(client, pos);
+            }
             return;
         }
 
-        flushPendingBlockPing(client, now);
-        pendingBlockPressAt = now;
-        pendingBlockPingPos = raycastBlockPos(client);
+        flushPendingPlayerPing(client, now);
+        pendingPlayerPressAt = now;
+        PlayerEntity target = raycastPlayer(client);
+        pendingPlayerPingName = target == null ? null : LegionsFeatures.realUsername(target);
     }
 
-    private static void pingLookPlayer(MinecraftClient client) {
+    private static void pingPlayer(MinecraftClient client, String target) {
+        if (target == null || target.isBlank()) {
+            return;
+        }
         String sender = LegionsFeatures.realUsername(client.player);
-        PlayerEntity targetPlayer = raycastPlayer(client);
+        PlayerEntity targetPlayer = findPlayer(client, target);
         if (targetPlayer != null) {
-            String target = LegionsFeatures.realUsername(targetPlayer);
-            sendChat(client, "Focus " + target + " [LC:P:" + sender + ":" + target + "]");
+            String visibleMessage = LegionsFeatures.isTeammate(client.player, targetPlayer)
+                    ? target + " needs help!"
+                    : "Focus " + target;
+            sendChat(client, visibleMessage + " [LC:P:" + sender + ":" + target + "]");
             markPlayer(target);
         }
     }
@@ -112,15 +126,15 @@ public final class LegionsPingManager {
         if (client.world == null) {
             markedBlocks.clear();
             markedPlayers.clear();
-            clearPendingBlockPing();
+            clearPendingPlayerPing();
             return;
         }
 
         long now = System.currentTimeMillis();
         if (!canUsePing(client)) {
-            clearPendingBlockPing();
+            clearPendingPlayerPing();
         } else {
-            flushPendingBlockPing(client, now);
+            flushPendingPlayerPing(client, now);
         }
 
         long ttl = pingTtlMillis();
@@ -137,7 +151,8 @@ public final class LegionsPingManager {
 
     public static void renderBlockHighlights() {
         MinecraftClient client = MinecraftClient.getInstance();
-        if (!LegionsClient.enabled(client) || !LegionsClient.CONFIG.teamPingEnabled || client.world == null || markedBlocks.isEmpty()) {
+        if (!LegionsClient.enabled(client) || !LegionsClient.CONFIG.teamPingEnabled || client.world == null
+                || markedBlocks.isEmpty()) {
             return;
         }
 
@@ -153,14 +168,54 @@ public final class LegionsPingManager {
     }
 
     private static void renderBlockPingOutline(MinecraftClient client, BlockPos pos) {
-        GizmoDrawing.box(pos, BLOCK_PING_OUTER_EXPAND, DrawStyle.stroked(BLOCK_PING_OUTER_COLOR, BLOCK_PING_OUTER_WIDTH)).ignoreOcclusion();
-        GizmoDrawing.box(pos, BLOCK_PING_INNER_EXPAND, DrawStyle.stroked(BLOCK_PING_INNER_COLOR, BLOCK_PING_INNER_WIDTH)).ignoreOcclusion();
+        renderBlockShapeOutline(client, pos);
+        GizmoDrawing.blockLabel(bracketDistanceLabel(client, Vec3d.ofCenter(pos)), pos, 0, PING_LABEL_COLOR, BLOCK_PING_LABEL_SCALE).ignoreOcclusion();
 
         Entity camera = client.getCameraEntity();
         Vec3d center = Vec3d.ofCenter(pos);
         if (camera != null && camera.squaredDistanceTo(center) > BLOCK_PING_FAR_MARKER_DISTANCE_SQUARED) {
             GizmoDrawing.point(center, BLOCK_PING_MARKER_COLOR, BLOCK_PING_FAR_MARKER_SIZE).ignoreOcclusion();
         }
+    }
+
+    private static void renderBlockShapeOutline(MinecraftClient client, BlockPos pos) {
+        if (client.world == null) {
+            return;
+        }
+
+        BlockState state = client.world.getBlockState(pos);
+        VoxelShape shape = state.getOutlineShape(client.world, pos, ShapeContext.absent());
+        if (shape.isEmpty()) {
+            renderBox(pos, BLOCK_PING_OUTER_EXPAND, BLOCK_PING_INNER_EXPAND);
+            return;
+        }
+
+        shape.forEachBox((minX, minY, minZ, maxX, maxY, maxZ) -> {
+            Box box = new Box(minX, minY, minZ, maxX, maxY, maxZ).offset(pos);
+            renderBox(box, BLOCK_PING_OUTER_EXPAND, BLOCK_PING_INNER_EXPAND);
+        });
+    }
+
+    private static void renderBox(BlockPos pos, float outerExpand, float innerExpand) {
+        GizmoDrawing.box(pos, outerExpand, DrawStyle.stroked(BLOCK_PING_OUTER_COLOR, BLOCK_PING_OUTER_WIDTH));
+        GizmoDrawing.box(pos, innerExpand, DrawStyle.stroked(BLOCK_PING_INNER_COLOR, BLOCK_PING_INNER_WIDTH));
+    }
+
+    private static void renderBox(Box box, float outerExpand, float innerExpand) {
+        GizmoDrawing.box(box.expand(outerExpand), DrawStyle.stroked(BLOCK_PING_OUTER_COLOR, BLOCK_PING_OUTER_WIDTH));
+        GizmoDrawing.box(box.expand(innerExpand), DrawStyle.stroked(BLOCK_PING_INNER_COLOR, BLOCK_PING_INNER_WIDTH));
+    }
+
+    private static String bracketDistanceLabel(MinecraftClient client, Vec3d pos) {
+        return "[" + distanceLabel(client, pos) + "]";
+    }
+
+    private static String distanceLabel(MinecraftClient client, Vec3d pos) {
+        Entity camera = client.getCameraEntity() == null ? client.player : client.getCameraEntity();
+        if (camera == null || pos == null) {
+            return "?m";
+        }
+        return Math.round(camera.getCameraPosVec(1.0f).distanceTo(pos)) + "m";
     }
 
     private static void sendChat(MinecraftClient client, String message) {
@@ -177,21 +232,21 @@ public final class LegionsPingManager {
         markedPlayers.put(name.toLowerCase(Locale.ROOT), System.currentTimeMillis());
     }
 
-    private static void flushPendingBlockPing(MinecraftClient client, long now) {
-        if (pendingBlockPressAt <= 0L || now - pendingBlockPressAt < DOUBLE_PRESS_WINDOW_MILLIS) {
+    private static void flushPendingPlayerPing(MinecraftClient client, long now) {
+        if (pendingPlayerPressAt <= 0L || now - pendingPlayerPressAt < DOUBLE_PRESS_WINDOW_MILLIS) {
             return;
         }
 
-        BlockPos pos = pendingBlockPingPos;
-        clearPendingBlockPing();
-        if (pos != null && canUsePing(client)) {
-            pingBlock(client, pos);
+        String target = pendingPlayerPingName;
+        clearPendingPlayerPing();
+        if (target != null && canUsePing(client)) {
+            pingPlayer(client, target);
         }
     }
 
-    private static void clearPendingBlockPing() {
-        pendingBlockPressAt = 0L;
-        pendingBlockPingPos = null;
+    private static void clearPendingPlayerPing() {
+        pendingPlayerPressAt = 0L;
+        pendingPlayerPingName = null;
     }
 
     private static long pingTtlMillis() {
@@ -261,11 +316,6 @@ public final class LegionsPingManager {
                 RANGE * RANGE
         );
         if (result == null || !(result.getEntity() instanceof PlayerEntity player)) {
-            return null;
-        }
-        BlockHitResult blockHit = raycastBlock(client);
-        if (blockHit != null && blockHit.getType() == HitResult.Type.BLOCK
-                && blockHit.getPos().squaredDistanceTo(start) < result.getPos().squaredDistanceTo(start)) {
             return null;
         }
         UUID localUuid = client.player == null ? null : client.player.getUuid();

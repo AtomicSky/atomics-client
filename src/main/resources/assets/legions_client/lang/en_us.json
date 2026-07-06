@@ -1,6 +1,9 @@
 {
+  "category.legions_client.main": "Legions Client",
+  "key.category.legions_client.main": "Legions Client",
   "key.categories.legions_client.main": "Legions Client",
   "key.legions_client.open_config": "Open Legions Client",
   "key.legions_client.ping_target": "Ping Target",
+  "key.legions_client.lock_dual_spectate": "Lock Dual Spectate Player",
   "modmenu.descriptionTranslation.legions_client": "Client-side team coordination tools for the Legions Minecraft server."
 }

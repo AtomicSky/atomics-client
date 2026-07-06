@@ -6,6 +6,7 @@ import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
+import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.option.KeyBinding;
@@ -27,6 +28,7 @@ public class LegionsClient implements ClientModInitializer {
     private static final boolean ATOMICS_CLIENT_LOADED = FabricLoader.getInstance().isModLoaded("atomics_client");
     private static KeyBinding openConfigKey;
     private static KeyBinding pingTargetKey;
+    private static KeyBinding lockDualSpectateKey;
 
     @Override
     public void onInitializeClient() {
@@ -39,7 +41,7 @@ public class LegionsClient implements ClientModInitializer {
             openConfigKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
                     "key.legions_client.open_config",
                     InputUtil.Type.KEYSYM,
-                    GLFW.GLFW_KEY_L,
+                    GLFW.GLFW_KEY_O,
                     category
             ));
         }
@@ -49,6 +51,14 @@ public class LegionsClient implements ClientModInitializer {
                 GLFW.GLFW_KEY_G,
                 category
         ));
+        if (ATOMICS_CLIENT_LOADED) {
+            lockDualSpectateKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+                    "key.legions_client.lock_dual_spectate",
+                    InputUtil.Type.KEYSYM,
+                    GLFW.GLFW_KEY_UNKNOWN,
+                    category
+            ));
+        }
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (openConfigKey != null && openConfigKey.wasPressed()) {
@@ -57,13 +67,18 @@ public class LegionsClient implements ClientModInitializer {
             while (pingTargetKey != null && pingTargetKey.wasPressed()) {
                 LegionsPingManager.handlePingKeyPress(client);
             }
+            while (lockDualSpectateKey != null && lockDualSpectateKey.wasPressed()) {
+                LegionsSpectateLock.handleKeyPress(client);
+            }
             LegionsFeatures.tick(client);
             LegionsPingManager.tick(client);
+            LegionsSpectateLock.tick(client);
         });
 
         ClientReceiveMessageEvents.CHAT.register((message, signedMessage, sender, parameters, timestamp) ->
                 LegionsPingManager.receiveChatPing(message, sender)
         );
+        HudRenderCallback.EVENT.register((context, tickCounter) -> LegionsHud.renderHud(context));
     }
 
     public static void saveConfig() {

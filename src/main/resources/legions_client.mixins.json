@@ -6,7 +6,11 @@
     "PlayerEntityRendererMixin",
     "LivingEntityRendererMixin",
     "GameTestDebugRendererMixin",
-    "AtomicsClientScreenModuleMixin"
+    "ParticleSpriteManagerMixin",
+    "EndRodParticleMixin",
+    "AtomicsClientScreenModuleMixin",
+    "AtomicsTeamCountOverlayMixin",
+    "AtomicsTierWeightManagerMixin"
   ],
   "injectors": {
     "defaultRequire": 0

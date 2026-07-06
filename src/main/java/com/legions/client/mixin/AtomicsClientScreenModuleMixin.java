@@ -1,10 +1,13 @@
 package com.legions.client.mixin;
 
 import com.legions.client.LegionsClient;
+import com.legions.client.gui.LegionsTeamCountOverlayLayoutScreen;
+import com.legions.client.gui.LegionsTeamHudLayoutScreen;
 import com.legions.client.gui.atomics.LegionsAtomicsIntSlider;
 import com.legions.client.gui.atomics.LegionsAtomicsSectionHeaderWidget;
 import com.legions.client.gui.atomics.LegionsAtomicsToggleWidget;
 import net.minecraft.client.gui.screen.Screen;
+import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.text.Text;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Pseudo;
@@ -52,6 +55,13 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
         cir.setReturnValue(legions_client$buildLegionsModule(cir.getReturnValue()));
     }
 
+    @Inject(method = "shouldShowFeature", at = @At("HEAD"), cancellable = true, remap = false)
+    private void legions_client$hideAtomicsTeamCountFeature(String key, String title, String[] terms, CallbackInfoReturnable<Boolean> cir) {
+        if ("pvp.team_count_overlay".equals(key)) {
+            cir.setReturnValue(false);
+        }
+    }
+
     @Unique
     private int legions_client$buildLegionsModule(int y) {
         int leftX = legions_client$getIntField("leftX", 18);
@@ -83,8 +93,25 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
         y = legions_client$addToggle(leftX, y, controlWidth, "Spectator Glow", () -> LegionsClient.CONFIG.spectatorGlowEnabled, value -> LegionsClient.CONFIG.spectatorGlowEnabled = value);
         y = legions_client$addToggle(leftX, y, controlWidth, "Warning Particles", () -> LegionsClient.CONFIG.warningParticlesEnabled, value -> LegionsClient.CONFIG.warningParticlesEnabled = value);
         y = legions_client$addToggle(leftX, y, controlWidth, "Team Ping", () -> LegionsClient.CONFIG.teamPingEnabled, value -> LegionsClient.CONFIG.teamPingEnabled = value);
-        y = legions_client$addIntSlider(leftX, y, controlWidth, "Opponents Shown", 1, 12, LegionsClient.CONFIG.opponentLimit, value -> LegionsClient.CONFIG.opponentLimit = value);
-        y = legions_client$addIntSlider(leftX, y, controlWidth, "Ping Seconds", 3, 10, LegionsClient.CONFIG.pingDurationSeconds, value -> LegionsClient.CONFIG.pingDurationSeconds = value);
+        if (LegionsClient.CONFIG.teamPingEnabled) {
+            y = legions_client$addIntSlider(leftX, y, controlWidth, "Ping Seconds", 3, 10, LegionsClient.CONFIG.pingDurationSeconds, value -> LegionsClient.CONFIG.pingDurationSeconds = value);
+        }
+        y = legions_client$addToggle(leftX, y, controlWidth, "Team Count Overlay", () -> LegionsClient.CONFIG.teamCountOverlayEnabled, value -> LegionsClient.CONFIG.teamCountOverlayEnabled = value);
+        if (LegionsClient.CONFIG.teamCountOverlayEnabled) {
+            y = legions_client$addMoveTeamCountButton(leftX, y, controlWidth);
+        }
+        y = legions_client$addToggle(leftX, y, controlWidth, "Team HUD", () -> LegionsClient.CONFIG.teamHudEnabled, value -> LegionsClient.CONFIG.teamHudEnabled = value);
+        if (LegionsClient.CONFIG.teamHudEnabled) {
+            y = legions_client$addMoveTeamHudButton(leftX, y, controlWidth);
+        }
+        y = legions_client$addToggle(leftX, y, controlWidth, "Limit Opponents Shown", () -> LegionsClient.CONFIG.opponentLimitEnabled, value -> LegionsClient.CONFIG.opponentLimitEnabled = value);
+        if (LegionsClient.CONFIG.opponentLimitEnabled) {
+            y = legions_client$addIntSlider(leftX, y, controlWidth, "Opponents Shown", 1, 12, LegionsClient.CONFIG.opponentLimit, value -> LegionsClient.CONFIG.opponentLimit = value);
+        }
+        y = legions_client$addToggle(leftX, y, controlWidth, "Player Render Optimization", () -> LegionsClient.CONFIG.playerRenderOptimizationEnabled, value -> LegionsClient.CONFIG.playerRenderOptimizationEnabled = value);
+        if (LegionsClient.CONFIG.playerRenderOptimizationEnabled) {
+            y = legions_client$addIntSlider(leftX, y, controlWidth, "Render Distance", 16, 160, LegionsClient.CONFIG.playerRenderDistance, value -> LegionsClient.CONFIG.playerRenderDistance = value);
+        }
 
         return y + 10;
     }
@@ -103,6 +130,8 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
             Method addIntSlider = legions_client$getMethod(screenClass, "addIntSlider",
                     int.class, int.class, int.class, String.class, int.class, int.class, int.class,
                     int.class, int.class, intSetterType);
+            Method addWideButton = legions_client$getMethod(screenClass, "addWideButton",
+                    int.class, int.class, int.class, String.class, ButtonWidget.PressAction.class);
 
             int rowY = (Integer) addFeatureSection.invoke(this, y, LEGIONS_FEATURE_KEY, "Legions");
             if ((Boolean) isFeatureCollapsed.invoke(this, LEGIONS_FEATURE_KEY)) {
@@ -121,12 +150,37 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
                     "Warning Particles", true, () -> LegionsClient.CONFIG.warningParticlesEnabled, value -> LegionsClient.CONFIG.warningParticlesEnabled = value);
             rowY = legions_client$addNativeToggle(addToggle, toggleSetterType, leftX, rowY, controlWidth,
                     "Team Ping", true, () -> LegionsClient.CONFIG.teamPingEnabled, value -> LegionsClient.CONFIG.teamPingEnabled = value);
-            rowY = legions_client$addNativeIntSlider(addIntSlider, intSetterType, leftX, rowY, controlWidth,
-                    "Opponents Shown", LegionsClient.CONFIG.opponentLimit, 1, 12, 1, 5,
-                    () -> LegionsClient.CONFIG.opponentLimit, value -> LegionsClient.CONFIG.opponentLimit = value);
-            rowY = legions_client$addNativeIntSlider(addIntSlider, intSetterType, leftX, rowY, controlWidth,
-                    "Ping Seconds", LegionsClient.CONFIG.pingDurationSeconds, 3, 10, 1, 10,
-                    () -> LegionsClient.CONFIG.pingDurationSeconds, value -> LegionsClient.CONFIG.pingDurationSeconds = value);
+            if (LegionsClient.CONFIG.teamPingEnabled) {
+                rowY = legions_client$addNativeIntSlider(addIntSlider, intSetterType, leftX, rowY, controlWidth,
+                        "Ping Seconds", LegionsClient.CONFIG.pingDurationSeconds, 3, 10, 1, 10,
+                        () -> LegionsClient.CONFIG.pingDurationSeconds, value -> LegionsClient.CONFIG.pingDurationSeconds = value);
+            }
+            rowY = legions_client$addNativeToggle(addToggle, toggleSetterType, leftX, rowY, controlWidth,
+                    "Team Count Overlay", false, () -> LegionsClient.CONFIG.teamCountOverlayEnabled, value -> LegionsClient.CONFIG.teamCountOverlayEnabled = value);
+            if (LegionsClient.CONFIG.teamCountOverlayEnabled) {
+                rowY = legions_client$addNativeWideButton(addWideButton, leftX, rowY, controlWidth, "Move Team Count Overlay",
+                        button -> this.client.setScreen(new LegionsTeamCountOverlayLayoutScreen(this)));
+            }
+            rowY = legions_client$addNativeToggle(addToggle, toggleSetterType, leftX, rowY, controlWidth,
+                    "Team HUD", true, () -> LegionsClient.CONFIG.teamHudEnabled, value -> LegionsClient.CONFIG.teamHudEnabled = value);
+            if (LegionsClient.CONFIG.teamHudEnabled) {
+                rowY = legions_client$addNativeWideButton(addWideButton, leftX, rowY, controlWidth, "Move Team HUD",
+                        button -> this.client.setScreen(new LegionsTeamHudLayoutScreen(this)));
+            }
+            rowY = legions_client$addNativeToggle(addToggle, toggleSetterType, leftX, rowY, controlWidth,
+                    "Limit Opponents Shown", true, () -> LegionsClient.CONFIG.opponentLimitEnabled, value -> LegionsClient.CONFIG.opponentLimitEnabled = value);
+            if (LegionsClient.CONFIG.opponentLimitEnabled) {
+                rowY = legions_client$addNativeIntSlider(addIntSlider, intSetterType, leftX, rowY, controlWidth,
+                        "Opponents Shown", LegionsClient.CONFIG.opponentLimit, 1, 12, 1, 5,
+                        () -> LegionsClient.CONFIG.opponentLimit, value -> LegionsClient.CONFIG.opponentLimit = value);
+            }
+            rowY = legions_client$addNativeToggle(addToggle, toggleSetterType, leftX, rowY, controlWidth,
+                    "Player Render Optimization", true, () -> LegionsClient.CONFIG.playerRenderOptimizationEnabled, value -> LegionsClient.CONFIG.playerRenderOptimizationEnabled = value);
+            if (LegionsClient.CONFIG.playerRenderOptimizationEnabled) {
+                rowY = legions_client$addNativeIntSlider(addIntSlider, intSetterType, leftX, rowY, controlWidth,
+                        "Render Distance", LegionsClient.CONFIG.playerRenderDistance, 16, 160, 8, 64,
+                        () -> LegionsClient.CONFIG.playerRenderDistance, value -> LegionsClient.CONFIG.playerRenderDistance = value);
+            }
 
             return rowY + 10;
         } catch (ReflectiveOperationException | RuntimeException e) {
@@ -154,12 +208,19 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
     }
 
     @Unique
+    private int legions_client$addNativeWideButton(Method addWideButton, int x, int y, int width, String label, ButtonWidget.PressAction action) throws ReflectiveOperationException {
+        addWideButton.invoke(this, x, y, width, label, action);
+        return y + LEGIONS_ROW_HEIGHT;
+    }
+
+    @Unique
     private Object legions_client$toggleSetter(Class<?> setterType, BooleanSupplier getter, Consumer<Boolean> setter) {
         return Proxy.newProxyInstance(setterType.getClassLoader(), new Class<?>[]{setterType}, (proxy, method, args) -> {
             if ("set".equals(method.getName()) && args != null && args.length == 1 && args[0] instanceof Boolean value) {
                 if (getter.getAsBoolean() != value) {
                     setter.accept(value);
                     LegionsClient.saveConfig();
+                    clearAndInit();
                 }
                 return null;
             }
@@ -214,6 +275,26 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
     }
 
     @Unique
+    private int legions_client$addMoveTeamHudButton(int x, int y, int width) {
+        if (legions_client$isWidgetVisible(y)) {
+            addDrawableChild(ButtonWidget.builder(Text.literal("Move Team HUD"),
+                    button -> this.client.setScreen(new LegionsTeamHudLayoutScreen(this)))
+                    .dimensions(x, y, width, LEGIONS_BUTTON_HEIGHT).build());
+        }
+        return y + LEGIONS_ROW_HEIGHT;
+    }
+
+    @Unique
+    private int legions_client$addMoveTeamCountButton(int x, int y, int width) {
+        if (legions_client$isWidgetVisible(y)) {
+            addDrawableChild(ButtonWidget.builder(Text.literal("Move Team Count Overlay"),
+                    button -> this.client.setScreen(new LegionsTeamCountOverlayLayoutScreen(this)))
+                    .dimensions(x, y, width, LEGIONS_BUTTON_HEIGHT).build());
+        }
+        return y + LEGIONS_ROW_HEIGHT;
+    }
+
+    @Unique
     private boolean legions_client$shouldShowModule() {
         if (!legions_client$isSearchTab()) {
             return true;
@@ -222,8 +303,18 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
         if (query.isBlank()) {
             return true;
         }
-        String terms = "legions lc rating nametag foe outline spectator glow warning particle team ping opponent opponents shown";
-        return terms.contains(query);
+        String terms = "legions lc rating nametag foe outline spectator glow warning particle team ping team hud team counter team count player count scoreboard scoreboard teams left players left count move opponent opponents shown limit hidden hide render optimization distance fps performance opacity";
+        return legions_client$matchesSearch(query, terms);
+    }
+
+    @Unique
+    private boolean legions_client$matchesSearch(String query, String terms) {
+        for (String token : query.split("\\s+")) {
+            if (!token.isBlank() && !terms.contains(token)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @Unique
