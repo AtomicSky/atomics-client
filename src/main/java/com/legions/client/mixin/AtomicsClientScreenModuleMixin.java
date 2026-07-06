@@ -94,7 +94,7 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
         y = legions_client$addToggle(leftX, y, controlWidth, "Warning Particles", () -> LegionsClient.CONFIG.warningParticlesEnabled, value -> LegionsClient.CONFIG.warningParticlesEnabled = value);
         y = legions_client$addToggle(leftX, y, controlWidth, "Team Ping", () -> LegionsClient.CONFIG.teamPingEnabled, value -> LegionsClient.CONFIG.teamPingEnabled = value);
         if (LegionsClient.CONFIG.teamPingEnabled) {
-            y = legions_client$addIntSlider(leftX, y, controlWidth, "Ping Seconds", 3, 10, LegionsClient.CONFIG.pingDurationSeconds, value -> LegionsClient.CONFIG.pingDurationSeconds = value);
+            y = legions_client$addIntSlider(leftX, y, controlWidth, "Ping Seconds", 1, 25, LegionsClient.CONFIG.pingDurationSeconds, value -> LegionsClient.CONFIG.pingDurationSeconds = value);
         }
         y = legions_client$addToggle(leftX, y, controlWidth, "Team Count Overlay", () -> LegionsClient.CONFIG.teamCountOverlayEnabled, value -> LegionsClient.CONFIG.teamCountOverlayEnabled = value);
         if (LegionsClient.CONFIG.teamCountOverlayEnabled) {
@@ -106,7 +106,7 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
         }
         y = legions_client$addToggle(leftX, y, controlWidth, "Limit Opponents Shown", () -> LegionsClient.CONFIG.opponentLimitEnabled, value -> LegionsClient.CONFIG.opponentLimitEnabled = value);
         if (LegionsClient.CONFIG.opponentLimitEnabled) {
-            y = legions_client$addIntSlider(leftX, y, controlWidth, "Opponents Shown", 1, 12, LegionsClient.CONFIG.opponentLimit, value -> LegionsClient.CONFIG.opponentLimit = value);
+            y = legions_client$addIntSlider(leftX, y, controlWidth, "Opponents Shown", 1, 20, LegionsClient.CONFIG.opponentLimit, value -> LegionsClient.CONFIG.opponentLimit = value);
         }
         y = legions_client$addToggle(leftX, y, controlWidth, "Player Render Optimization", () -> LegionsClient.CONFIG.playerRenderOptimizationEnabled, value -> LegionsClient.CONFIG.playerRenderOptimizationEnabled = value);
         if (LegionsClient.CONFIG.playerRenderOptimizationEnabled) {
@@ -152,7 +152,7 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
                     "Team Ping", true, () -> LegionsClient.CONFIG.teamPingEnabled, value -> LegionsClient.CONFIG.teamPingEnabled = value);
             if (LegionsClient.CONFIG.teamPingEnabled) {
                 rowY = legions_client$addNativeIntSlider(addIntSlider, intSetterType, leftX, rowY, controlWidth,
-                        "Ping Seconds", LegionsClient.CONFIG.pingDurationSeconds, 3, 10, 1, 10,
+                        "Ping Seconds", LegionsClient.CONFIG.pingDurationSeconds, 1, 25, 1, 10,
                         () -> LegionsClient.CONFIG.pingDurationSeconds, value -> LegionsClient.CONFIG.pingDurationSeconds = value);
             }
             rowY = legions_client$addNativeToggle(addToggle, toggleSetterType, leftX, rowY, controlWidth,
@@ -171,7 +171,7 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
                     "Limit Opponents Shown", true, () -> LegionsClient.CONFIG.opponentLimitEnabled, value -> LegionsClient.CONFIG.opponentLimitEnabled = value);
             if (LegionsClient.CONFIG.opponentLimitEnabled) {
                 rowY = legions_client$addNativeIntSlider(addIntSlider, intSetterType, leftX, rowY, controlWidth,
-                        "Opponents Shown", LegionsClient.CONFIG.opponentLimit, 1, 12, 1, 5,
+                        "Opponents Shown", LegionsClient.CONFIG.opponentLimit, 1, 20, 1, 5,
                         () -> LegionsClient.CONFIG.opponentLimit, value -> LegionsClient.CONFIG.opponentLimit = value);
             }
             rowY = legions_client$addNativeToggle(addToggle, toggleSetterType, leftX, rowY, controlWidth,

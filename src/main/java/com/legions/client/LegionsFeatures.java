@@ -29,7 +29,6 @@ import java.util.regex.Pattern;
 public final class LegionsFeatures {
     private static final Pattern LEGIONS_TAB_TAG_PATTERN = Pattern.compile("\\[(\\d\\.\\d|\\?)\\]");
     private static final boolean ATOMICS_CLIENT_LOADED = FabricLoader.getInstance().isModLoaded("atomics_client");
-    private static final int PLAYER_OPTIMIZATION_MIN_PLAYERS = 40;
     private static final int QUIP_UNKNOWN_COLOR = 0xA0A0A0;
     private static final Set<UUID> visibleOpponentCache = new HashSet<>();
     private static final ArrayList<PlayerEntity> visibleOpponentScratch = new ArrayList<>();
@@ -139,7 +138,7 @@ public final class LegionsFeatures {
     }
 
     private static boolean shouldCullForRenderOptimization(MinecraftClient client, PlayerEntity player) {
-        if (!LegionsClient.CONFIG.playerRenderOptimizationEnabled || client.world.getPlayers().size() < PLAYER_OPTIMIZATION_MIN_PLAYERS) {
+        if (!LegionsClient.CONFIG.playerRenderOptimizationEnabled) {
             return false;
         }
 

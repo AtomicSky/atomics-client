@@ -19,6 +19,8 @@ public class LegionsClientScreen extends Screen {
     private static final int PANEL_BOTTOM_MARGIN = 18;
     private static final int ROW_SPACING = 24;
     private static final int SCROLL_STEP = ROW_SPACING;
+    private static final int PANEL_SIDE_PADDING = 8;
+    private static final int SCROLLBAR_GUTTER = 14;
     private final Screen parent;
     private int panelBottom = 330;
     private int scrollOffset;
@@ -34,47 +36,49 @@ public class LegionsClientScreen extends Screen {
     protected void init() {
         int panelWidth = panelWidth();
         int x = (this.width - panelWidth) / 2;
+        int controlX = x + PANEL_SIDE_PADDING;
+        int controlWidth = controlWidth(panelWidth);
         int y = CONTENT_TOP;
 
-        addToggle(x, screenY(y), panelWidth, "Enabled", () -> LegionsClient.CONFIG.enabled, value -> LegionsClient.CONFIG.enabled = value);
+        addToggle(controlX, screenY(y), controlWidth, "Enabled", () -> LegionsClient.CONFIG.enabled, value -> LegionsClient.CONFIG.enabled = value);
         y += ROW_SPACING;
-        addToggle(x, screenY(y), panelWidth, "Rating Nametags", () -> LegionsClient.CONFIG.ratingNametagsEnabled, value -> LegionsClient.CONFIG.ratingNametagsEnabled = value);
+        addToggle(controlX, screenY(y), controlWidth, "Rating Nametags", () -> LegionsClient.CONFIG.ratingNametagsEnabled, value -> LegionsClient.CONFIG.ratingNametagsEnabled = value);
         y += ROW_SPACING;
-        addToggle(x, screenY(y), panelWidth, "Foe Outlines", () -> LegionsClient.CONFIG.automaticFoeOutlinesEnabled, value -> LegionsClient.CONFIG.automaticFoeOutlinesEnabled = value);
+        addToggle(controlX, screenY(y), controlWidth, "Foe Outlines", () -> LegionsClient.CONFIG.automaticFoeOutlinesEnabled, value -> LegionsClient.CONFIG.automaticFoeOutlinesEnabled = value);
         y += ROW_SPACING;
-        addToggle(x, screenY(y), panelWidth, "Spectator Glow", () -> LegionsClient.CONFIG.spectatorGlowEnabled, value -> LegionsClient.CONFIG.spectatorGlowEnabled = value);
+        addToggle(controlX, screenY(y), controlWidth, "Spectator Glow", () -> LegionsClient.CONFIG.spectatorGlowEnabled, value -> LegionsClient.CONFIG.spectatorGlowEnabled = value);
         y += ROW_SPACING;
-        addToggle(x, screenY(y), panelWidth, "Warning Particles", () -> LegionsClient.CONFIG.warningParticlesEnabled, value -> LegionsClient.CONFIG.warningParticlesEnabled = value);
+        addToggle(controlX, screenY(y), controlWidth, "Warning Particles", () -> LegionsClient.CONFIG.warningParticlesEnabled, value -> LegionsClient.CONFIG.warningParticlesEnabled = value);
         y += ROW_SPACING;
-        addToggle(x, screenY(y), panelWidth, "Team Ping", () -> LegionsClient.CONFIG.teamPingEnabled, value -> LegionsClient.CONFIG.teamPingEnabled = value);
+        addToggle(controlX, screenY(y), controlWidth, "Team Ping", () -> LegionsClient.CONFIG.teamPingEnabled, value -> LegionsClient.CONFIG.teamPingEnabled = value);
         y += ROW_SPACING;
         if (LegionsClient.CONFIG.teamPingEnabled) {
-            addSlider(x, screenY(y), panelWidth, "Ping Seconds", 3, 10, LegionsClient.CONFIG.pingDurationSeconds, value -> LegionsClient.CONFIG.pingDurationSeconds = value);
+            addSlider(controlX, screenY(y), controlWidth, "Ping Seconds", 1, 25, LegionsClient.CONFIG.pingDurationSeconds, value -> LegionsClient.CONFIG.pingDurationSeconds = value);
             y += ROW_SPACING;
         }
-        addToggle(x, screenY(y), panelWidth, "Team Count Overlay", () -> LegionsClient.CONFIG.teamCountOverlayEnabled, value -> LegionsClient.CONFIG.teamCountOverlayEnabled = value);
+        addToggle(controlX, screenY(y), controlWidth, "Team Count Overlay", () -> LegionsClient.CONFIG.teamCountOverlayEnabled, value -> LegionsClient.CONFIG.teamCountOverlayEnabled = value);
         y += ROW_SPACING;
         if (LegionsClient.CONFIG.teamCountOverlayEnabled) {
-            addButton(x, screenY(y), panelWidth, Text.literal("Move Team Count Overlay"), button -> MinecraftClient.getInstance().setScreen(new LegionsTeamCountOverlayLayoutScreen(this)));
+            addButton(controlX, screenY(y), controlWidth, Text.literal("Move Team Count Overlay"), button -> MinecraftClient.getInstance().setScreen(new LegionsTeamCountOverlayLayoutScreen(this)));
             y += ROW_SPACING;
         }
-        addToggle(x, screenY(y), panelWidth, "Team HUD", () -> LegionsClient.CONFIG.teamHudEnabled, value -> LegionsClient.CONFIG.teamHudEnabled = value);
+        addToggle(controlX, screenY(y), controlWidth, "Team HUD", () -> LegionsClient.CONFIG.teamHudEnabled, value -> LegionsClient.CONFIG.teamHudEnabled = value);
         y += ROW_SPACING;
         if (LegionsClient.CONFIG.teamHudEnabled) {
-            addButton(x, screenY(y), panelWidth, Text.literal("Move Team HUD"), button -> MinecraftClient.getInstance().setScreen(new LegionsTeamHudLayoutScreen(this)));
+            addButton(controlX, screenY(y), controlWidth, Text.literal("Move Team HUD"), button -> MinecraftClient.getInstance().setScreen(new LegionsTeamHudLayoutScreen(this)));
             y += ROW_SPACING;
         }
 
-        addToggle(x, screenY(y), panelWidth, "Limit Opponents Shown", () -> LegionsClient.CONFIG.opponentLimitEnabled, value -> LegionsClient.CONFIG.opponentLimitEnabled = value);
+        addToggle(controlX, screenY(y), controlWidth, "Limit Opponents Shown", () -> LegionsClient.CONFIG.opponentLimitEnabled, value -> LegionsClient.CONFIG.opponentLimitEnabled = value);
         y += ROW_SPACING;
         if (LegionsClient.CONFIG.opponentLimitEnabled) {
-            addSlider(x, screenY(y), panelWidth, "Opponents Shown", 1, 12, LegionsClient.CONFIG.opponentLimit, value -> LegionsClient.CONFIG.opponentLimit = value);
+            addSlider(controlX, screenY(y), controlWidth, "Opponents Shown", 1, 20, LegionsClient.CONFIG.opponentLimit, value -> LegionsClient.CONFIG.opponentLimit = value);
             y += ROW_SPACING;
         }
-        addToggle(x, screenY(y), panelWidth, "Player Render Optimization", () -> LegionsClient.CONFIG.playerRenderOptimizationEnabled, value -> LegionsClient.CONFIG.playerRenderOptimizationEnabled = value);
+        addToggle(controlX, screenY(y), controlWidth, "Player Render Optimization", () -> LegionsClient.CONFIG.playerRenderOptimizationEnabled, value -> LegionsClient.CONFIG.playerRenderOptimizationEnabled = value);
         y += ROW_SPACING;
         if (LegionsClient.CONFIG.playerRenderOptimizationEnabled) {
-            addSlider(x, screenY(y), panelWidth, "Render Distance", 16, 160, LegionsClient.CONFIG.playerRenderDistance, value -> LegionsClient.CONFIG.playerRenderDistance = value);
+            addSlider(controlX, screenY(y), controlWidth, "Render Distance", 16, 160, LegionsClient.CONFIG.playerRenderDistance, value -> LegionsClient.CONFIG.playerRenderDistance = value);
             y += ROW_SPACING;
         }
         y += 28;
@@ -84,13 +88,13 @@ public class LegionsClientScreen extends Screen {
             addDrawableChild(ButtonWidget.builder(Text.literal("Save"), button -> {
                 LegionsClient.saveConfig();
                 button.setMessage(Text.literal("Saved"));
-            }).dimensions(x, buttonY, panelWidth / 3 - 4, BUTTON_HEIGHT).build());
+            }).dimensions(controlX, buttonY, controlWidth / 3 - 4, BUTTON_HEIGHT).build());
             addDrawableChild(ButtonWidget.builder(Text.literal("Reset"), button -> {
                 LegionsClient.CONFIG = new com.legions.client.config.LegionsConfig();
                 LegionsClient.saveConfig();
                 clearAndInit();
-            }).dimensions(x + panelWidth / 3 + 2, buttonY, panelWidth / 3 - 4, BUTTON_HEIGHT).build());
-            addDrawableChild(ButtonWidget.builder(Text.literal("Done"), button -> close()).dimensions(x + panelWidth * 2 / 3 + 4, buttonY, panelWidth / 3 - 4, BUTTON_HEIGHT).build());
+            }).dimensions(controlX + controlWidth / 3 + 2, buttonY, controlWidth / 3 - 4, BUTTON_HEIGHT).build());
+            addDrawableChild(ButtonWidget.builder(Text.literal("Done"), button -> close()).dimensions(controlX + controlWidth * 2 / 3 + 4, buttonY, controlWidth / 3 - 4, BUTTON_HEIGHT).build());
         }
         y += BUTTON_HEIGHT + 12;
         contentHeight = y - CONTENT_TOP;
@@ -179,9 +183,9 @@ public class LegionsClientScreen extends Screen {
         int trackHeight = trackBottom - trackTop;
         int thumbHeight = clamp(trackHeight * visibleContentHeight() / contentHeight, 18, trackHeight);
         int thumbY = trackTop + (int) Math.round((trackHeight - thumbHeight) * (scrollOffset / (double) maxScroll));
-        int trackX = x + panelWidth - 6;
+        int trackX = x + panelWidth - SCROLLBAR_GUTTER / 2 - 1;
         context.fill(trackX, trackTop, trackX + 2, trackBottom, 0x55354552);
-        context.fill(trackX - 1, thumbY, trackX + 3, thumbY + thumbHeight, 0xAA55E6FF);
+        context.fill(trackX - 2, thumbY, trackX + 4, thumbY + thumbHeight, 0xAA55E6FF);
     }
 
     private int screenY(int contentY) {
@@ -201,7 +205,11 @@ public class LegionsClientScreen extends Screen {
     }
 
     private int panelWidth() {
-        return Math.max(240, Math.min(360, this.width - 24));
+        return Math.max(300, Math.min(460, this.width - 24));
+    }
+
+    private int controlWidth(int panelWidth) {
+        return Math.max(220, panelWidth - PANEL_SIDE_PADDING * 2 - SCROLLBAR_GUTTER);
     }
 
     private static int clamp(int value, int min, int max) {

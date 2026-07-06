@@ -75,9 +75,28 @@ public class LegionsClient implements ClientModInitializer {
             LegionsSpectateLock.tick(client);
         });
 
+        ClientReceiveMessageEvents.ALLOW_CHAT.register((message, signedMessage, sender, parameters, timestamp) -> {
+            if (!LegionsPingManager.shouldCleanReceivedPingText(message)) {
+                return true;
+            }
+
+            LegionsPingManager.receiveChatPing(message, sender);
+            if (MinecraftClient.getInstance().inGameHud != null) {
+                MinecraftClient.getInstance().inGameHud.getChatHud().addMessage(LegionsPingManager.cleanReceivedPingText(message));
+            }
+            return false;
+        });
         ClientReceiveMessageEvents.CHAT.register((message, signedMessage, sender, parameters, timestamp) ->
                 LegionsPingManager.receiveChatPing(message, sender)
         );
+        ClientReceiveMessageEvents.MODIFY_GAME.register((message, overlay) -> {
+            if (!LegionsPingManager.shouldCleanReceivedPingText(message)) {
+                return message;
+            }
+
+            LegionsPingManager.receiveChatPing(message, null);
+            return LegionsPingManager.cleanReceivedPingText(message);
+        });
         HudRenderCallback.EVENT.register((context, tickCounter) -> LegionsHud.renderHud(context));
     }
 

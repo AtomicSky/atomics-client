@@ -50,9 +50,9 @@ public class LegionsConfig {
     }
 
     public LegionsConfig normalize() {
-        opponentLimit = clamp(opponentLimit, 1, 12);
+        opponentLimit = clamp(opponentLimit, 1, 20);
         playerRenderDistance = clamp(playerRenderDistance, 16, 160);
-        pingDurationSeconds = clamp(pingDurationSeconds, 3, 10);
+        pingDurationSeconds = clamp(pingDurationSeconds, 1, 25);
         teamHudX = clamp(teamHudX, 0, 10000);
         teamHudY = clamp(teamHudY, 0, 10000);
         teamCountOverlayX = clamp(teamCountOverlayX, -1, 10000);

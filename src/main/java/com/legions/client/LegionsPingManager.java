@@ -8,6 +8,8 @@ import net.minecraft.client.render.DrawStyle;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.projectile.ProjectileUtil;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.text.MutableText;
+import net.minecraft.text.Style;
 import net.minecraft.text.Text;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.hit.EntityHitResult;
@@ -19,9 +21,12 @@ import net.minecraft.util.shape.VoxelShape;
 import net.minecraft.world.RaycastContext;
 import net.minecraft.world.debug.gizmo.GizmoDrawing;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -47,6 +52,7 @@ public final class LegionsPingManager {
     private static final Map<String, Long> markedPlayers = new HashMap<>();
     private static long pendingPlayerPressAt;
     private static String pendingPlayerPingName;
+    private static BlockPos pendingBlockPingPos;
 
     private LegionsPingManager() {
     }
@@ -59,8 +65,8 @@ public final class LegionsPingManager {
 
         long now = System.currentTimeMillis();
         if (pendingPlayerPressAt > 0L && now - pendingPlayerPressAt <= DOUBLE_PRESS_WINDOW_MILLIS) {
+            BlockPos pos = pendingBlockPingPos;
             clearPendingPlayerPing();
-            BlockPos pos = raycastBlockPos(client);
             if (pos != null) {
                 pingBlock(client, pos);
             }
@@ -71,6 +77,7 @@ public final class LegionsPingManager {
         pendingPlayerPressAt = now;
         PlayerEntity target = raycastPlayer(client);
         pendingPlayerPingName = target == null ? null : LegionsFeatures.realUsername(target);
+        pendingBlockPingPos = raycastBlockPos(client);
     }
 
     private static void pingPlayer(MinecraftClient client, String target) {
@@ -102,10 +109,6 @@ public final class LegionsPingManager {
         }
         String raw = message.getString();
 
-        if (senderProfile == null) {
-            return;
-        }
-
         Matcher playerMatcher = PLAYER_PATTERN.matcher(raw);
         if (playerMatcher.find() && canAcceptFrom(client, senderProfile, playerMatcher.group(1))) {
             markPlayer(playerMatcher.group(2));
@@ -120,6 +123,28 @@ public final class LegionsPingManager {
                     Integer.parseInt(blockMatcher.group(4))
             ));
         }
+    }
+
+    public static boolean shouldCleanReceivedPingText(Text message) {
+        MinecraftClient client = MinecraftClient.getInstance();
+        return LegionsClient.enabled(client)
+                && LegionsClient.CONFIG.teamPingEnabled
+                && hasMachinePayload(message);
+    }
+
+    public static boolean hasMachinePayload(Text message) {
+        if (message == null) {
+            return false;
+        }
+        String raw = message.getString();
+        return PLAYER_PATTERN.matcher(raw).find() || BLOCK_PATTERN.matcher(raw).find();
+    }
+
+    public static Text cleanReceivedPingText(Text message) {
+        if (message == null) {
+            return Text.empty();
+        }
+        return stripMachinePayload(message);
     }
 
     public static void tick(MinecraftClient client) {
@@ -197,13 +222,13 @@ public final class LegionsPingManager {
     }
 
     private static void renderBox(BlockPos pos, float outerExpand, float innerExpand) {
-        GizmoDrawing.box(pos, outerExpand, DrawStyle.stroked(BLOCK_PING_OUTER_COLOR, BLOCK_PING_OUTER_WIDTH));
-        GizmoDrawing.box(pos, innerExpand, DrawStyle.stroked(BLOCK_PING_INNER_COLOR, BLOCK_PING_INNER_WIDTH));
+        GizmoDrawing.box(pos, outerExpand, DrawStyle.stroked(BLOCK_PING_OUTER_COLOR, BLOCK_PING_OUTER_WIDTH)).ignoreOcclusion();
+        GizmoDrawing.box(pos, innerExpand, DrawStyle.stroked(BLOCK_PING_INNER_COLOR, BLOCK_PING_INNER_WIDTH)).ignoreOcclusion();
     }
 
     private static void renderBox(Box box, float outerExpand, float innerExpand) {
-        GizmoDrawing.box(box.expand(outerExpand), DrawStyle.stroked(BLOCK_PING_OUTER_COLOR, BLOCK_PING_OUTER_WIDTH));
-        GizmoDrawing.box(box.expand(innerExpand), DrawStyle.stroked(BLOCK_PING_INNER_COLOR, BLOCK_PING_INNER_WIDTH));
+        GizmoDrawing.box(box.expand(outerExpand), DrawStyle.stroked(BLOCK_PING_OUTER_COLOR, BLOCK_PING_OUTER_WIDTH)).ignoreOcclusion();
+        GizmoDrawing.box(box.expand(innerExpand), DrawStyle.stroked(BLOCK_PING_INNER_COLOR, BLOCK_PING_INNER_WIDTH)).ignoreOcclusion();
     }
 
     private static String bracketDistanceLabel(MinecraftClient client, Vec3d pos) {
@@ -222,6 +247,91 @@ public final class LegionsPingManager {
         if (client.getNetworkHandler() != null) {
             client.getNetworkHandler().sendChatMessage(message);
         }
+    }
+
+    private static Text stripMachinePayload(Text message) {
+        String raw = message.getString();
+        List<Range> ranges = machinePayloadRanges(raw);
+        if (ranges.isEmpty()) {
+            return message.copy();
+        }
+
+        MutableText clean = Text.empty();
+        int[] cursor = new int[]{0};
+        message.visit((style, text) -> {
+            appendCleanSegment(clean, text, style, cursor[0], ranges);
+            cursor[0] += text.length();
+            return Optional.empty();
+        }, Style.EMPTY);
+        return clean;
+    }
+
+    private static void appendCleanSegment(MutableText clean, String text, Style style, int segmentStart, List<Range> ranges) {
+        int segmentEnd = segmentStart + text.length();
+        int cursor = 0;
+        for (Range range : ranges) {
+            if (range.end <= segmentStart) {
+                continue;
+            }
+            if (range.start >= segmentEnd) {
+                break;
+            }
+
+            int localStart = Math.max(0, range.start - segmentStart);
+            int localEnd = Math.min(text.length(), range.end - segmentStart);
+            if (localStart > cursor) {
+                clean.append(Text.literal(text.substring(cursor, localStart)).setStyle(style));
+            }
+            cursor = Math.max(cursor, localEnd);
+        }
+        if (cursor < text.length()) {
+            clean.append(Text.literal(text.substring(cursor)).setStyle(style));
+        }
+    }
+
+    private static List<Range> machinePayloadRanges(String raw) {
+        List<Range> ranges = new ArrayList<>();
+        addPayloadRanges(ranges, raw, PLAYER_PATTERN.matcher(raw));
+        addPayloadRanges(ranges, raw, BLOCK_PATTERN.matcher(raw));
+        ranges.sort((first, second) -> Integer.compare(first.start, second.start));
+        return mergeRanges(ranges);
+    }
+
+    private static void addPayloadRanges(List<Range> ranges, String raw, Matcher matcher) {
+        while (matcher.find()) {
+            int start = matcher.start();
+            int end = matcher.end();
+            if (start > 0 && Character.isWhitespace(raw.charAt(start - 1))) {
+                start--;
+            }
+            while (end < raw.length() && Character.isWhitespace(raw.charAt(end))) {
+                end++;
+            }
+            ranges.add(new Range(start, end));
+        }
+    }
+
+    private static List<Range> mergeRanges(List<Range> ranges) {
+        if (ranges.size() < 2) {
+            return ranges;
+        }
+
+        List<Range> merged = new ArrayList<>();
+        Range current = ranges.getFirst();
+        for (int i = 1; i < ranges.size(); i++) {
+            Range next = ranges.get(i);
+            if (next.start <= current.end) {
+                current = new Range(current.start, Math.max(current.end, next.end));
+            } else {
+                merged.add(current);
+                current = next;
+            }
+        }
+        merged.add(current);
+        return merged;
+    }
+
+    private record Range(int start, int end) {
     }
 
     private static void markBlock(BlockPos pos) {
@@ -247,10 +357,11 @@ public final class LegionsPingManager {
     private static void clearPendingPlayerPing() {
         pendingPlayerPressAt = 0L;
         pendingPlayerPingName = null;
+        pendingBlockPingPos = null;
     }
 
     private static long pingTtlMillis() {
-        return Math.max(3, Math.min(10, LegionsClient.CONFIG.pingDurationSeconds)) * 1000L;
+        return Math.max(1, Math.min(25, LegionsClient.CONFIG.pingDurationSeconds)) * 1000L;
     }
 
     private static boolean canUsePing(MinecraftClient client) {
