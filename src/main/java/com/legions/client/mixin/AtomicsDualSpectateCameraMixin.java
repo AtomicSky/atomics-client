@@ -29,6 +29,9 @@ public abstract class AtomicsDualSpectateCameraMixin {
 
     @Inject(method = "tick", at = @At("HEAD"), remap = false)
     private static void legions_client$forceDualSpectateDefaults(MinecraftClient client, CallbackInfo ci) {
+        if (!LegionsSpectateLock.hasLock()) {
+            return;
+        }
         forceDualSpectateDefaults();
     }
 
@@ -38,6 +41,10 @@ public abstract class AtomicsDualSpectateCameraMixin {
                                                                  float distance, Vec3d lookTarget,
                                                                  Vec3d preferredCameraPos, @Coerce Object pvp,
                                                                  CallbackInfoReturnable<Vec3d> cir) {
+        if (!LegionsSpectateLock.isLockedPair(first, second)) {
+            return;
+        }
+
         Vec3d preferred = cir.getReturnValue();
         Vec3d adjusted = findClearCameraPosition(client, lookTarget, preferred);
         if (adjusted != null) {
@@ -49,6 +56,10 @@ public abstract class AtomicsDualSpectateCameraMixin {
     private static void legions_client$onlyLimitYDifferenceInOverhead(PlayerEntity first, PlayerEntity second,
                                                                       @Coerce Object pvp,
                                                                       CallbackInfoReturnable<Boolean> cir) {
+        if (!LegionsSpectateLock.isLockedPair(first, second)) {
+            return;
+        }
+
         if (!isDualSpectateOverheadEnabled(pvp)) {
             cir.setReturnValue(true);
         }

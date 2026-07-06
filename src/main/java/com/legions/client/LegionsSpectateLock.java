@@ -48,13 +48,7 @@ public final class LegionsSpectateLock {
             return;
         }
 
-        PlayerEntity target = findPlayer(client, playerName);
-        if (!isDualSpectateCandidate(client, target)) {
-            sendAction(client, "Could not find spectate target: " + playerName.trim());
-            return;
-        }
-
-        String name = LegionsFeatures.realUsername(target);
+        String name = playerName.trim();
         if (name.equalsIgnoreCase(lockedPlayerName)) {
             unlock(client, true);
         } else {
@@ -64,6 +58,10 @@ public final class LegionsSpectateLock {
 
     public static boolean isLockedTo(String playerName) {
         return lockedPlayerName != null && playerName != null && lockedPlayerName.equalsIgnoreCase(playerName.trim());
+    }
+
+    public static boolean hasLock() {
+        return lockedPlayerName != null;
     }
 
     public static boolean isLockedPair(PlayerEntity first, PlayerEntity second) {
@@ -115,8 +113,9 @@ public final class LegionsSpectateLock {
 
         PlayerEntity lockedPlayer = findPlayer(client, lockedPlayerName);
         if (!isDualSpectateCandidate(client, lockedPlayer)) {
-            sendAction(client, "Dual spectate lock lost: " + lockedPlayerName);
-            unlock(client, false);
+            clearAtomicsPair();
+            lastSecondPlayerName = "";
+            logPairChange(lockedPlayerName, "", -1.0, "target not currently loaded");
             return;
         }
 
@@ -131,7 +130,8 @@ public final class LegionsSpectateLock {
             setField(pvp, "dualSpectatePlayerTwo", secondName);
             lastSecondPlayerName = secondName;
             logPairChange(LegionsFeatures.realUsername(lockedPlayer), secondName,
-                    second == null ? -1.0 : Math.sqrt(lockedPlayer.squaredDistanceTo(second)));
+                    second == null ? -1.0 : Math.sqrt(lockedPlayer.squaredDistanceTo(second)),
+                    "none nearby within " + (int) MAX_SECOND_PLAYER_DISTANCE + " blocks");
         } catch (ReflectiveOperationException | RuntimeException e) {
             LegionsClient.LOGGER.debug("Failed to update Atomics dual spectate lock.", e);
             unlock(client, false);
@@ -191,6 +191,18 @@ public final class LegionsSpectateLock {
         return opponent == null ? findBestSecondPlayer(client, lockedPlayer, false) : opponent;
     }
 
+    private static void clearAtomicsPair() {
+        try {
+            Object pvp = atomicsPvp();
+            setField(pvp, "dualSpectateEnabled", true);
+            setField(pvp, "dualSpectateAutoFill", false);
+            setField(pvp, "dualSpectatePlayerOne", lockedPlayerName == null ? "" : lockedPlayerName);
+            setField(pvp, "dualSpectatePlayerTwo", "");
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            LegionsClient.LOGGER.debug("Failed to clear pending Atomics dual spectate lock.", e);
+        }
+    }
+
     private static PlayerEntity findBestSecondPlayer(MinecraftClient client, PlayerEntity lockedPlayer, boolean requireOpponent) {
         PlayerEntity best = null;
         double bestScore = Double.POSITIVE_INFINITY;
@@ -217,16 +229,15 @@ public final class LegionsSpectateLock {
         return best;
     }
 
-    private static void logPairChange(String lockedName, String secondName, double secondDistance) {
-        String pair = lockedName + "\u0000" + secondName;
+    private static void logPairChange(String lockedName, String secondName, double secondDistance, String missingReason) {
+        String pair = lockedName + "\u0000" + secondName + "\u0000" + missingReason;
         if (pair.equals(lastLoggedPair)) {
             return;
         }
 
         lastLoggedPair = pair;
         if (secondName == null || secondName.isBlank()) {
-            LegionsClient.LOGGER.info("Dual spectate lock pair: {} + none nearby within {} blocks",
-                    lockedName, (int) MAX_SECOND_PLAYER_DISTANCE);
+            LegionsClient.LOGGER.info("Dual spectate lock pair: {} + {}", lockedName, missingReason);
         } else {
             LegionsClient.LOGGER.info("Dual spectate lock pair: {} + {} ({} blocks)",
                     lockedName, secondName, Math.round(secondDistance));
@@ -259,12 +270,9 @@ public final class LegionsSpectateLock {
 
     private static boolean isExternalSpectateCandidate(PlayerEntity player) {
         return player != null
-                && !LegionsFeatures.isSpectatorTeam(player)
-                && !player.isSpectator()
                 && !player.isRemoved()
                 && !player.isDead()
-                && player.isAlive()
-                && player.getHealth() > 0.0F;
+                && player.isAlive();
     }
 
     private static PlayerEntity findLookedAtPlayer(MinecraftClient client) {

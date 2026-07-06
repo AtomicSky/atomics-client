@@ -23,10 +23,8 @@ import java.util.function.Consumer;
 @Pseudo
 @Mixin(targets = "com.atomics.client.gui.AtomicsClientScreen")
 public abstract class AtomicsDualSpectateLockUiMixin extends Screen {
-    private static final int LEGIONS_LOCK_BUTTON_WIDTH = 24;
+    private static final int LEGIONS_LOCK_BUTTON_WIDTH = 36;
     private static final int LEGIONS_LOCK_BUTTON_GAP = 4;
-    private static final String LOCKED_ICON = "\uD83D\uDD12";
-    private static final String UNLOCKED_ICON = "\uD83D\uDD13";
     private static int lockedDualSpectateSliderRows;
     @Unique
     private final List<TextFieldWidget> legions_client$lockFields = new ArrayList<>();
@@ -129,9 +127,6 @@ public abstract class AtomicsDualSpectateLockUiMixin extends Screen {
     }
 
     private static Text lockText(String playerName) {
-        if (playerName != null || playerName == null) {
-            return Text.literal(LegionsSpectateLock.isLockedTo(playerName) ? LOCKED_ICON : UNLOCKED_ICON);
-        }
-        return Text.literal(LegionsSpectateLock.isLockedTo(playerName) ? "🔒" : "🔓");
+        return Text.literal(LegionsSpectateLock.isLockedTo(playerName) ? "\uD83D\uDD12" : "\uD83D\uDD13");
     }
 }
