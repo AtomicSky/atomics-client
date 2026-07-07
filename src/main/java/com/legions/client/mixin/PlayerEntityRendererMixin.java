@@ -1,6 +1,8 @@
 package com.legions.client.mixin;
 
+import com.legions.client.access.LegionsPlayerOverlayRenderStateAccess;
 import com.legions.client.LegionsFeatures;
+import com.legions.client.render.LegionsPlayerOverlayColorContext;
 import net.minecraft.client.render.entity.PlayerEntityRenderer;
 import net.minecraft.client.render.entity.state.PlayerEntityRenderState;
 import net.minecraft.entity.PlayerLikeEntity;
@@ -24,11 +26,27 @@ public class PlayerEntityRendererMixin {
             state.nameLabelPos = null;
             state.shadowRadius = 0.0f;
             state.outlineColor = 0;
+            if (state instanceof LegionsPlayerOverlayRenderStateAccess access) {
+                access.legions_client$setFoeOverlayColor(-1);
+                access.legions_client$setFoeOverlayStyle(LegionsPlayerOverlayColorContext.STYLE_OUTLINE);
+            }
             return;
         }
         if (state.displayName != null) {
             state.displayName = LegionsFeatures.customizeNametag(playerEntity, state.displayName);
         }
-        state.outlineColor = LegionsFeatures.getOutlineColor(playerEntity);
+        int overlayColor = LegionsFeatures.getOutlineColor(playerEntity);
+        int overlayStyle = LegionsFeatures.getOverlayStyle(playerEntity);
+        if (state instanceof LegionsPlayerOverlayRenderStateAccess access) {
+            access.legions_client$setFoeOverlayColor(overlayColor == 0 ? -1 : overlayColor);
+            access.legions_client$setFoeOverlayStyle(overlayStyle);
+        }
+        state.outlineColor = shouldDrawOutline(overlayColor, overlayStyle) ? overlayColor : 0;
+    }
+
+    private static boolean shouldDrawOutline(int color, int style) {
+        return color != 0
+                && (style == LegionsPlayerOverlayColorContext.STYLE_OUTLINE
+                || style == LegionsPlayerOverlayColorContext.STYLE_OUTLINE_FULL);
     }
 }

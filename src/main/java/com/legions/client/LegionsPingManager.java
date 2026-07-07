@@ -6,13 +6,11 @@ import net.minecraft.block.ShapeContext;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.DrawStyle;
 import net.minecraft.entity.Entity;
-import net.minecraft.entity.projectile.ProjectileUtil;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.text.MutableText;
 import net.minecraft.text.Style;
 import net.minecraft.text.Text;
 import net.minecraft.util.hit.BlockHitResult;
-import net.minecraft.util.hit.EntityHitResult;
 import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
@@ -33,6 +31,9 @@ import java.util.regex.Pattern;
 
 public final class LegionsPingManager {
     private static final double RANGE = 100.0;
+    private static final double PLAYER_PING_RAY_RADIUS = 3.0;
+    private static final double PLAYER_PING_RAY_RADIUS_SQUARED =
+            PLAYER_PING_RAY_RADIUS * PLAYER_PING_RAY_RADIUS;
     private static final long DOUBLE_PRESS_WINDOW_MILLIS = 300L;
     private static final float BLOCK_PING_EXPAND = 0.02f;
     private static final float BLOCK_PING_STROKE_WIDTH = 2.25f;
@@ -52,6 +53,8 @@ public final class LegionsPingManager {
     private static long pendingPlayerPressAt;
     private static String pendingPlayerPingName;
     private static BlockPos pendingBlockPingPos;
+    private static UUID lastAttackedPlayerUuid;
+    private static String lastAttackedPlayerName;
 
     private LegionsPingManager() {
     }
@@ -74,9 +77,19 @@ public final class LegionsPingManager {
 
         flushPendingPlayerPing(client, now);
         pendingPlayerPressAt = now;
-        PlayerEntity target = raycastPlayer(client);
+        PlayerEntity target = LegionsClient.CONFIG.pingLastAttackedPlayerEnabled ? lastAttackedPlayer(client) : raycastPlayer(client);
         pendingPlayerPingName = target == null ? null : LegionsFeatures.realUsername(target);
         pendingBlockPingPos = raycastBlockPos(client);
+    }
+
+    public static void recordAttackedEntity(MinecraftClient client, Entity target) {
+        if (!(target instanceof PlayerEntity player) || client == null || client.player == null
+                || player.getUuid().equals(client.player.getUuid())) {
+            return;
+        }
+
+        lastAttackedPlayerUuid = player.getUuid();
+        lastAttackedPlayerName = LegionsFeatures.realUsername(player);
     }
 
     private static void pingPlayer(MinecraftClient client, String target) {
@@ -151,6 +164,7 @@ public final class LegionsPingManager {
             markedBlocks.clear();
             markedPlayers.clear();
             clearPendingPlayerPing();
+            clearLastAttackedPlayer();
             return;
         }
 
@@ -398,6 +412,25 @@ public final class LegionsPingManager {
         return null;
     }
 
+    private static PlayerEntity lastAttackedPlayer(MinecraftClient client) {
+        if (client.world == null || lastAttackedPlayerName == null) {
+            return null;
+        }
+        for (PlayerEntity player : client.world.getPlayers()) {
+            if (lastAttackedPlayerUuid != null && lastAttackedPlayerUuid.equals(player.getUuid()) && isPlayerPingCandidate(client, player)) {
+                return player;
+            }
+        }
+
+        PlayerEntity player = findPlayer(client, lastAttackedPlayerName);
+        return isPlayerPingCandidate(client, player) ? player : null;
+    }
+
+    private static void clearLastAttackedPlayer() {
+        lastAttackedPlayerUuid = null;
+        lastAttackedPlayerName = null;
+    }
+
     private static BlockHitResult raycastBlock(MinecraftClient client) {
         Entity camera = client.getCameraEntity();
         if (camera == null || client.world == null) {
@@ -422,18 +455,53 @@ public final class LegionsPingManager {
             return null;
         }
         Vec3d start = camera.getCameraPosVec(1.0f);
-        Vec3d look = camera.getRotationVec(1.0f);
-        Vec3d ray = look.multiply(RANGE);
-        Vec3d end = start.add(ray);
-        Box searchBox = camera.getBoundingBox().stretch(ray).expand(1.0);
-        EntityHitResult result = ProjectileUtil.raycast(camera, start, end, searchBox,
-                entity -> entity instanceof PlayerEntity && entity.isAlive() && !entity.isSpectator(),
-                RANGE * RANGE
-        );
-        if (result == null || !(result.getEntity() instanceof PlayerEntity player)) {
-            return null;
+        Vec3d look = camera.getRotationVec(1.0f).normalize();
+        PlayerEntity best = null;
+        double bestDistanceSq = PLAYER_PING_RAY_RADIUS_SQUARED;
+        double bestRayDistance = Double.POSITIVE_INFINITY;
+
+        for (PlayerEntity candidate : client.world.getPlayers()) {
+            if (!isPlayerPingCandidate(client, candidate)) {
+                continue;
+            }
+
+            RayDistance distance = closestDistanceToRay(start, look, candidate);
+            if (distance.distanceSquared() > PLAYER_PING_RAY_RADIUS_SQUARED) {
+                continue;
+            }
+
+            if (distance.distanceSquared() < bestDistanceSq
+                    || distance.distanceSquared() == bestDistanceSq && distance.rayDistance() < bestRayDistance) {
+                best = candidate;
+                bestDistanceSq = distance.distanceSquared();
+                bestRayDistance = distance.rayDistance();
+            }
         }
-        UUID localUuid = client.player == null ? null : client.player.getUuid();
-        return localUuid != null && localUuid.equals(player.getUuid()) ? null : player;
+
+        return best;
+    }
+
+    private static boolean isPlayerPingCandidate(MinecraftClient client, PlayerEntity player) {
+        return player != null
+                && client.player != null
+                && !player.getUuid().equals(client.player.getUuid())
+                && player.isAlive()
+                && !player.isSpectator();
+    }
+
+    private static RayDistance closestDistanceToRay(Vec3d start, Vec3d direction, PlayerEntity player) {
+        RayDistance eyeDistance = closestDistanceToRay(start, direction, player.getEyePos());
+        RayDistance centerDistance = closestDistanceToRay(start, direction, player.getBoundingBox().getCenter());
+        return eyeDistance.distanceSquared() <= centerDistance.distanceSquared() ? eyeDistance : centerDistance;
+    }
+
+    private static RayDistance closestDistanceToRay(Vec3d start, Vec3d direction, Vec3d point) {
+        Vec3d offset = point.subtract(start);
+        double rayDistance = Math.max(0.0, Math.min(RANGE, offset.dotProduct(direction)));
+        Vec3d closest = start.add(direction.multiply(rayDistance));
+        return new RayDistance(point.squaredDistanceTo(closest), rayDistance);
+    }
+
+    private record RayDistance(double distanceSquared, double rayDistance) {
     }
 }

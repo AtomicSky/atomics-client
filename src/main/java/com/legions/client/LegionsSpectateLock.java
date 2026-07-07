@@ -9,7 +9,6 @@ import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
 
 import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -111,31 +110,171 @@ public final class LegionsSpectateLock {
             return;
         }
 
-        PlayerEntity lockedPlayer = findPlayer(client, lockedPlayerName);
-        if (!isDualSpectateCandidate(client, lockedPlayer)) {
-            clearAtomicsPair();
-            lastSecondPlayerName = "";
-            logPairChange(lockedPlayerName, "", -1.0, "target not currently loaded");
+        Object pvp;
+        boolean autoFill;
+        try {
+            pvp = atomicsPvp();
+            if (!getBooleanField(pvp, "dualSpectateEnabled")) {
+                unlock(client, true, false);
+                return;
+            }
+            autoFill = getBooleanField(pvp, "dualSpectateAutoFill");
+            if (savedAtomicsState) {
+                savedDualSpectateAutoFill = autoFill;
+            }
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            LegionsClient.LOGGER.debug("Failed to read Atomics dual spectate lock state.", e);
+            unlock(client, false);
             return;
         }
 
-        try {
-            Object pvp = atomicsPvp();
-            setField(pvp, "dualSpectateEnabled", true);
-            setField(pvp, "dualSpectateAutoFill", false);
-            setField(pvp, "dualSpectatePlayerOne", LegionsFeatures.realUsername(lockedPlayer));
+        PlayerEntity lockedPlayer = findPlayer(client, lockedPlayerName);
+        if (!isDualSpectateCandidate(client, lockedPlayer)) {
+            if (autoFill) {
+                lockedPlayer = findAutoFillReplacement(client, pvp, lockedPlayerName);
+                if (lockedPlayer != null) {
+                    lockedPlayerName = LegionsFeatures.realUsername(lockedPlayer);
+                    lastSecondPlayerName = "";
+                    lastLoggedPair = "";
+                    sendAction(client, "Dual spectate relocked: " + lockedPlayerName);
+                }
+            }
 
-            PlayerEntity second = findBestSecondPlayer(client, lockedPlayer);
-            String secondName = second == null ? "" : LegionsFeatures.realUsername(second);
-            setField(pvp, "dualSpectatePlayerTwo", secondName);
-            lastSecondPlayerName = secondName;
-            logPairChange(LegionsFeatures.realUsername(lockedPlayer), secondName,
-                    second == null ? -1.0 : Math.sqrt(lockedPlayer.squaredDistanceTo(second)),
-                    "none nearby within " + (int) MAX_SECOND_PLAYER_DISTANCE + " blocks");
+            if (!isDualSpectateCandidate(client, lockedPlayer)) {
+                clearAtomicsPair(autoFill);
+                lastSecondPlayerName = "";
+                logPairChange(lockedPlayerName, "", -1.0, "target not currently loaded");
+                return;
+            }
+        }
+
+        try {
+            updateLockedPair(client, pvp, lockedPlayer, autoFill);
         } catch (ReflectiveOperationException | RuntimeException e) {
             LegionsClient.LOGGER.debug("Failed to update Atomics dual spectate lock.", e);
             unlock(client, false);
         }
+    }
+
+    private static PlayerEntity findAutoFillReplacement(MinecraftClient client, Object pvp, String previousLockedName) {
+        PlayerEntity previousSecond = findReplacementPlayer(client, lastSecondPlayerName, previousLockedName);
+        if (previousSecond != null) {
+            return previousSecond;
+        }
+
+        try {
+            PlayerEntity playerOne = findReplacementPlayer(client, getStringField(pvp, "dualSpectatePlayerOne"), previousLockedName);
+            if (playerOne != null) {
+                return playerOne;
+            }
+            PlayerEntity playerTwo = findReplacementPlayer(client, getStringField(pvp, "dualSpectatePlayerTwo"), previousLockedName);
+            if (playerTwo != null) {
+                return playerTwo;
+            }
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            LegionsClient.LOGGER.debug("Failed to read Atomics auto-filled dual spectate pair.", e);
+        }
+
+        return findBestAutoFillPlayer(client, previousLockedName);
+    }
+
+    private static PlayerEntity findReplacementPlayer(MinecraftClient client, String playerName, String previousLockedName) {
+        if (playerName == null || playerName.isBlank()
+                || previousLockedName != null && playerName.trim().equalsIgnoreCase(previousLockedName.trim())) {
+            return null;
+        }
+
+        PlayerEntity player = findPlayer(client, playerName);
+        return isDualSpectateCandidate(client, player) ? player : null;
+    }
+
+    private static PlayerEntity findBestAutoFillPlayer(MinecraftClient client, String previousLockedName) {
+        PlayerEntity paired = findBestAutoFillPlayer(client, previousLockedName, true);
+        if (paired != null) {
+            return paired;
+        }
+
+        paired = findBestAutoFillPlayer(client, previousLockedName, false);
+        if (paired != null) {
+            return paired;
+        }
+
+        PlayerEntity best = null;
+        double bestDistance = Double.POSITIVE_INFINITY;
+        Entity camera = client.getCameraEntity() == null ? client.player : client.getCameraEntity();
+        for (PlayerEntity candidate : client.world.getPlayers()) {
+            if (!isReplacementCandidate(client, candidate, previousLockedName)) {
+                continue;
+            }
+
+            double distance = camera.squaredDistanceTo(candidate);
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                best = candidate;
+            }
+        }
+        return best;
+    }
+
+    private static PlayerEntity findBestAutoFillPlayer(MinecraftClient client, String previousLockedName,
+                                                       boolean requireOpponent) {
+        PlayerEntity bestFirst = null;
+        PlayerEntity bestSecond = null;
+        double bestDistance = Double.POSITIVE_INFINITY;
+        for (PlayerEntity first : client.world.getPlayers()) {
+            if (!isReplacementCandidate(client, first, previousLockedName)) {
+                continue;
+            }
+
+            for (PlayerEntity second : client.world.getPlayers()) {
+                if (!isDualSpectateCandidate(client, second)
+                        || first.getUuid().equals(second.getUuid())
+                        || requireOpponent && !LegionsFeatures.isOpponent(first, second)) {
+                    continue;
+                }
+
+                double distance = first.squaredDistanceTo(second);
+                if (distance < bestDistance) {
+                    bestDistance = distance;
+                    bestFirst = first;
+                    bestSecond = second;
+                }
+            }
+        }
+
+        return closerToCamera(client, bestFirst, bestSecond);
+    }
+
+    private static boolean isReplacementCandidate(MinecraftClient client, PlayerEntity player, String previousLockedName) {
+        return isDualSpectateCandidate(client, player)
+                && (previousLockedName == null || !LegionsFeatures.realUsername(player).equalsIgnoreCase(previousLockedName.trim()));
+    }
+
+    private static PlayerEntity closerToCamera(MinecraftClient client, PlayerEntity first, PlayerEntity second) {
+        if (first == null) {
+            return second;
+        }
+        if (second == null) {
+            return first;
+        }
+
+        Entity camera = client.getCameraEntity() == null ? client.player : client.getCameraEntity();
+        return camera.squaredDistanceTo(first) <= camera.squaredDistanceTo(second) ? first : second;
+    }
+
+    private static void updateLockedPair(MinecraftClient client, Object pvp, PlayerEntity lockedPlayer,
+                                         boolean autoFill) throws ReflectiveOperationException {
+        setField(pvp, "dualSpectateEnabled", true);
+        setField(pvp, "dualSpectateAutoFill", autoFill);
+        setField(pvp, "dualSpectatePlayerOne", LegionsFeatures.realUsername(lockedPlayer));
+
+        PlayerEntity second = findBestSecondPlayer(client, lockedPlayer);
+        String secondName = second == null ? "" : LegionsFeatures.realUsername(second);
+        setField(pvp, "dualSpectatePlayerTwo", secondName);
+        lastSecondPlayerName = secondName;
+        logPairChange(LegionsFeatures.realUsername(lockedPlayer), secondName,
+                second == null ? -1.0 : Math.sqrt(lockedPlayer.squaredDistanceTo(second)),
+                "none nearby within " + (int) MAX_SECOND_PLAYER_DISTANCE + " blocks");
     }
 
     private static void lockTo(MinecraftClient client, String playerName) {
@@ -152,6 +291,7 @@ public final class LegionsSpectateLock {
             lockedPlayerName = playerName;
             lastSecondPlayerName = "";
             lastLoggedPair = "";
+            setField(pvp, "dualSpectateEnabled", true);
             tick(client);
             String suffix = lastSecondPlayerName == null || lastSecondPlayerName.isBlank() ? "" : " + " + lastSecondPlayerName;
             sendAction(client, "Dual spectate locked: " + playerName + suffix);
@@ -162,6 +302,10 @@ public final class LegionsSpectateLock {
     }
 
     private static void unlock(MinecraftClient client, boolean notify) {
+        unlock(client, notify, true);
+    }
+
+    private static void unlock(MinecraftClient client, boolean notify, boolean restoreEnabled) {
         String previous = lockedPlayerName;
         lockedPlayerName = null;
         lastSecondPlayerName = "";
@@ -169,10 +313,10 @@ public final class LegionsSpectateLock {
         try {
             if (savedAtomicsState) {
                 Object pvp = atomicsPvp();
-                setField(pvp, "dualSpectateEnabled", savedDualSpectateEnabled);
                 setField(pvp, "dualSpectateAutoFill", savedDualSpectateAutoFill);
                 setField(pvp, "dualSpectatePlayerOne", savedDualSpectatePlayerOne);
                 setField(pvp, "dualSpectatePlayerTwo", savedDualSpectatePlayerTwo);
+                setField(pvp, "dualSpectateEnabled", restoreEnabled && savedDualSpectateEnabled);
             }
         } catch (ReflectiveOperationException | RuntimeException e) {
             LegionsClient.LOGGER.debug("Failed to restore Atomics dual spectate settings.", e);
@@ -191,12 +335,12 @@ public final class LegionsSpectateLock {
         return opponent == null ? findBestSecondPlayer(client, lockedPlayer, false) : opponent;
     }
 
-    private static void clearAtomicsPair() {
+    private static void clearAtomicsPair(boolean autoFill) {
         try {
             Object pvp = atomicsPvp();
             setField(pvp, "dualSpectateEnabled", true);
-            setField(pvp, "dualSpectateAutoFill", false);
-            setField(pvp, "dualSpectatePlayerOne", lockedPlayerName == null ? "" : lockedPlayerName);
+            setField(pvp, "dualSpectateAutoFill", autoFill);
+            setField(pvp, "dualSpectatePlayerOne", autoFill || lockedPlayerName == null ? "" : lockedPlayerName);
             setField(pvp, "dualSpectatePlayerTwo", "");
         } catch (ReflectiveOperationException | RuntimeException e) {
             LegionsClient.LOGGER.debug("Failed to clear pending Atomics dual spectate lock.", e);

@@ -3,11 +3,13 @@
   "package": "com.legions.client.mixin",
   "compatibilityLevel": "JAVA_21",
   "client": [
+    "ClientPlayerInteractionManagerMixin",
     "PlayerEntityRendererMixin",
     "LivingEntityRendererMixin",
     "GameTestDebugRendererMixin",
     "ParticleSpriteManagerMixin",
     "EndRodParticleMixin",
+    "TotemParticleMixin",
     "AtomicsDualSpectateCameraMixin",
     "AtomicsDualSpectateLockUiMixin",
     "AtomicsClientScreenModuleMixin",

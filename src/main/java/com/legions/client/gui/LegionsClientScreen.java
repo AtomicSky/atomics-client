@@ -32,6 +32,7 @@ public class LegionsClientScreen extends Screen {
     private static final int RESET_BUTTON_WIDTH = 28;
     private static final int RESET_GAP = 4;
     private static final int TEXT_FIELD_LABEL_WIDTH = 94;
+    private static final String[] FOE_RENDER_STYLE_LABELS = {"Full", "Outline", "Outline + Full", "Pulse"};
     private final Screen parent;
     private final List<SectionHeader> sectionHeaders = new ArrayList<>();
     private final List<TextFieldLabel> textFieldLabels = new ArrayList<>();
@@ -71,6 +72,10 @@ public class LegionsClientScreen extends Screen {
         y += ROW_SPACING;
         addToggle(controlX, screenY(y), controlWidth, "Foe Outlines", () -> LegionsClient.CONFIG.automaticFoeOutlinesEnabled, value -> LegionsClient.CONFIG.automaticFoeOutlinesEnabled = value, defaultConfig.automaticFoeOutlinesEnabled);
         y += ROW_SPACING;
+        if (LegionsClient.CONFIG.automaticFoeOutlinesEnabled) {
+            addCycle(controlX, screenY(y), controlWidth, "Foe Render Style", () -> LegionsClient.CONFIG.automaticFoeRenderStyle, value -> LegionsClient.CONFIG.automaticFoeRenderStyle = value, defaultConfig.automaticFoeRenderStyle, FOE_RENDER_STYLE_LABELS);
+            y += ROW_SPACING;
+        }
         addToggle(controlX, screenY(y), controlWidth, "Spectator Glow", () -> LegionsClient.CONFIG.spectatorGlowEnabled, value -> LegionsClient.CONFIG.spectatorGlowEnabled = value, defaultConfig.spectatorGlowEnabled);
         y += ROW_SPACING;
         addToggle(controlX, screenY(y), controlWidth, "Warning Particles", () -> LegionsClient.CONFIG.warningParticlesEnabled, value -> LegionsClient.CONFIG.warningParticlesEnabled = value, defaultConfig.warningParticlesEnabled);
@@ -80,6 +85,8 @@ public class LegionsClientScreen extends Screen {
         addToggle(controlX, screenY(y), controlWidth, "Team Ping", () -> LegionsClient.CONFIG.teamPingEnabled, value -> LegionsClient.CONFIG.teamPingEnabled = value, defaultConfig.teamPingEnabled);
         y += ROW_SPACING;
         if (LegionsClient.CONFIG.teamPingEnabled) {
+            addToggle(controlX, screenY(y), controlWidth, "Ping Last Attacked", () -> LegionsClient.CONFIG.pingLastAttackedPlayerEnabled, value -> LegionsClient.CONFIG.pingLastAttackedPlayerEnabled = value, defaultConfig.pingLastAttackedPlayerEnabled);
+            y += ROW_SPACING;
             addToggle(controlX, screenY(y), controlWidth, "Block Ping Distance", () -> LegionsClient.CONFIG.blockPingDistanceLabelEnabled, value -> LegionsClient.CONFIG.blockPingDistanceLabelEnabled = value, defaultConfig.blockPingDistanceLabelEnabled);
             y += ROW_SPACING;
             addSlider(controlX, screenY(y), controlWidth, "Ping Seconds", 1, 25, () -> LegionsClient.CONFIG.pingDurationSeconds, value -> LegionsClient.CONFIG.pingDurationSeconds = value, defaultConfig.pingDurationSeconds);
@@ -221,6 +228,24 @@ public class LegionsClientScreen extends Screen {
         }
     }
 
+    private void addCycle(int x, int y, int width, String label, IntSupplier getter, IntConsumer setter, int defaultValue, String[] labels) {
+        if (!isRowVisible(y) || labels.length == 0) {
+            return;
+        }
+        int settingWidth = settingControlWidth(width);
+        addDrawableChild(ButtonWidget.builder(cycleText(label, getter.getAsInt(), labels), button -> {
+            int value = Math.floorMod(getter.getAsInt() + 1, labels.length);
+            setter.accept(value);
+            button.setMessage(cycleText(label, value, labels));
+            clearAndInit();
+        }).dimensions(x, y, settingWidth, BUTTON_HEIGHT).build());
+        addResetButton(x, y, width, getter.getAsInt() != defaultValue, () -> {
+            setter.accept(defaultValue);
+            LegionsClient.CONFIG.normalize();
+            clearAndInit();
+        });
+    }
+
     private void addTextField(int x, int y, int width, String label, String value, String placeholder, Consumer<String> setter, String defaultValue) {
         if (!isRowVisible(y)) {
             return;
@@ -321,6 +346,10 @@ public class LegionsClientScreen extends Screen {
 
     private static Text toggleText(String label, boolean enabled) {
         return Text.literal(label + "        " + (enabled ? "ON" : "OFF"));
+    }
+
+    private static Text cycleText(String label, int value, String[] labels) {
+        return Text.literal(label + "        " + labels[Math.floorMod(value, labels.length)]);
     }
 
     private record SectionHeader(int x, int y, int width, String title) {

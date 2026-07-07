@@ -13,6 +13,7 @@ import net.minecraft.text.Style;
 import net.minecraft.text.Text;
 import net.minecraft.text.TextColor;
 import net.minecraft.util.Formatting;
+import com.legions.client.render.LegionsPlayerOverlayColorContext;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -162,6 +163,20 @@ public final class LegionsFeatures {
             return getTeamOutlineColor(player);
         }
         return 0;
+    }
+
+    public static int getOverlayStyle(PlayerEntity player) {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (!LegionsClient.enabled(client) || client.player == null || player == null) {
+            return LegionsPlayerOverlayColorContext.STYLE_OUTLINE;
+        }
+        if (LegionsPingManager.isMarkedPlayer(player) || shouldHighlightTeamAsSpectator(client, player)) {
+            return LegionsPlayerOverlayColorContext.STYLE_OUTLINE;
+        }
+        if (LegionsClient.CONFIG.automaticFoeOutlinesEnabled && isOpponent(client.player, player)) {
+            return LegionsClient.CONFIG.automaticFoeRenderStyle;
+        }
+        return LegionsPlayerOverlayColorContext.STYLE_OUTLINE;
     }
 
     public static boolean shouldHidePlayerModel(PlayerEntity player) {

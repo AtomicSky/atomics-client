@@ -21,9 +21,11 @@ public class LegionsConfig {
     public List<String> allowedServerAddresses = new ArrayList<>(List.of("legions"));
     public boolean ratingNametagsEnabled = true;
     public boolean automaticFoeOutlinesEnabled = false;
+    public int automaticFoeRenderStyle = 1;
     public boolean spectatorGlowEnabled = true;
     public boolean warningParticlesEnabled = true;
     public boolean teamPingEnabled = true;
+    public boolean pingLastAttackedPlayerEnabled = false;
     public boolean blockPingDistanceLabelEnabled = true;
     public boolean teamHudEnabled = true;
     public boolean teamCountOverlayEnabled = false;
@@ -56,6 +58,7 @@ public class LegionsConfig {
 
     public LegionsConfig normalize() {
         allowedServerAddresses = normalizeServerAddresses(allowedServerAddresses);
+        automaticFoeRenderStyle = clamp(automaticFoeRenderStyle, 0, 3);
         opponentLimit = clamp(opponentLimit, 1, 20);
         playerRenderDistance = clamp(playerRenderDistance, 16, 160);
         pingDurationSeconds = clamp(pingDurationSeconds, 1, 25);
@@ -72,9 +75,11 @@ public class LegionsConfig {
         copy.allowedServerAddresses = new ArrayList<>(allowedServerAddresses);
         copy.ratingNametagsEnabled = ratingNametagsEnabled;
         copy.automaticFoeOutlinesEnabled = automaticFoeOutlinesEnabled;
+        copy.automaticFoeRenderStyle = automaticFoeRenderStyle;
         copy.spectatorGlowEnabled = spectatorGlowEnabled;
         copy.warningParticlesEnabled = warningParticlesEnabled;
         copy.teamPingEnabled = teamPingEnabled;
+        copy.pingLastAttackedPlayerEnabled = pingLastAttackedPlayerEnabled;
         copy.blockPingDistanceLabelEnabled = blockPingDistanceLabelEnabled;
         copy.teamHudEnabled = teamHudEnabled;
         copy.teamCountOverlayEnabled = teamCountOverlayEnabled;
@@ -96,9 +101,11 @@ public class LegionsConfig {
                 && allowedServerAddresses.equals(other.allowedServerAddresses)
                 && ratingNametagsEnabled == other.ratingNametagsEnabled
                 && automaticFoeOutlinesEnabled == other.automaticFoeOutlinesEnabled
+                && automaticFoeRenderStyle == other.automaticFoeRenderStyle
                 && spectatorGlowEnabled == other.spectatorGlowEnabled
                 && warningParticlesEnabled == other.warningParticlesEnabled
                 && teamPingEnabled == other.teamPingEnabled
+                && pingLastAttackedPlayerEnabled == other.pingLastAttackedPlayerEnabled
                 && blockPingDistanceLabelEnabled == other.blockPingDistanceLabelEnabled
                 && teamHudEnabled == other.teamHudEnabled
                 && teamCountOverlayEnabled == other.teamCountOverlayEnabled

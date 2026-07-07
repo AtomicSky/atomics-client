@@ -44,6 +44,8 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
     private static final String LEGIONS_FEATURE_KEY = "legions.client";
     @Unique
     private static final LegionsConfig LEGIONS_DEFAULT_CONFIG = new LegionsConfig().normalize();
+    @Unique
+    private static final String[] FOE_RENDER_STYLE_LABELS = {"Full", "Outline", "Outline + Full", "Pulse"};
 
     @Unique
     private boolean legions_client$sectionCollapsed;
@@ -100,12 +102,16 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
         y = legions_client$addSubHeader(leftX, y, controlWidth, "Player Info");
         y = legions_client$addToggle(leftX, y, controlWidth, "Rating Nametags", () -> LegionsClient.CONFIG.ratingNametagsEnabled, value -> LegionsClient.CONFIG.ratingNametagsEnabled = value, LEGIONS_DEFAULT_CONFIG.ratingNametagsEnabled);
         y = legions_client$addToggle(leftX, y, controlWidth, "Foe Outlines", () -> LegionsClient.CONFIG.automaticFoeOutlinesEnabled, value -> LegionsClient.CONFIG.automaticFoeOutlinesEnabled = value, LEGIONS_DEFAULT_CONFIG.automaticFoeOutlinesEnabled);
+        if (LegionsClient.CONFIG.automaticFoeOutlinesEnabled) {
+            y = legions_client$addCycle(leftX, y, controlWidth, "Foe Render Style", () -> LegionsClient.CONFIG.automaticFoeRenderStyle, value -> LegionsClient.CONFIG.automaticFoeRenderStyle = value, LEGIONS_DEFAULT_CONFIG.automaticFoeRenderStyle, FOE_RENDER_STYLE_LABELS);
+        }
         y = legions_client$addToggle(leftX, y, controlWidth, "Spectator Glow", () -> LegionsClient.CONFIG.spectatorGlowEnabled, value -> LegionsClient.CONFIG.spectatorGlowEnabled = value, LEGIONS_DEFAULT_CONFIG.spectatorGlowEnabled);
         y = legions_client$addToggle(leftX, y, controlWidth, "Warning Particles", () -> LegionsClient.CONFIG.warningParticlesEnabled, value -> LegionsClient.CONFIG.warningParticlesEnabled = value, LEGIONS_DEFAULT_CONFIG.warningParticlesEnabled);
 
         y = legions_client$addSubHeader(leftX, y, controlWidth, "Team Ping");
         y = legions_client$addToggle(leftX, y, controlWidth, "Team Ping", () -> LegionsClient.CONFIG.teamPingEnabled, value -> LegionsClient.CONFIG.teamPingEnabled = value, LEGIONS_DEFAULT_CONFIG.teamPingEnabled);
         if (LegionsClient.CONFIG.teamPingEnabled) {
+            y = legions_client$addToggle(leftX, y, controlWidth, "Ping Last Attacked", () -> LegionsClient.CONFIG.pingLastAttackedPlayerEnabled, value -> LegionsClient.CONFIG.pingLastAttackedPlayerEnabled = value, LEGIONS_DEFAULT_CONFIG.pingLastAttackedPlayerEnabled);
             y = legions_client$addToggle(leftX, y, controlWidth, "Block Ping Distance", () -> LegionsClient.CONFIG.blockPingDistanceLabelEnabled, value -> LegionsClient.CONFIG.blockPingDistanceLabelEnabled = value, LEGIONS_DEFAULT_CONFIG.blockPingDistanceLabelEnabled);
             y = legions_client$addIntSlider(leftX, y, controlWidth, "Ping Seconds", 1, 25, LegionsClient.CONFIG.pingDurationSeconds, value -> LegionsClient.CONFIG.pingDurationSeconds = value, LEGIONS_DEFAULT_CONFIG.pingDurationSeconds);
         }
@@ -168,6 +174,10 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
                     "Rating Nametags", LEGIONS_DEFAULT_CONFIG.ratingNametagsEnabled, () -> LegionsClient.CONFIG.ratingNametagsEnabled, value -> LegionsClient.CONFIG.ratingNametagsEnabled = value);
             rowY = legions_client$addNativeToggle(addToggle, toggleSetterType, leftX, rowY, controlWidth,
                     "Foe Outlines", LEGIONS_DEFAULT_CONFIG.automaticFoeOutlinesEnabled, () -> LegionsClient.CONFIG.automaticFoeOutlinesEnabled, value -> LegionsClient.CONFIG.automaticFoeOutlinesEnabled = value);
+            if (LegionsClient.CONFIG.automaticFoeOutlinesEnabled) {
+                rowY = legions_client$addNativeCycle(addWideButton, leftX, rowY, controlWidth,
+                        "Foe Render Style", () -> LegionsClient.CONFIG.automaticFoeRenderStyle, value -> LegionsClient.CONFIG.automaticFoeRenderStyle = value, FOE_RENDER_STYLE_LABELS);
+            }
             rowY = legions_client$addNativeToggle(addToggle, toggleSetterType, leftX, rowY, controlWidth,
                     "Spectator Glow", LEGIONS_DEFAULT_CONFIG.spectatorGlowEnabled, () -> LegionsClient.CONFIG.spectatorGlowEnabled, value -> LegionsClient.CONFIG.spectatorGlowEnabled = value);
             rowY = legions_client$addNativeToggle(addToggle, toggleSetterType, leftX, rowY, controlWidth,
@@ -177,6 +187,8 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
             rowY = legions_client$addNativeToggle(addToggle, toggleSetterType, leftX, rowY, controlWidth,
                     "Team Ping", LEGIONS_DEFAULT_CONFIG.teamPingEnabled, () -> LegionsClient.CONFIG.teamPingEnabled, value -> LegionsClient.CONFIG.teamPingEnabled = value);
             if (LegionsClient.CONFIG.teamPingEnabled) {
+                rowY = legions_client$addNativeToggle(addToggle, toggleSetterType, leftX, rowY, controlWidth,
+                        "Ping Last Attacked", LEGIONS_DEFAULT_CONFIG.pingLastAttackedPlayerEnabled, () -> LegionsClient.CONFIG.pingLastAttackedPlayerEnabled, value -> LegionsClient.CONFIG.pingLastAttackedPlayerEnabled = value);
                 rowY = legions_client$addNativeToggle(addToggle, toggleSetterType, leftX, rowY, controlWidth,
                         "Block Ping Distance", LEGIONS_DEFAULT_CONFIG.blockPingDistanceLabelEnabled, () -> LegionsClient.CONFIG.blockPingDistanceLabelEnabled, value -> LegionsClient.CONFIG.blockPingDistanceLabelEnabled = value);
                 rowY = legions_client$addNativeIntSlider(addIntSlider, intSetterType, leftX, rowY, controlWidth,
@@ -253,6 +265,19 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
     }
 
     @Unique
+    private int legions_client$addNativeCycle(Method addWideButton, int x, int y, int width, String label,
+                                             IntSupplier getter, IntConsumer setter, String[] labels) throws ReflectiveOperationException {
+        addWideButton.invoke(this, x, y, width, cycleText(label, getter.getAsInt(), labels).getString(), (ButtonWidget.PressAction) button -> {
+            int value = Math.floorMod(getter.getAsInt() + 1, labels.length);
+            setter.accept(value);
+            LegionsClient.CONFIG.normalize();
+            LegionsClient.saveConfig();
+            clearAndInit();
+        });
+        return y + LEGIONS_ROW_HEIGHT;
+    }
+
+    @Unique
     private Object legions_client$toggleSetter(Class<?> setterType, BooleanSupplier getter, Consumer<Boolean> setter) {
         return Proxy.newProxyInstance(setterType.getClassLoader(), new Class<?>[]{setterType}, (proxy, method, args) -> {
             if ("set".equals(method.getName()) && args != null && args.length == 1 && args[0] instanceof Boolean value) {
@@ -303,6 +328,27 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
             }));
             legions_client$addResetButton(x, y, width, getter.getAsBoolean() != defaultValue, () -> {
                 setter.accept(defaultValue);
+                LegionsClient.saveConfig();
+                clearAndInit();
+            });
+        }
+        return y + LEGIONS_ROW_HEIGHT;
+    }
+
+    @Unique
+    private int legions_client$addCycle(int x, int y, int width, String label, IntSupplier getter,
+                                        IntConsumer setter, int defaultValue, String[] labels) {
+        if (legions_client$isWidgetVisible(y) && labels.length > 0) {
+            addDrawableChild(ButtonWidget.builder(cycleText(label, getter.getAsInt(), labels), button -> {
+                int value = Math.floorMod(getter.getAsInt() + 1, labels.length);
+                setter.accept(value);
+                LegionsClient.CONFIG.normalize();
+                LegionsClient.saveConfig();
+                clearAndInit();
+            }).dimensions(x, y, width, LEGIONS_BUTTON_HEIGHT).build());
+            legions_client$addResetButton(x, y, width, getter.getAsInt() != defaultValue, () -> {
+                setter.accept(defaultValue);
+                LegionsClient.CONFIG.normalize();
                 LegionsClient.saveConfig();
                 clearAndInit();
             });
@@ -389,7 +435,7 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
         if (query.isBlank()) {
             return true;
         }
-        String terms = "legions lc rating nametag foe outline spectator glow warning particle team ping block distance label team hud team counter team count player count scoreboard scoreboard teams left players left count move opponent opponents shown limit hidden hide render optimization distance fps performance opacity";
+        String terms = "legions lc rating nametag foe outline render style full pulse spectator glow warning particle team ping last attacked attack block distance label team hud team counter team count player count scoreboard scoreboard teams left players left count move opponent opponents shown limit hidden hide render optimization distance fps performance opacity";
         return legions_client$matchesSearch(query, terms);
     }
 
@@ -444,5 +490,10 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
         Method method = owner.getDeclaredMethod(name, parameterTypes);
         method.setAccessible(true);
         return method;
+    }
+
+    @Unique
+    private static Text cycleText(String label, int value, String[] labels) {
+        return Text.literal(label + "        " + labels[Math.floorMod(value, labels.length)]);
     }
 }
