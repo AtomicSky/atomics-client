@@ -34,6 +34,8 @@ public class LegionsConfig {
     public int opponentLimit = 5;
     public int playerRenderDistance = 64;
     public int pingDurationSeconds = 10;
+    public int pingRecentTargetTimeoutSeconds = 15;
+    public List<PingRow> pingRows = defaultPingRows();
     public int teamHudX = 8;
     public int teamHudY = 8;
     public int teamCountOverlayX = -1;
@@ -62,6 +64,8 @@ public class LegionsConfig {
         opponentLimit = clamp(opponentLimit, 1, 20);
         playerRenderDistance = clamp(playerRenderDistance, 16, 160);
         pingDurationSeconds = clamp(pingDurationSeconds, 1, 25);
+        pingRecentTargetTimeoutSeconds = clamp(pingRecentTargetTimeoutSeconds, 1, 60);
+        pingRows = normalizePingRows(pingRows);
         teamHudX = clamp(teamHudX, 0, 10000);
         teamHudY = clamp(teamHudY, 0, 10000);
         teamCountOverlayX = clamp(teamCountOverlayX, -1, 10000);
@@ -88,6 +92,8 @@ public class LegionsConfig {
         copy.opponentLimit = opponentLimit;
         copy.playerRenderDistance = playerRenderDistance;
         copy.pingDurationSeconds = pingDurationSeconds;
+        copy.pingRecentTargetTimeoutSeconds = pingRecentTargetTimeoutSeconds;
+        copy.pingRows = copyPingRows(pingRows);
         copy.teamHudX = teamHudX;
         copy.teamHudY = teamHudY;
         copy.teamCountOverlayX = teamCountOverlayX;
@@ -114,6 +120,8 @@ public class LegionsConfig {
                 && opponentLimit == other.opponentLimit
                 && playerRenderDistance == other.playerRenderDistance
                 && pingDurationSeconds == other.pingDurationSeconds
+                && pingRecentTargetTimeoutSeconds == other.pingRecentTargetTimeoutSeconds
+                && pingRowsEqual(pingRows, other.pingRows)
                 && teamHudX == other.teamHudX
                 && teamHudY == other.teamHudY
                 && teamCountOverlayX == other.teamCountOverlayX
@@ -142,7 +150,7 @@ public class LegionsConfig {
                 if (address == null) {
                     continue;
                 }
-                String cleaned = address.trim().toLowerCase(Locale.ROOT);
+                String cleaned = cleanServerAddress(address);
                 if (!cleaned.isBlank() && !normalized.contains(cleaned)) {
                     normalized.add(cleaned);
                 }
@@ -152,5 +160,173 @@ public class LegionsConfig {
             normalized.add("legions");
         }
         return normalized;
+    }
+
+    private static String cleanServerAddress(String address) {
+        String cleaned = address.trim().toLowerCase(Locale.ROOT);
+        if (cleaned.startsWith("http://")) {
+            cleaned = cleaned.substring("http://".length());
+        } else if (cleaned.startsWith("https://")) {
+            cleaned = cleaned.substring("https://".length());
+        }
+        int slash = cleaned.indexOf('/');
+        return slash >= 0 ? cleaned.substring(0, slash) : cleaned;
+    }
+
+    private static List<PingRow> normalizePingRows(List<PingRow> rows) {
+        if (rows == null || rows.isEmpty()) {
+            return defaultPingRows();
+        }
+
+        ArrayList<PingRow> normalized = new ArrayList<>();
+        for (PingRow row : rows) {
+            normalized.add((row == null ? new PingRow() : row).normalize());
+        }
+        return normalized.isEmpty() ? defaultPingRows() : normalized;
+    }
+
+    private static ArrayList<PingRow> copyPingRows(List<PingRow> rows) {
+        ArrayList<PingRow> copy = new ArrayList<>();
+        for (PingRow row : normalizePingRows(rows)) {
+            copy.add(row.copy());
+        }
+        return copy;
+    }
+
+    private static boolean pingRowsEqual(List<PingRow> first, List<PingRow> second) {
+        List<PingRow> normalizedFirst = normalizePingRows(first);
+        List<PingRow> normalizedSecond = normalizePingRows(second);
+        if (normalizedFirst.size() != normalizedSecond.size()) {
+            return false;
+        }
+        for (int i = 0; i < normalizedFirst.size(); i++) {
+            if (!normalizedFirst.get(i).sameSettings(normalizedSecond.get(i))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public static ArrayList<PingRow> defaultPingRows() {
+        ArrayList<PingRow> rows = new ArrayList<>();
+
+        PingRow playerPing = new PingRow();
+        playerPing.keyType = PingRow.KEY_TYPE_KEYBOARD;
+        playerPing.keyCode = 71;
+        playerPing.presses = 1;
+        playerPing.targetSource = PingRow.TARGET_SOURCE_CROSSHAIR;
+        playerPing.targetType = PingRow.TARGET_TYPE_ALL_PLAYERS_DIFFERENT_MESSAGE;
+        playerPing.message = "Focus {player}";
+        playerPing.teammateMessage = "{player} needs help!";
+        playerPing.enemyMessage = "Focus {player}";
+        playerPing.color = "#ffd84a";
+        playerPing.visualAudience = PingRow.VISUAL_AUDIENCE_TEAMMATES;
+        rows.add(playerPing.normalize());
+
+        PingRow blockPing = new PingRow();
+        blockPing.keyType = PingRow.KEY_TYPE_KEYBOARD;
+        blockPing.keyCode = 71;
+        blockPing.presses = 2;
+        blockPing.targetSource = PingRow.TARGET_SOURCE_CROSSHAIR;
+        blockPing.targetType = PingRow.TARGET_TYPE_BLOCKS_ONLY;
+        blockPing.message = "Go to {x} {y} {z}";
+        blockPing.teammateMessage = "{player} needs help!";
+        blockPing.enemyMessage = "Focus {player}";
+        blockPing.color = "#ffd84a";
+        blockPing.visualAudience = PingRow.VISUAL_AUDIENCE_TEAMMATES;
+        rows.add(blockPing.normalize());
+
+        return rows;
+    }
+
+    public static class PingRow {
+        public static final int KEY_TYPE_KEYBOARD = 0;
+        public static final int KEY_TYPE_MOUSE = 1;
+
+        public static final int TARGET_SOURCE_CROSSHAIR = 0;
+        public static final int TARGET_SOURCE_LAST_ATTACKER = 1;
+        public static final int TARGET_SOURCE_LAST_ATTACKED = 2;
+        public static final int TARGET_SOURCE_SELF = 3;
+
+        public static final int TARGET_TYPE_TEAMMATES_ONLY = 0;
+        public static final int TARGET_TYPE_ENEMIES_ONLY = 1;
+        public static final int TARGET_TYPE_ALL_PLAYERS_SAME_MESSAGE = 2;
+        public static final int TARGET_TYPE_ALL_PLAYERS_DIFFERENT_MESSAGE = 3;
+        public static final int TARGET_TYPE_BLOCKS_ONLY = 4;
+
+        public static final int VISUAL_AUDIENCE_TEAMMATES = 0;
+        public static final int VISUAL_AUDIENCE_OPPONENTS = 1;
+        public static final int VISUAL_AUDIENCE_EVERYONE = 2;
+
+        public int keyType = KEY_TYPE_KEYBOARD;
+        public int keyCode = 71;
+        public int presses = 1;
+        public int targetSource = TARGET_SOURCE_CROSSHAIR;
+        public int targetType = TARGET_TYPE_ALL_PLAYERS_DIFFERENT_MESSAGE;
+        public String message = "Focus {player}";
+        public String teammateMessage = "{player} needs help!";
+        public String enemyMessage = "Focus {player}";
+        public String color = "#ffd84a";
+        public int visualAudience = VISUAL_AUDIENCE_TEAMMATES;
+
+        public PingRow normalize() {
+            keyType = keyType == KEY_TYPE_MOUSE ? KEY_TYPE_MOUSE : KEY_TYPE_KEYBOARD;
+            keyCode = keyType == KEY_TYPE_MOUSE ? clamp(keyCode, 0, 7) : clamp(keyCode, 32, 348);
+            presses = clamp(presses, 1, 5);
+            targetSource = clamp(targetSource, TARGET_SOURCE_CROSSHAIR, TARGET_SOURCE_SELF);
+            targetType = clamp(targetType, TARGET_TYPE_TEAMMATES_ONLY, TARGET_TYPE_BLOCKS_ONLY);
+            visualAudience = clamp(visualAudience, VISUAL_AUDIENCE_TEAMMATES, VISUAL_AUDIENCE_EVERYONE);
+            message = cleanMessage(message, "Focus {player}");
+            teammateMessage = cleanMessage(teammateMessage, "{player} needs help!");
+            enemyMessage = cleanMessage(enemyMessage, "Focus {player}");
+            color = normalizeColor(color);
+            return this;
+        }
+
+        public PingRow copy() {
+            PingRow copy = new PingRow();
+            copy.keyType = keyType;
+            copy.keyCode = keyCode;
+            copy.presses = presses;
+            copy.targetSource = targetSource;
+            copy.targetType = targetType;
+            copy.message = message;
+            copy.teammateMessage = teammateMessage;
+            copy.enemyMessage = enemyMessage;
+            copy.color = color;
+            copy.visualAudience = visualAudience;
+            return copy.normalize();
+        }
+
+        private boolean sameSettings(PingRow other) {
+            PingRow normalizedOther = other == null ? new PingRow() : other.copy();
+            PingRow normalizedThis = copy();
+            return normalizedThis.keyType == normalizedOther.keyType
+                    && normalizedThis.keyCode == normalizedOther.keyCode
+                    && normalizedThis.presses == normalizedOther.presses
+                    && normalizedThis.targetSource == normalizedOther.targetSource
+                    && normalizedThis.targetType == normalizedOther.targetType
+                    && normalizedThis.message.equals(normalizedOther.message)
+                    && normalizedThis.teammateMessage.equals(normalizedOther.teammateMessage)
+                    && normalizedThis.enemyMessage.equals(normalizedOther.enemyMessage)
+                    && normalizedThis.color.equals(normalizedOther.color)
+                    && normalizedThis.visualAudience == normalizedOther.visualAudience;
+        }
+
+        private static String cleanMessage(String value, String fallback) {
+            String cleaned = value == null ? "" : value.trim();
+            return cleaned.isBlank() ? fallback : cleaned;
+        }
+
+        private static String normalizeColor(String value) {
+            if (value == null) {
+                return "#ffd84a";
+            }
+            String cleaned = value.trim().toLowerCase(Locale.ROOT);
+            if (cleaned.startsWith("#")) {
+                cleaned = cleaned.substring(1);
+            }
+            return cleaned.matches("[0-9a-f]{6}") ? "#" + cleaned : "#ffd84a";
+        }
     }
 }

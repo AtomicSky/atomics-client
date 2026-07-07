@@ -1,6 +1,6 @@
 package com.legions.client.mixin;
 
-import com.legions.client.LegionsPingManager;
+import com.legions.client.LegionsPingController;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayerInteractionManager;
 import net.minecraft.entity.Entity;
@@ -14,6 +14,6 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public class ClientPlayerInteractionManagerMixin {
     @Inject(method = "attackEntity", at = @At("HEAD"))
     private void legions_client$rememberLastAttackedPlayer(PlayerEntity player, Entity target, CallbackInfo ci) {
-        LegionsPingManager.recordAttackedEntity(MinecraftClient.getInstance(), target);
+        LegionsPingController.recordAttackedEntity(MinecraftClient.getInstance(), target);
     }
 }

@@ -157,8 +157,8 @@ public final class LegionsFeatures {
         if (!LegionsClient.enabled(client) || client.player == null) {
             return 0;
         }
-        if (LegionsPingManager.isMarkedPlayer(player)) {
-            return 0xFFFFD84A;
+        if (LegionsPingController.isMarkedPlayer(player)) {
+            return LegionsPingController.markedPlayerColor(player);
         }
         if (shouldHighlightTeamAsSpectator(client, player)) {
             return getTeamOutlineColor(player);
@@ -174,7 +174,7 @@ public final class LegionsFeatures {
         if (!LegionsClient.enabled(client) || client.player == null || player == null) {
             return LegionsPlayerOverlayColorContext.STYLE_OUTLINE;
         }
-        if (LegionsPingManager.isMarkedPlayer(player) || shouldHighlightTeamAsSpectator(client, player)) {
+        if (LegionsPingController.isMarkedPlayer(player) || shouldHighlightTeamAsSpectator(client, player)) {
             return LegionsPlayerOverlayColorContext.STYLE_OUTLINE;
         }
         if (LegionsClient.CONFIG.automaticFoeOutlinesEnabled && isOpponent(client.player, player)) {
@@ -208,7 +208,7 @@ public final class LegionsFeatures {
                 && player != null
                 && LegionsClient.CONFIG.automaticFoeOutlinesEnabled
                 && isOpponent(client.player, player)
-                && !LegionsPingManager.isMarkedPlayer(player)
+                && !LegionsPingController.isMarkedPlayer(player)
                 && !shouldHighlightTeamAsSpectator(client, player);
     }
 
@@ -233,7 +233,7 @@ public final class LegionsFeatures {
         if (!LegionsClient.enabled(client) || client.world == null || client.player == null || player == null) {
             return false;
         }
-        if (player == client.player || LegionsPingManager.isMarkedPlayer(player)) {
+        if (player == client.player || LegionsPingController.isMarkedPlayer(player)) {
             return false;
         }
         if (LegionsClient.CONFIG.spectatorGlowEnabled && isSpectatorTeam(client.player)) {
@@ -613,7 +613,10 @@ public final class LegionsFeatures {
         }
         Team localTeam = local.getScoreboardTeam();
         Team otherTeam = other.getScoreboardTeam();
-        return localTeam != null && otherTeam != null && !localTeam.getName().equals(otherTeam.getName());
+        if (localTeam != null && otherTeam != null) {
+            return !localTeam.getName().equals(otherTeam.getName());
+        }
+        return true;
     }
 
     public static boolean isSpectatorTeam(PlayerEntity player) {

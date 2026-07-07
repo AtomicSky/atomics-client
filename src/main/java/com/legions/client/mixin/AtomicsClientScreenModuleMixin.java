@@ -1,8 +1,9 @@
 package com.legions.client.mixin;
 
 import com.legions.client.LegionsClient;
-import com.legions.client.LegionsFeatures;
 import com.legions.client.config.LegionsConfig;
+import com.legions.client.gui.LegionsPingConfigScreen;
+import com.legions.client.gui.LegionsServerListScreen;
 import com.legions.client.gui.LegionsTeamCountOverlayLayoutScreen;
 import com.legions.client.gui.LegionsTeamHudLayoutScreen;
 import com.legions.client.gui.atomics.LegionsAtomicsIntSlider;
@@ -97,7 +98,7 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
 
         y = legions_client$addSubHeader(leftX, y, controlWidth, "General");
         y = legions_client$addToggle(leftX, y, controlWidth, "Enable Legions Client", () -> LegionsClient.CONFIG.enabled, value -> LegionsClient.CONFIG.enabled = value, LEGIONS_DEFAULT_CONFIG.enabled);
-        y = legions_client$addTextField(leftX, y, controlWidth, "Server IPs", LegionsFeatures.serverAddressesText(), "legions, play.example.net", LegionsFeatures::setServerAddressesText, String.join(", ", LEGIONS_DEFAULT_CONFIG.allowedServerAddresses));
+        y = legions_client$addServerIpsButton(leftX, y, controlWidth);
 
         y = legions_client$addSubHeader(leftX, y, controlWidth, "Player Info");
         y = legions_client$addToggle(leftX, y, controlWidth, "Rating Nametags", () -> LegionsClient.CONFIG.ratingNametagsEnabled, value -> LegionsClient.CONFIG.ratingNametagsEnabled = value, LEGIONS_DEFAULT_CONFIG.ratingNametagsEnabled);
@@ -111,9 +112,10 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
         y = legions_client$addSubHeader(leftX, y, controlWidth, "Team Ping");
         y = legions_client$addToggle(leftX, y, controlWidth, "Team Ping", () -> LegionsClient.CONFIG.teamPingEnabled, value -> LegionsClient.CONFIG.teamPingEnabled = value, LEGIONS_DEFAULT_CONFIG.teamPingEnabled);
         if (LegionsClient.CONFIG.teamPingEnabled) {
-            y = legions_client$addToggle(leftX, y, controlWidth, "Ping Last Attacked", () -> LegionsClient.CONFIG.pingLastAttackedPlayerEnabled, value -> LegionsClient.CONFIG.pingLastAttackedPlayerEnabled = value, LEGIONS_DEFAULT_CONFIG.pingLastAttackedPlayerEnabled);
+            y = legions_client$addCustomizeTeamPingsButton(leftX, y, controlWidth);
             y = legions_client$addToggle(leftX, y, controlWidth, "Block Ping Distance", () -> LegionsClient.CONFIG.blockPingDistanceLabelEnabled, value -> LegionsClient.CONFIG.blockPingDistanceLabelEnabled = value, LEGIONS_DEFAULT_CONFIG.blockPingDistanceLabelEnabled);
             y = legions_client$addIntSlider(leftX, y, controlWidth, "Ping Seconds", 1, 25, LegionsClient.CONFIG.pingDurationSeconds, value -> LegionsClient.CONFIG.pingDurationSeconds = value, LEGIONS_DEFAULT_CONFIG.pingDurationSeconds);
+            y = legions_client$addIntSlider(leftX, y, controlWidth, "Recent Target Seconds", 1, 60, LegionsClient.CONFIG.pingRecentTargetTimeoutSeconds, value -> LegionsClient.CONFIG.pingRecentTargetTimeoutSeconds = value, LEGIONS_DEFAULT_CONFIG.pingRecentTargetTimeoutSeconds);
         }
 
         y = legions_client$addSubHeader(leftX, y, controlWidth, "Overlays");
@@ -153,8 +155,6 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
             Method addIntSlider = legions_client$getMethod(screenClass, "addIntSlider",
                     int.class, int.class, int.class, String.class, int.class, int.class, int.class,
                     int.class, int.class, intSetterType);
-            Method addTextField = legions_client$getMethod(screenClass, "addTextField",
-                    int.class, int.class, int.class, String.class, String.class, String.class, Consumer.class);
             Method addWideButton = legions_client$getMethod(screenClass, "addWideButton",
                     int.class, int.class, int.class, String.class, ButtonWidget.PressAction.class);
 
@@ -166,8 +166,8 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
             rowY = legions_client$addSubHeader(leftX, rowY, controlWidth, "General");
             rowY = legions_client$addNativeToggle(addToggle, toggleSetterType, leftX, rowY, controlWidth,
                     "Enable Legions Client", LEGIONS_DEFAULT_CONFIG.enabled, () -> LegionsClient.CONFIG.enabled, value -> LegionsClient.CONFIG.enabled = value);
-            rowY = legions_client$addNativeTextField(addTextField, leftX, rowY, controlWidth,
-                    "Server IPs", LegionsFeatures.serverAddressesText(), "legions, play.example.net", LegionsFeatures::setServerAddressesText);
+            rowY = legions_client$addNativeWideButton(addWideButton, leftX, rowY, controlWidth, "Server IPs",
+                    button -> this.client.setScreen(new LegionsServerListScreen(this)));
 
             rowY = legions_client$addSubHeader(leftX, rowY, controlWidth, "Player Info");
             rowY = legions_client$addNativeToggle(addToggle, toggleSetterType, leftX, rowY, controlWidth,
@@ -187,13 +187,16 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
             rowY = legions_client$addNativeToggle(addToggle, toggleSetterType, leftX, rowY, controlWidth,
                     "Team Ping", LEGIONS_DEFAULT_CONFIG.teamPingEnabled, () -> LegionsClient.CONFIG.teamPingEnabled, value -> LegionsClient.CONFIG.teamPingEnabled = value);
             if (LegionsClient.CONFIG.teamPingEnabled) {
-                rowY = legions_client$addNativeToggle(addToggle, toggleSetterType, leftX, rowY, controlWidth,
-                        "Ping Last Attacked", LEGIONS_DEFAULT_CONFIG.pingLastAttackedPlayerEnabled, () -> LegionsClient.CONFIG.pingLastAttackedPlayerEnabled, value -> LegionsClient.CONFIG.pingLastAttackedPlayerEnabled = value);
+                rowY = legions_client$addNativeWideButton(addWideButton, leftX, rowY, controlWidth, "Customize Team Pings",
+                        button -> this.client.setScreen(new LegionsPingConfigScreen(this)));
                 rowY = legions_client$addNativeToggle(addToggle, toggleSetterType, leftX, rowY, controlWidth,
                         "Block Ping Distance", LEGIONS_DEFAULT_CONFIG.blockPingDistanceLabelEnabled, () -> LegionsClient.CONFIG.blockPingDistanceLabelEnabled, value -> LegionsClient.CONFIG.blockPingDistanceLabelEnabled = value);
                 rowY = legions_client$addNativeIntSlider(addIntSlider, intSetterType, leftX, rowY, controlWidth,
                         "Ping Seconds", LegionsClient.CONFIG.pingDurationSeconds, 1, 25, 1, LEGIONS_DEFAULT_CONFIG.pingDurationSeconds,
                         () -> LegionsClient.CONFIG.pingDurationSeconds, value -> LegionsClient.CONFIG.pingDurationSeconds = value);
+                rowY = legions_client$addNativeIntSlider(addIntSlider, intSetterType, leftX, rowY, controlWidth,
+                        "Recent Target Seconds", LegionsClient.CONFIG.pingRecentTargetTimeoutSeconds, 1, 60, 1, LEGIONS_DEFAULT_CONFIG.pingRecentTargetTimeoutSeconds,
+                        () -> LegionsClient.CONFIG.pingRecentTargetTimeoutSeconds, value -> LegionsClient.CONFIG.pingRecentTargetTimeoutSeconds = value);
             }
 
             rowY = legions_client$addSubHeader(leftX, rowY, controlWidth, "Overlays");
@@ -427,6 +430,26 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
     }
 
     @Unique
+    private int legions_client$addCustomizeTeamPingsButton(int x, int y, int width) {
+        if (legions_client$isWidgetVisible(y)) {
+            addDrawableChild(ButtonWidget.builder(Text.literal("Customize Team Pings"),
+                    button -> this.client.setScreen(new LegionsPingConfigScreen(this)))
+                    .dimensions(x, y, width, LEGIONS_BUTTON_HEIGHT).build());
+        }
+        return y + LEGIONS_ROW_HEIGHT;
+    }
+
+    @Unique
+    private int legions_client$addServerIpsButton(int x, int y, int width) {
+        if (legions_client$isWidgetVisible(y)) {
+            addDrawableChild(ButtonWidget.builder(Text.literal("Server IPs"),
+                    button -> this.client.setScreen(new LegionsServerListScreen(this)))
+                    .dimensions(x, y, width, LEGIONS_BUTTON_HEIGHT).build());
+        }
+        return y + LEGIONS_ROW_HEIGHT;
+    }
+
+    @Unique
     private boolean legions_client$shouldShowModule() {
         if (!legions_client$isSearchTab()) {
             return true;
@@ -435,7 +458,7 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
         if (query.isBlank()) {
             return true;
         }
-        String terms = "legions lc rating nametag foe outline render style full pulse spectator glow warning particle team ping last attacked attack block distance label team hud team counter team count player count scoreboard scoreboard teams left players left count move opponent opponents shown limit hidden hide render optimization distance fps performance opacity";
+        String terms = "legions lc server ip ips address addresses list domain rating nametag foe outline render style full pulse spectator glow warning particle team ping customize keybind key mouse row rows duplicate color audience last attacker attacked attack block distance label team hud team counter team count player count scoreboard scoreboard teams left players left count move opponent opponents shown limit hidden hide render optimization distance fps performance opacity";
         return legions_client$matchesSearch(query, terms);
     }
 

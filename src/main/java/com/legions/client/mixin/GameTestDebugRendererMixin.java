@@ -1,6 +1,6 @@
 package com.legions.client.mixin;
 
-import com.legions.client.LegionsPingManager;
+import com.legions.client.LegionsPingController;
 import net.minecraft.client.render.debug.GameTestDebugRenderer;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -11,6 +11,6 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public class GameTestDebugRendererMixin {
     @Inject(method = "render", at = @At("TAIL"))
     private void legions_client$renderBlockPingHighlights(CallbackInfo ci) {
-        LegionsPingManager.renderBlockHighlights();
+        LegionsPingController.renderBlockHighlights();
     }
 }

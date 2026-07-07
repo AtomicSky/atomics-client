@@ -1,7 +1,6 @@
 package com.legions.client.gui;
 
 import com.legions.client.LegionsClient;
-import com.legions.client.LegionsFeatures;
 import com.legions.client.config.LegionsConfig;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
@@ -64,7 +63,7 @@ public class LegionsClientScreen extends Screen {
         y = addSectionHeader(controlX, y, controlWidth, "General");
         addToggle(controlX, screenY(y), controlWidth, "Enabled", () -> LegionsClient.CONFIG.enabled, value -> LegionsClient.CONFIG.enabled = value, defaultConfig.enabled);
         y += ROW_SPACING;
-        addTextField(controlX, screenY(y), controlWidth, "Server IPs", LegionsFeatures.serverAddressesText(), "legions, play.example.net", LegionsFeatures::setServerAddressesText, String.join(", ", defaultConfig.allowedServerAddresses));
+        addButton(controlX, screenY(y), controlWidth, Text.literal("Server IPs"), button -> MinecraftClient.getInstance().setScreen(new LegionsServerListScreen(this)));
         y += ROW_SPACING;
 
         y = addSectionHeader(controlX, y, controlWidth, "Player Info");
@@ -85,11 +84,13 @@ public class LegionsClientScreen extends Screen {
         addToggle(controlX, screenY(y), controlWidth, "Team Ping", () -> LegionsClient.CONFIG.teamPingEnabled, value -> LegionsClient.CONFIG.teamPingEnabled = value, defaultConfig.teamPingEnabled);
         y += ROW_SPACING;
         if (LegionsClient.CONFIG.teamPingEnabled) {
-            addToggle(controlX, screenY(y), controlWidth, "Ping Last Attacked", () -> LegionsClient.CONFIG.pingLastAttackedPlayerEnabled, value -> LegionsClient.CONFIG.pingLastAttackedPlayerEnabled = value, defaultConfig.pingLastAttackedPlayerEnabled);
+            addButton(controlX, screenY(y), controlWidth, Text.literal("Customize Team Pings"), button -> MinecraftClient.getInstance().setScreen(new LegionsPingConfigScreen(this)));
             y += ROW_SPACING;
             addToggle(controlX, screenY(y), controlWidth, "Block Ping Distance", () -> LegionsClient.CONFIG.blockPingDistanceLabelEnabled, value -> LegionsClient.CONFIG.blockPingDistanceLabelEnabled = value, defaultConfig.blockPingDistanceLabelEnabled);
             y += ROW_SPACING;
             addSlider(controlX, screenY(y), controlWidth, "Ping Seconds", 1, 25, () -> LegionsClient.CONFIG.pingDurationSeconds, value -> LegionsClient.CONFIG.pingDurationSeconds = value, defaultConfig.pingDurationSeconds);
+            y += ROW_SPACING;
+            addSlider(controlX, screenY(y), controlWidth, "Recent Target Seconds", 1, 60, () -> LegionsClient.CONFIG.pingRecentTargetTimeoutSeconds, value -> LegionsClient.CONFIG.pingRecentTargetTimeoutSeconds = value, defaultConfig.pingRecentTargetTimeoutSeconds);
             y += ROW_SPACING;
         }
 

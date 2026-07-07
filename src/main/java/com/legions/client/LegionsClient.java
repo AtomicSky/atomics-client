@@ -16,9 +16,6 @@ import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.lang.reflect.Field;
-import java.util.List;
-
 public class LegionsClient implements ClientModInitializer {
     public static final String MOD_ID = "legions_client";
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
@@ -27,16 +24,13 @@ public class LegionsClient implements ClientModInitializer {
 
     private static final boolean ATOMICS_CLIENT_LOADED = FabricLoader.getInstance().isModLoaded("atomics_client");
     private static KeyBinding openConfigKey;
-    private static KeyBinding pingTargetKey;
 
     @Override
     public void onInitializeClient() {
         CONFIG = LegionsConfig.load().normalize();
 
-        KeyBinding.Category category = ATOMICS_CLIENT_LOADED
-                ? existingCategoryOrMisc(Identifier.of("atomics_client", "main"))
-                : KeyBinding.Category.create(Identifier.of(MOD_ID, "main"));
         if (!ATOMICS_CLIENT_LOADED) {
+            KeyBinding.Category category = KeyBinding.Category.create(Identifier.of(MOD_ID, "main"));
             openConfigKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
                     "key.legions_client.open_config",
                     InputUtil.Type.KEYSYM,
@@ -44,46 +38,37 @@ public class LegionsClient implements ClientModInitializer {
                     category
             ));
         }
-        pingTargetKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
-                "key.legions_client.ping_target",
-                InputUtil.Type.KEYSYM,
-                GLFW.GLFW_KEY_G,
-                category
-        ));
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (openConfigKey != null && openConfigKey.wasPressed()) {
                 client.setScreen(new LegionsClientScreen(client.currentScreen));
             }
-            while (pingTargetKey != null && pingTargetKey.wasPressed()) {
-                LegionsPingManager.handlePingKeyPress(client);
-            }
             LegionsFeatures.tick(client);
-            LegionsPingManager.tick(client);
+            LegionsPingController.tick(client);
             LegionsSpectateLock.tick(client);
         });
 
         ClientReceiveMessageEvents.ALLOW_CHAT.register((message, signedMessage, sender, parameters, timestamp) -> {
-            if (!LegionsPingManager.shouldCleanReceivedPingText(message)) {
+            if (!LegionsPingController.shouldCleanReceivedPingText(message)) {
                 return true;
             }
 
-            LegionsPingManager.receiveChatPing(message, sender);
+            LegionsPingController.receiveChatPing(message, sender);
             if (MinecraftClient.getInstance().inGameHud != null) {
-                MinecraftClient.getInstance().inGameHud.getChatHud().addMessage(LegionsPingManager.cleanReceivedPingText(message));
+                MinecraftClient.getInstance().inGameHud.getChatHud().addMessage(LegionsPingController.cleanReceivedPingText(message));
             }
             return false;
         });
         ClientReceiveMessageEvents.CHAT.register((message, signedMessage, sender, parameters, timestamp) ->
-                LegionsPingManager.receiveChatPing(message, sender)
+                LegionsPingController.receiveChatPing(message, sender)
         );
         ClientReceiveMessageEvents.MODIFY_GAME.register((message, overlay) -> {
-            if (!LegionsPingManager.shouldCleanReceivedPingText(message)) {
+            if (!LegionsPingController.shouldCleanReceivedPingText(message)) {
                 return message;
             }
 
-            LegionsPingManager.receiveChatPing(message, null);
-            return LegionsPingManager.cleanReceivedPingText(message);
+            LegionsPingController.receiveChatPing(message, null);
+            return LegionsPingController.cleanReceivedPingText(message);
         });
         HudRenderCallback.EVENT.register((context, tickCounter) -> LegionsHud.renderHud(context));
     }
@@ -98,45 +83,5 @@ public class LegionsClient implements ClientModInitializer {
 
     public static boolean isAtomicsClientLoaded() {
         return ATOMICS_CLIENT_LOADED;
-    }
-
-    private static KeyBinding.Category existingCategoryOrMisc(Identifier id) {
-        KeyBinding.Category category = findRegisteredCategory(id);
-        if (category != null) {
-            return category;
-        }
-        LOGGER.warn("Atomics Client keybind category {} was not registered yet; using Minecraft's Misc category for Legions keys.", id);
-        return KeyBinding.Category.MISC;
-    }
-
-    private static KeyBinding.Category findRegisteredCategory(Identifier id) {
-        for (Field field : KeyBinding.Category.class.getDeclaredFields()) {
-            if (!List.class.isAssignableFrom(field.getType())) {
-                continue;
-            }
-            KeyBinding.Category category = findRegisteredCategory(id, field);
-            if (category != null) {
-                return category;
-            }
-        }
-        return null;
-    }
-
-    private static KeyBinding.Category findRegisteredCategory(Identifier id, Field field) {
-        try {
-            field.setAccessible(true);
-            Object value = field.get(null);
-            if (!(value instanceof List<?> categories)) {
-                return null;
-            }
-            for (Object item : categories) {
-                if (item instanceof KeyBinding.Category category && id.equals(category.id())) {
-                    return category;
-                }
-            }
-        } catch (ReflectiveOperationException | RuntimeException e) {
-            LOGGER.debug("Skipped keybind category registry field {} while looking up {}.", field.getName(), id, e);
-        }
-        return null;
     }
 }
