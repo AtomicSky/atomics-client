@@ -31,6 +31,10 @@ public final class LegionsFeatures {
     private static final Pattern LEGIONS_TAB_TAG_PATTERN = Pattern.compile("\\[(\\d\\.\\d|\\?)\\]");
     private static final boolean ATOMICS_CLIENT_LOADED = FabricLoader.getInstance().isModLoaded("atomics_client");
     private static final int QUIP_UNKNOWN_COLOR = 0xA0A0A0;
+    private static final int MIN_QUIP_OVERLAY_RATING = 100;
+    private static final int MAX_QUIP_OVERLAY_RATING = 2000;
+    private static final int MIN_QUIP_FULL_OVERLAY_ALPHA = 51;
+    private static final int DEFAULT_FOE_FULL_OVERLAY_ALPHA = 128;
     private static final Set<UUID> visibleOpponentCache = new HashSet<>();
     private static final ArrayList<VisibleOpponent> visibleOpponentScratch = new ArrayList<>();
     private static final Map<String, TabListTag> tabListTagCache = new HashMap<>();
@@ -177,6 +181,51 @@ public final class LegionsFeatures {
             return LegionsClient.CONFIG.automaticFoeRenderStyle;
         }
         return LegionsPlayerOverlayColorContext.STYLE_OUTLINE;
+    }
+
+    public static int getFilledOverlayColor(PlayerEntity player, int overlayColor, int overlayStyle) {
+        if (overlayColor == 0 || !usesFilledOverlay(overlayStyle)) {
+            return -1;
+        }
+        if (!isAutomaticFoeOverlay(player)) {
+            return overlayColor;
+        }
+
+        int alpha = foeFullOverlayAlpha(player);
+        return (overlayColor & 0x00FFFFFF) | (alpha << 24);
+    }
+
+    private static boolean usesFilledOverlay(int overlayStyle) {
+        return overlayStyle == LegionsPlayerOverlayColorContext.STYLE_FULL
+                || overlayStyle == LegionsPlayerOverlayColorContext.STYLE_OUTLINE_FULL
+                || overlayStyle == LegionsPlayerOverlayColorContext.STYLE_PULSE;
+    }
+
+    private static boolean isAutomaticFoeOverlay(PlayerEntity player) {
+        MinecraftClient client = MinecraftClient.getInstance();
+        return LegionsClient.enabled(client)
+                && client.player != null
+                && player != null
+                && LegionsClient.CONFIG.automaticFoeOutlinesEnabled
+                && isOpponent(client.player, player)
+                && !LegionsPingManager.isMarkedPlayer(player)
+                && !shouldHighlightTeamAsSpectator(client, player);
+    }
+
+    private static int foeFullOverlayAlpha(PlayerEntity player) {
+        MinecraftClient client = MinecraftClient.getInstance();
+        TabListTag tag = getTabListTag(client, realUsername(player));
+        if (tag == null) {
+            return DEFAULT_FOE_FULL_OVERLAY_ALPHA;
+        }
+        if (tag.isUnknown()) {
+            return 0;
+        }
+
+        int clampedRating = clamp(tag.numericRating, MIN_QUIP_OVERLAY_RATING, MAX_QUIP_OVERLAY_RATING);
+        float opacity = (float) (clampedRating - MIN_QUIP_OVERLAY_RATING)
+                / (MAX_QUIP_OVERLAY_RATING - MIN_QUIP_OVERLAY_RATING);
+        return MIN_QUIP_FULL_OVERLAY_ALPHA + Math.round(opacity * (255.0f - MIN_QUIP_FULL_OVERLAY_ALPHA));
     }
 
     public static boolean shouldHidePlayerModel(PlayerEntity player) {
@@ -527,6 +576,10 @@ public final class LegionsFeatures {
             return 0xFFFFFF55;
         }
         return 0;
+    }
+
+    private static int clamp(int value, int min, int max) {
+        return Math.max(min, Math.min(max, value));
     }
 
     private static boolean shouldHighlightTeamAsSpectator(MinecraftClient client, PlayerEntity player) {

@@ -37,8 +37,9 @@ public class PlayerEntityRendererMixin {
         }
         int overlayColor = LegionsFeatures.getOutlineColor(playerEntity);
         int overlayStyle = LegionsFeatures.getOverlayStyle(playerEntity);
+        int filledOverlayColor = LegionsFeatures.getFilledOverlayColor(playerEntity, overlayColor, overlayStyle);
         if (state instanceof LegionsPlayerOverlayRenderStateAccess access) {
-            access.legions_client$setFoeOverlayColor(overlayColor == 0 ? -1 : overlayColor);
+            access.legions_client$setFoeOverlayColor(filledOverlayColor);
             access.legions_client$setFoeOverlayStyle(overlayStyle);
         }
         state.outlineColor = shouldDrawOutline(overlayColor, overlayStyle) ? overlayColor : 0;
