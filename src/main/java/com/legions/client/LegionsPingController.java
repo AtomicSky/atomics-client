@@ -58,6 +58,8 @@ public final class LegionsPingController {
     private static final int FIGHT_MIN_PLAYERS = 3;
     private static final int FIGHT_MIN_TEAMS = 2;
     private static final int FIGHT_REFRESH_TICKS = 5;
+    private static final long FIGHT_MARKER_MIN_MOVE_MILLIS = 250L;
+    private static final long FIGHT_MARKER_MAX_MOVE_MILLIS = 1200L;
     private static final int PING_LABEL_MAX_LENGTH = 14;
     private static final Pattern MACHINE_PAYLOAD_PATTERN = Pattern.compile("\\[LC:([PB]):([^\\]]+)]", Pattern.CASE_INSENSITIVE);
 
@@ -203,7 +205,7 @@ public final class LegionsPingController {
         for (FightMark mark : fightMarkers) {
             int opacity = fightMarkerOpacity(mark, now);
             if (opacity > 0) {
-                renderFightMarker(client, mark, fightColor, opacity);
+                renderFightMarker(client, mark, fightColor, opacity, now);
             }
         }
     }
@@ -252,7 +254,7 @@ public final class LegionsPingController {
         for (FightMark mark : fightMarkers) {
             int opacity = fightMarkerOpacity(mark, now);
             if (opacity > 0) {
-                markers.add(new ActiveMarker(mark.pos(), fightColor, PingRow.ICON_FIRE, "Team Fight", opacity));
+                markers.add(new ActiveMarker(fightMarkerPosition(client, mark, now), fightColor, PingRow.ICON_FIRE, "Team Fight", opacity));
             }
         }
         return markers;
@@ -522,7 +524,7 @@ public final class LegionsPingController {
         lastFightDetectionAt = now;
 
         collectFightCandidates(client);
-        refreshFightMarkers(now);
+        refreshFightMarkers(client, now);
     }
 
     private static boolean canUseTeamFightDetector(MinecraftClient client) {
@@ -618,50 +620,58 @@ public final class LegionsPingController {
         double x = 0.0;
         double y = 0.0;
         double z = 0.0;
+        double minY = Double.POSITIVE_INFINITY;
         for (int index : cluster) {
             PlayerFightNode node = fightPlayerScratch.get(index);
             teams.add(node.team());
             x += node.pos().x;
             y += node.pos().y;
             z += node.pos().z;
+            minY = Math.min(minY, node.pos().y);
         }
 
         if (teams.size() < FIGHT_MIN_TEAMS) {
             return;
         }
 
-        Vec3d center = new Vec3d(x / cluster.size(), y / cluster.size(), z / cluster.size());
+        double averageY = y / cluster.size();
+        Vec3d center = groundedFightPosition(client,
+                new Vec3d(x / cluster.size(), averageY, z / cluster.size()),
+                minY,
+                averageY);
         Entity camera = client.getCameraEntity() == null ? client.player : client.getCameraEntity();
         double distanceSquared = camera == null ? 0.0 : camera.getCameraPosVec(1.0f).squaredDistanceTo(center);
-        fightCandidateScratch.add(new FightCandidate(center, cluster.size(), teams.size(), distanceSquared));
+        fightCandidateScratch.add(new FightCandidate(center, averageY, cluster.size(), teams.size(), distanceSquared));
     }
 
-    private static void refreshFightMarkers(long now) {
+    private static void refreshFightMarkers(MinecraftClient client, long now) {
         int maxMarkers = Math.max(1, LegionsClient.CONFIG.teamFightMaxMarkers);
         int limit = Math.min(maxMarkers, fightCandidateScratch.size());
         ArrayList<FightMark> next = new ArrayList<>();
         boolean[] usedOldMarkers = new boolean[fightMarkers.size()];
-        double matchDistanceSquared = Math.pow(FIGHT_DETECTION_RADIUS * 2.0, 2.0);
+        double matchDistanceSquared = Math.pow(FIGHT_DETECTION_RADIUS * 4.0, 2.0);
 
         for (int i = 0; i < limit; i++) {
             FightCandidate candidate = fightCandidateScratch.get(i);
-            int match = nearestFightMarker(candidate.center(), usedOldMarkers, matchDistanceSquared);
-            Vec3d pos = candidate.center();
-            long fadeStartedAt = 0L;
+            int match = nearestFightMarker(client, candidate.center(), usedOldMarkers, matchDistanceSquared, now);
             if (match >= 0) {
                 usedOldMarkers[match] = true;
                 FightMark old = fightMarkers.get(match);
-                pos = smoothedFightPosition(old.pos(), candidate.center());
-                fadeStartedAt = 0L;
+                next.add(updatedFightMarker(client, old, candidate, now));
+            } else {
+                Vec3d target = candidate.center();
+                next.add(new FightMark(target, target, candidate.averageY(),
+                        now, 0L, now, 0L, candidate.players(), candidate.teams()));
             }
-            next.add(new FightMark(pos, now, fadeStartedAt, candidate.players(), candidate.teams()));
         }
 
         for (int i = 0; i < fightMarkers.size() && next.size() < maxMarkers; i++) {
             FightMark old = fightMarkers.get(i);
             if (!usedOldMarkers[i]) {
                 long fadeStartedAt = old.fadeStartedAt() > 0L ? old.fadeStartedAt() : now;
-                FightMark fading = new FightMark(old.pos(), old.markedAt(), fadeStartedAt, old.players(), old.teams());
+                Vec3d current = fightMarkerPosition(client, old, now);
+                FightMark fading = new FightMark(current, current, old.averageY(),
+                        old.markedAt(), fadeStartedAt, now, 0L, old.players(), old.teams());
                 if (fightMarkerOpacity(fading, now) > 0) {
                     next.add(fading);
                 }
@@ -672,26 +682,74 @@ public final class LegionsPingController {
         fightMarkers.addAll(next);
     }
 
-    private static Vec3d smoothedFightPosition(Vec3d oldPos, Vec3d newPos) {
+    private static FightMark updatedFightMarker(MinecraftClient client, FightMark old, FightCandidate candidate, long now) {
+        Vec3d target = candidate.center();
         if (!LegionsClient.CONFIG.teamFightSmoothingEnabled) {
-            return newPos;
+            return new FightMark(target, target, candidate.averageY(),
+                    now, 0L, now, 0L, candidate.players(), candidate.teams());
         }
-        double distanceSquared = oldPos.squaredDistanceTo(newPos);
-        if (distanceSquared > Math.pow(FIGHT_DETECTION_RADIUS * 3.0, 2.0)) {
-            return newPos;
+
+        if (old.targetPos().squaredDistanceTo(target) < 0.04) {
+            return new FightMark(old.fromPos(), old.targetPos(), candidate.averageY(),
+                    now, 0L, old.moveStartedAt(), old.moveDurationMillis(), candidate.players(), candidate.teams());
         }
-        double progress = Math.max(0.05, Math.min(1.0, LegionsClient.CONFIG.teamFightSmoothingStrength / 100.0));
-        return lerp(oldPos, newPos, progress);
+
+        Vec3d current = fightMarkerPosition(client, old, now);
+        return new FightMark(current, target, candidate.averageY(),
+                now, 0L, now, fightMarkerMoveMillis(), candidate.players(), candidate.teams());
     }
 
-    private static int nearestFightMarker(Vec3d center, boolean[] usedOldMarkers, double maxDistanceSquared) {
+    private static Vec3d fightMarkerPosition(MinecraftClient client, FightMark mark, long now) {
+        Vec3d raw = mark.rawPos(now);
+        return groundedFightPosition(client, raw,
+                Math.min(raw.y, mark.averageY()) - FIGHT_DETECTION_RADIUS * 3.0,
+                mark.averageY());
+    }
+
+    private static long fightMarkerMoveMillis() {
+        if (!LegionsClient.CONFIG.teamFightSmoothingEnabled) {
+            return 0L;
+        }
+        int strength = Math.max(5, Math.min(100, LegionsClient.CONFIG.teamFightSmoothingStrength));
+        double speed = strength / 100.0;
+        return Math.round(FIGHT_MARKER_MAX_MOVE_MILLIS
+                - (FIGHT_MARKER_MAX_MOVE_MILLIS - FIGHT_MARKER_MIN_MOVE_MILLIS) * speed);
+    }
+
+    private static Vec3d groundedFightPosition(MinecraftClient client, Vec3d pos) {
+        return groundedFightPosition(client, pos, pos.y - FIGHT_DETECTION_RADIUS, pos.y);
+    }
+
+    private static Vec3d groundedFightPosition(MinecraftClient client, Vec3d pos, double minY, double maxY) {
+        if (client.world == null || client.player == null) {
+            return pos;
+        }
+
+        double cappedY = Math.min(pos.y, maxY);
+        double startY = maxY;
+        double endY = Math.min(cappedY - FIGHT_DETECTION_RADIUS * 2.0, minY - 32.0);
+        BlockHitResult hit = client.world.raycast(new RaycastContext(
+                new Vec3d(pos.x, startY, pos.z),
+                new Vec3d(pos.x, endY, pos.z),
+                RaycastContext.ShapeType.COLLIDER,
+                RaycastContext.FluidHandling.NONE,
+                client.player
+        ));
+        if (hit.getType() == HitResult.Type.BLOCK) {
+            double y = Math.min(hit.getPos().y + 0.04, maxY);
+            return new Vec3d(hit.getPos().x, y, hit.getPos().z);
+        }
+        return new Vec3d(pos.x, cappedY, pos.z);
+    }
+
+    private static int nearestFightMarker(MinecraftClient client, Vec3d center, boolean[] usedOldMarkers, double maxDistanceSquared, long now) {
         int bestIndex = -1;
         double bestDistanceSquared = maxDistanceSquared;
         for (int i = 0; i < fightMarkers.size(); i++) {
             if (usedOldMarkers[i]) {
                 continue;
             }
-            double distanceSquared = fightMarkers.get(i).pos().squaredDistanceTo(center);
+            double distanceSquared = fightMarkerPosition(client, fightMarkers.get(i), now).squaredDistanceTo(center);
             if (distanceSquared < bestDistanceSquared) {
                 bestIndex = i;
                 bestDistanceSquared = distanceSquared;
@@ -1056,8 +1114,8 @@ public final class LegionsPingController {
         }
     }
 
-    private static void renderFightMarker(MinecraftClient client, FightMark mark, int color, int opacity) {
-        Vec3d center = mark.pos();
+    private static void renderFightMarker(MinecraftClient client, FightMark mark, int color, int opacity, long now) {
+        Vec3d center = fightMarkerPosition(client, mark, now);
         int fadedColor = applyOpacity(color, opacity);
         GizmoDrawing.point(center, fadedColor, FIGHT_MARKER_SIZE).ignoreOcclusion();
         GizmoDrawing.circle(center, Math.max(2.0f, FIGHT_DETECTION_RADIUS / 6.0f),
@@ -1514,10 +1572,21 @@ public final class LegionsPingController {
     private record PlayerFightNode(String team, Vec3d pos) {
     }
 
-    private record FightCandidate(Vec3d center, int players, int teams, double distanceSquared) {
+    private record FightCandidate(Vec3d center, double averageY, int players, int teams, double distanceSquared) {
     }
 
-    private record FightMark(Vec3d pos, long markedAt, long fadeStartedAt, int players, int teams) {
+    private record FightMark(Vec3d fromPos, Vec3d targetPos, double averageY,
+                             long markedAt, long fadeStartedAt,
+                             long moveStartedAt, long moveDurationMillis,
+                             int players, int teams) {
+        private Vec3d rawPos(long now) {
+            if (moveDurationMillis <= 0L) {
+                return targetPos;
+            }
+            double progress = clampDouble((now - moveStartedAt) / (double) moveDurationMillis, 0.0, 1.0);
+            double eased = progress * progress * (3.0 - 2.0 * progress);
+            return lerp(fromPos, targetPos, eased);
+        }
     }
 
     private record PendingPress(PingKey key, int presses, long pressedAt, AimSnapshot aim) {
