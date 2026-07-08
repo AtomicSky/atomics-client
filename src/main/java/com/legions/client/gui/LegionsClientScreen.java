@@ -94,6 +94,40 @@ public class LegionsClientScreen extends Screen {
             y += ROW_SPACING;
         }
 
+        y = addSectionHeader(controlX, y, controlWidth, "Ping Arrows");
+        addToggle(controlX, screenY(y), controlWidth, "Off-Screen Arrows", () -> LegionsClient.CONFIG.offscreenPingArrowsEnabled, value -> LegionsClient.CONFIG.offscreenPingArrowsEnabled = value, defaultConfig.offscreenPingArrowsEnabled);
+        y += ROW_SPACING;
+        if (LegionsClient.CONFIG.offscreenPingArrowsEnabled) {
+            addSlider(controlX, screenY(y), controlWidth, "Arrow Scale %", 50, 200, () -> LegionsClient.CONFIG.offscreenPingArrowScale, value -> LegionsClient.CONFIG.offscreenPingArrowScale = value, defaultConfig.offscreenPingArrowScale);
+            y += ROW_SPACING;
+            addToggle(controlX, screenY(y), controlWidth, "Arrow Distance Fade", () -> LegionsClient.CONFIG.offscreenPingArrowDistanceFadeEnabled, value -> LegionsClient.CONFIG.offscreenPingArrowDistanceFadeEnabled = value, defaultConfig.offscreenPingArrowDistanceFadeEnabled);
+            y += ROW_SPACING;
+            addSlider(controlX, screenY(y), controlWidth, "Arrow Min Opacity %", 10, 100, () -> LegionsClient.CONFIG.offscreenPingArrowMinOpacity, value -> LegionsClient.CONFIG.offscreenPingArrowMinOpacity = value, defaultConfig.offscreenPingArrowMinOpacity);
+            y += ROW_SPACING;
+            addSlider(controlX, screenY(y), controlWidth, "Arrow Max Opacity %", 10, 100, () -> LegionsClient.CONFIG.offscreenPingArrowMaxOpacity, value -> LegionsClient.CONFIG.offscreenPingArrowMaxOpacity = value, defaultConfig.offscreenPingArrowMaxOpacity);
+            y += ROW_SPACING;
+        }
+
+        y = addSectionHeader(controlX, y, controlWidth, "Team Fight Detector");
+        addToggle(controlX, screenY(y), controlWidth, "Fight Detector", () -> LegionsClient.CONFIG.teamFightDetectorEnabled, value -> LegionsClient.CONFIG.teamFightDetectorEnabled = value, defaultConfig.teamFightDetectorEnabled);
+        y += ROW_SPACING;
+        if (LegionsClient.CONFIG.teamFightDetectorEnabled) {
+            addToggle(controlX, screenY(y), controlWidth, "Spectator Only", () -> LegionsClient.CONFIG.teamFightDetectorSpectatorOnly, value -> LegionsClient.CONFIG.teamFightDetectorSpectatorOnly = value, defaultConfig.teamFightDetectorSpectatorOnly);
+            y += ROW_SPACING;
+            addSlider(controlX, screenY(y), controlWidth, "Fight Max Markers", 1, 8, () -> LegionsClient.CONFIG.teamFightMaxMarkers, value -> LegionsClient.CONFIG.teamFightMaxMarkers = value, defaultConfig.teamFightMaxMarkers);
+            y += ROW_SPACING;
+            addTextField(controlX, screenY(y), controlWidth, "Fight Color", LegionsClient.CONFIG.teamFightMarkerColor, "#ff5555", value -> LegionsClient.CONFIG.teamFightMarkerColor = value, defaultConfig.teamFightMarkerColor);
+            y += ROW_SPACING;
+            addToggle(controlX, screenY(y), controlWidth, "Fight Smoothing", () -> LegionsClient.CONFIG.teamFightSmoothingEnabled, value -> LegionsClient.CONFIG.teamFightSmoothingEnabled = value, defaultConfig.teamFightSmoothingEnabled);
+            y += ROW_SPACING;
+            if (LegionsClient.CONFIG.teamFightSmoothingEnabled) {
+                addSlider(controlX, screenY(y), controlWidth, "Fight Smoothing %", 5, 100, () -> LegionsClient.CONFIG.teamFightSmoothingStrength, value -> LegionsClient.CONFIG.teamFightSmoothingStrength = value, defaultConfig.teamFightSmoothingStrength);
+                y += ROW_SPACING;
+            }
+            addSlider(controlX, screenY(y), controlWidth, "Fight Fade-Out Seconds", 1, 10, () -> LegionsClient.CONFIG.teamFightFadeOutSeconds, value -> LegionsClient.CONFIG.teamFightFadeOutSeconds = value, defaultConfig.teamFightFadeOutSeconds);
+            y += ROW_SPACING;
+        }
+
         y = addSectionHeader(controlX, y, controlWidth, "Overlays");
         addToggle(controlX, screenY(y), controlWidth, "Team Count Overlay", () -> LegionsClient.CONFIG.teamCountOverlayEnabled, value -> LegionsClient.CONFIG.teamCountOverlayEnabled = value, defaultConfig.teamCountOverlayEnabled);
         y += ROW_SPACING;
@@ -121,6 +155,8 @@ public class LegionsClientScreen extends Screen {
             addSlider(controlX, screenY(y), controlWidth, "Render Distance (Blocks)", 16, 160, () -> LegionsClient.CONFIG.playerRenderDistance, value -> LegionsClient.CONFIG.playerRenderDistance = value, defaultConfig.playerRenderDistance);
             y += ROW_SPACING;
         }
+        addToggle(controlX, screenY(y), controlWidth, "Render Debug", () -> LegionsClient.CONFIG.playerRenderOptimizationDebugEnabled, value -> LegionsClient.CONFIG.playerRenderOptimizationDebugEnabled = value, defaultConfig.playerRenderOptimizationDebugEnabled);
+        y += ROW_SPACING;
         y += 20;
 
         int buttonY = screenY(y);

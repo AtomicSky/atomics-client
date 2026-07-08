@@ -13,7 +13,7 @@ public class TotemParticleMixin {
     @Inject(method = "<init>", at = @At("TAIL"))
     private void legions_client$makeLegionsTotemsClearer(CallbackInfo ci) {
         MinecraftClient client = MinecraftClient.getInstance();
-        if (!LegionsClient.enabled(client)) {
+        if (!LegionsClient.enabled(client) || !LegionsClient.CONFIG.warningParticlesEnabled) {
             return;
         }
         TotemParticle particle = (TotemParticle) (Object) this;

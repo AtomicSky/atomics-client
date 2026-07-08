@@ -25,13 +25,22 @@ public class LegionsPingConfigScreen extends Screen {
     private static final int PANEL_SIDE_PADDING = 18;
     private static final int PANEL_BOTTOM_MARGIN = 0;
     private static final int SCROLLBAR_GUTTER = 14;
-    private static final int ROW_HEIGHT = 166;
+    private static final int ROW_HEIGHT = 194;
     private static final int ROW_GAP = 18;
     private static final int SCROLL_STEP = 28;
     private static final int FIELD_LABEL_WIDTH = 82;
     private static final String[] SOURCE_LABELS = {"Crosshair", "Last Attacker", "Last Attacked", "Self"};
     private static final String[] TYPE_LABELS = {"Teammates", "Enemies", "All Same", "All Different", "Blocks"};
     private static final String[] AUDIENCE_LABELS = {"Teammates", "Opponents", "Everyone"};
+    private static final String[] ICON_LABELS = {
+            "Default", "Axe", "Pickaxe", "Sword", "Bow", "Star", "Fire", "Lightning",
+            "Galaxy", "Diamond", "Dot", "Heart", "Hourglass", "Home", "Comet"
+    };
+    private static final String[] ICON_SYMBOLS = {
+            "\u2666", "\uD83E\uDE93", "\u26CF", "\uD83D\uDDE1", "\uD83C\uDFF9",
+            "\u2B50", "\uD83D\uDD25", "\u26A1", "\uD83C\uDF0C", "\u25C6",
+            "\u23FA", "\u2764", "\u23F3", "\u2302", "\u2604"
+    };
 
     private final Screen parent;
     private final List<Label> labels = new ArrayList<>();
@@ -228,17 +237,31 @@ public class LegionsPingConfigScreen extends Screen {
             LegionsClient.CONFIG.normalize();
             clearAndInit();
         });
-        addTextField(x + half + gap, lineY, half, "Color", row.color, "#ffd84a", value -> row.color = value);
+        addTextField(x + half + gap, lineY, half, "Color", row.color, "#ffa500", value -> row.color = value);
 
-        lineY += 32;
+        lineY += 28;
         if (row.targetType == PingRow.TARGET_TYPE_ALL_PLAYERS_DIFFERENT_MESSAGE) {
-            addTextField(x, lineY, width, "Team Msg", row.teammateMessage, "{player} needs help!", value -> row.teammateMessage = value);
+            addIconButton(x, lineY, half, "Team Icon", row.teammateMessageIcon, value -> row.teammateMessageIcon = value);
+            addIconButton(x + half + gap, lineY, half, "Enemy Icon", row.enemyMessageIcon, value -> row.enemyMessageIcon = value);
+            lineY += 32;
+            addTextField(x, lineY, width, "Team Msg", row.teammateMessage, "{PLAYER} NEEDS HELP!", value -> row.teammateMessage = value);
             lineY += 28;
-            addTextField(x, lineY, width, "Enemy Msg", row.enemyMessage, "Focus {player}", value -> row.enemyMessage = value);
+            addTextField(x, lineY, width, "Enemy Msg", row.enemyMessage, "Focus {PLAYER}", value -> row.enemyMessage = value);
         } else {
-            String placeholder = row.targetType == PingRow.TARGET_TYPE_BLOCKS_ONLY ? "Go to {x} {y} {z}" : "Focus {player}";
+            addIconButton(x, lineY, half, "Msg Icon", row.messageIcon, value -> row.messageIcon = value);
+            lineY += 32;
+            String placeholder = row.targetType == PingRow.TARGET_TYPE_BLOCKS_ONLY ? "Go to {x} {y} {z}" : "Focus {PLAYER}";
             addTextField(x, lineY, width, "Message", row.message, placeholder, value -> row.message = value);
         }
+    }
+
+    private void addIconButton(int x, int y, int width, String label, int icon, Consumer<Integer> setter) {
+        int normalizedIcon = normalizeIcon(icon);
+        addButtonIfVisible(x, y, width, Text.literal(label + ": " + ICON_SYMBOLS[normalizedIcon] + " " + ICON_LABELS[normalizedIcon]), button -> {
+            setter.accept(Math.floorMod(normalizedIcon + 1, ICON_LABELS.length));
+            LegionsClient.CONFIG.normalize();
+            clearAndInit();
+        });
     }
 
     private void addTextField(int x, int y, int width, String label, String value, String placeholder, Consumer<String> setter) {
@@ -329,6 +352,10 @@ public class LegionsPingConfigScreen extends Screen {
 
     private static int clamp(int value, int min, int max) {
         return Math.max(min, Math.min(max, value));
+    }
+
+    private static int normalizeIcon(int icon) {
+        return clamp(icon, PingRow.ICON_DEFAULT, PingRow.ICON_COMET);
     }
 
     private record Label(int x, int y, String text, int color) {

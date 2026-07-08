@@ -10,7 +10,6 @@
     "LivingEntityRendererMixin",
     "RenderCommandQueueMixin",
     "GameTestDebugRendererMixin",
-    "ParticleSpriteManagerMixin",
     "EndRodParticleMixin",
     "TotemParticleMixin",
     "AtomicsFriendFoeOverlayMixin",

@@ -50,6 +50,9 @@ public final class LegionsFeatures {
     private static boolean atomicsTierSlotEnabledCache;
     private static Method atomicsTierSuffixMethod;
     private static boolean atomicsTierSuffixMethodChecked;
+    private static long renderOptimizationStatsTick = Long.MIN_VALUE;
+    private static int renderOptimizationChecked;
+    private static int renderOptimizationHidden;
 
     private LegionsFeatures() {
     }
@@ -304,7 +307,41 @@ public final class LegionsFeatures {
             return false;
         }
         Entity entity = client.world.getEntityById(state.id);
-        return entity instanceof PlayerEntity player && shouldHidePlayerModel(player);
+        boolean checked = entity instanceof PlayerEntity;
+        boolean hidden = checked && shouldHidePlayerModel((PlayerEntity) entity);
+        recordRenderOptimizationDecision(client, checked, hidden);
+        return hidden;
+    }
+
+    public static String renderOptimizationDebugText(MinecraftClient client) {
+        if (client == null || client.world == null || LegionsClient.CONFIG == null
+                || !LegionsClient.CONFIG.playerRenderOptimizationDebugEnabled) {
+            return "";
+        }
+        resetRenderOptimizationStatsIfNeeded(client);
+        int rendered = Math.max(0, renderOptimizationChecked - renderOptimizationHidden);
+        return "Player renders: " + rendered + " shown / " + renderOptimizationHidden + " hidden";
+    }
+
+    private static void recordRenderOptimizationDecision(MinecraftClient client, boolean checked, boolean hidden) {
+        if (client == null || client.world == null || LegionsClient.CONFIG == null
+                || !LegionsClient.CONFIG.playerRenderOptimizationDebugEnabled || !checked) {
+            return;
+        }
+        resetRenderOptimizationStatsIfNeeded(client);
+        renderOptimizationChecked++;
+        if (hidden) {
+            renderOptimizationHidden++;
+        }
+    }
+
+    private static void resetRenderOptimizationStatsIfNeeded(MinecraftClient client) {
+        long tick = client.world == null ? Long.MIN_VALUE : client.world.getTime();
+        if (renderOptimizationStatsTick != tick) {
+            renderOptimizationStatsTick = tick;
+            renderOptimizationChecked = 0;
+            renderOptimizationHidden = 0;
+        }
     }
 
     public static int getRating(MinecraftClient client, String playerName) {

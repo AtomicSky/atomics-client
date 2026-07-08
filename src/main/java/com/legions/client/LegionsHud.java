@@ -39,6 +39,8 @@ public final class LegionsHud {
     public static void renderHud(DrawContext context) {
         renderTeamHud(context);
         renderTeamCountOverlay(context);
+        LegionsPingController.renderHud(context);
+        renderRenderOptimizationDebug(context);
     }
 
     public static void renderTeamHud(DrawContext context) {
@@ -116,6 +118,23 @@ public final class LegionsHud {
     public static void renderTeamCountOverlayPreview(DrawContext context, MinecraftClient client, int x, int y) {
         MinecraftClient renderClient = client == null ? MinecraftClient.getInstance() : client;
         renderTeamCountOverlay(context, renderClient, x, y, true);
+    }
+
+    private static void renderRenderOptimizationDebug(DrawContext context) {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (!LegionsClient.enabled(client)
+                || LegionsClient.CONFIG == null
+                || !LegionsClient.CONFIG.playerRenderOptimizationDebugEnabled) {
+            return;
+        }
+
+        String text = LegionsFeatures.renderOptimizationDebugText(client);
+        if (text.isBlank()) {
+            return;
+        }
+        int x = 8;
+        int y = Math.max(8, context.getScaledWindowHeight() - client.textRenderer.fontHeight - 8);
+        context.drawTextWithShadow(client.textRenderer, Text.literal(text), x, y, 0xFF55E6FF);
     }
 
     private static void renderTeamCountOverlay(DrawContext context, MinecraftClient client, int configuredX, int configuredY, boolean preview) {

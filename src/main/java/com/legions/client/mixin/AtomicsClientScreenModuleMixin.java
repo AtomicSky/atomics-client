@@ -118,6 +118,28 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
             y = legions_client$addIntSlider(leftX, y, controlWidth, "Recent Target Seconds", 1, 60, LegionsClient.CONFIG.pingRecentTargetTimeoutSeconds, value -> LegionsClient.CONFIG.pingRecentTargetTimeoutSeconds = value, LEGIONS_DEFAULT_CONFIG.pingRecentTargetTimeoutSeconds);
         }
 
+        y = legions_client$addSubHeader(leftX, y, controlWidth, "Ping Arrows");
+        y = legions_client$addToggle(leftX, y, controlWidth, "Off-Screen Arrows", () -> LegionsClient.CONFIG.offscreenPingArrowsEnabled, value -> LegionsClient.CONFIG.offscreenPingArrowsEnabled = value, LEGIONS_DEFAULT_CONFIG.offscreenPingArrowsEnabled);
+        if (LegionsClient.CONFIG.offscreenPingArrowsEnabled) {
+            y = legions_client$addIntSlider(leftX, y, controlWidth, "Arrow Scale %", 50, 200, LegionsClient.CONFIG.offscreenPingArrowScale, value -> LegionsClient.CONFIG.offscreenPingArrowScale = value, LEGIONS_DEFAULT_CONFIG.offscreenPingArrowScale);
+            y = legions_client$addToggle(leftX, y, controlWidth, "Arrow Distance Fade", () -> LegionsClient.CONFIG.offscreenPingArrowDistanceFadeEnabled, value -> LegionsClient.CONFIG.offscreenPingArrowDistanceFadeEnabled = value, LEGIONS_DEFAULT_CONFIG.offscreenPingArrowDistanceFadeEnabled);
+            y = legions_client$addIntSlider(leftX, y, controlWidth, "Arrow Min Opacity %", 10, 100, LegionsClient.CONFIG.offscreenPingArrowMinOpacity, value -> LegionsClient.CONFIG.offscreenPingArrowMinOpacity = value, LEGIONS_DEFAULT_CONFIG.offscreenPingArrowMinOpacity);
+            y = legions_client$addIntSlider(leftX, y, controlWidth, "Arrow Max Opacity %", 10, 100, LegionsClient.CONFIG.offscreenPingArrowMaxOpacity, value -> LegionsClient.CONFIG.offscreenPingArrowMaxOpacity = value, LEGIONS_DEFAULT_CONFIG.offscreenPingArrowMaxOpacity);
+        }
+
+        y = legions_client$addSubHeader(leftX, y, controlWidth, "Team Fight Detector");
+        y = legions_client$addToggle(leftX, y, controlWidth, "Fight Detector", () -> LegionsClient.CONFIG.teamFightDetectorEnabled, value -> LegionsClient.CONFIG.teamFightDetectorEnabled = value, LEGIONS_DEFAULT_CONFIG.teamFightDetectorEnabled);
+        if (LegionsClient.CONFIG.teamFightDetectorEnabled) {
+            y = legions_client$addToggle(leftX, y, controlWidth, "Spectator Only", () -> LegionsClient.CONFIG.teamFightDetectorSpectatorOnly, value -> LegionsClient.CONFIG.teamFightDetectorSpectatorOnly = value, LEGIONS_DEFAULT_CONFIG.teamFightDetectorSpectatorOnly);
+            y = legions_client$addIntSlider(leftX, y, controlWidth, "Fight Max Markers", 1, 8, LegionsClient.CONFIG.teamFightMaxMarkers, value -> LegionsClient.CONFIG.teamFightMaxMarkers = value, LEGIONS_DEFAULT_CONFIG.teamFightMaxMarkers);
+            y = legions_client$addTextField(leftX, y, controlWidth, "Fight Color", LegionsClient.CONFIG.teamFightMarkerColor, "#ff5555", value -> LegionsClient.CONFIG.teamFightMarkerColor = value, LEGIONS_DEFAULT_CONFIG.teamFightMarkerColor);
+            y = legions_client$addToggle(leftX, y, controlWidth, "Fight Smoothing", () -> LegionsClient.CONFIG.teamFightSmoothingEnabled, value -> LegionsClient.CONFIG.teamFightSmoothingEnabled = value, LEGIONS_DEFAULT_CONFIG.teamFightSmoothingEnabled);
+            if (LegionsClient.CONFIG.teamFightSmoothingEnabled) {
+                y = legions_client$addIntSlider(leftX, y, controlWidth, "Fight Smoothing %", 5, 100, LegionsClient.CONFIG.teamFightSmoothingStrength, value -> LegionsClient.CONFIG.teamFightSmoothingStrength = value, LEGIONS_DEFAULT_CONFIG.teamFightSmoothingStrength);
+            }
+            y = legions_client$addIntSlider(leftX, y, controlWidth, "Fight Fade-Out Seconds", 1, 10, LegionsClient.CONFIG.teamFightFadeOutSeconds, value -> LegionsClient.CONFIG.teamFightFadeOutSeconds = value, LEGIONS_DEFAULT_CONFIG.teamFightFadeOutSeconds);
+        }
+
         y = legions_client$addSubHeader(leftX, y, controlWidth, "Overlays");
         y = legions_client$addToggle(leftX, y, controlWidth, "Team Count Overlay", () -> LegionsClient.CONFIG.teamCountOverlayEnabled, value -> LegionsClient.CONFIG.teamCountOverlayEnabled = value, LEGIONS_DEFAULT_CONFIG.teamCountOverlayEnabled);
         if (LegionsClient.CONFIG.teamCountOverlayEnabled) {
@@ -137,6 +159,7 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
         if (LegionsClient.CONFIG.playerRenderOptimizationEnabled) {
             y = legions_client$addIntSlider(leftX, y, controlWidth, "Render Distance (Blocks)", 16, 160, LegionsClient.CONFIG.playerRenderDistance, value -> LegionsClient.CONFIG.playerRenderDistance = value, LEGIONS_DEFAULT_CONFIG.playerRenderDistance);
         }
+        y = legions_client$addToggle(leftX, y, controlWidth, "Render Debug", () -> LegionsClient.CONFIG.playerRenderOptimizationDebugEnabled, value -> LegionsClient.CONFIG.playerRenderOptimizationDebugEnabled = value, LEGIONS_DEFAULT_CONFIG.playerRenderOptimizationDebugEnabled);
 
         return y + 10;
     }
@@ -199,6 +222,45 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
                         () -> LegionsClient.CONFIG.pingRecentTargetTimeoutSeconds, value -> LegionsClient.CONFIG.pingRecentTargetTimeoutSeconds = value);
             }
 
+            rowY = legions_client$addSubHeader(leftX, rowY, controlWidth, "Ping Arrows");
+            rowY = legions_client$addNativeToggle(addToggle, toggleSetterType, leftX, rowY, controlWidth,
+                    "Off-Screen Arrows", LEGIONS_DEFAULT_CONFIG.offscreenPingArrowsEnabled, () -> LegionsClient.CONFIG.offscreenPingArrowsEnabled, value -> LegionsClient.CONFIG.offscreenPingArrowsEnabled = value);
+            if (LegionsClient.CONFIG.offscreenPingArrowsEnabled) {
+                rowY = legions_client$addNativeIntSlider(addIntSlider, intSetterType, leftX, rowY, controlWidth,
+                        "Arrow Scale %", LegionsClient.CONFIG.offscreenPingArrowScale, 50, 200, 5, LEGIONS_DEFAULT_CONFIG.offscreenPingArrowScale,
+                        () -> LegionsClient.CONFIG.offscreenPingArrowScale, value -> LegionsClient.CONFIG.offscreenPingArrowScale = value);
+                rowY = legions_client$addNativeToggle(addToggle, toggleSetterType, leftX, rowY, controlWidth,
+                        "Arrow Distance Fade", LEGIONS_DEFAULT_CONFIG.offscreenPingArrowDistanceFadeEnabled, () -> LegionsClient.CONFIG.offscreenPingArrowDistanceFadeEnabled, value -> LegionsClient.CONFIG.offscreenPingArrowDistanceFadeEnabled = value);
+                rowY = legions_client$addNativeIntSlider(addIntSlider, intSetterType, leftX, rowY, controlWidth,
+                        "Arrow Min Opacity %", LegionsClient.CONFIG.offscreenPingArrowMinOpacity, 10, 100, 5, LEGIONS_DEFAULT_CONFIG.offscreenPingArrowMinOpacity,
+                        () -> LegionsClient.CONFIG.offscreenPingArrowMinOpacity, value -> LegionsClient.CONFIG.offscreenPingArrowMinOpacity = value);
+                rowY = legions_client$addNativeIntSlider(addIntSlider, intSetterType, leftX, rowY, controlWidth,
+                        "Arrow Max Opacity %", LegionsClient.CONFIG.offscreenPingArrowMaxOpacity, 10, 100, 5, LEGIONS_DEFAULT_CONFIG.offscreenPingArrowMaxOpacity,
+                        () -> LegionsClient.CONFIG.offscreenPingArrowMaxOpacity, value -> LegionsClient.CONFIG.offscreenPingArrowMaxOpacity = value);
+            }
+
+            rowY = legions_client$addSubHeader(leftX, rowY, controlWidth, "Team Fight Detector");
+            rowY = legions_client$addNativeToggle(addToggle, toggleSetterType, leftX, rowY, controlWidth,
+                    "Fight Detector", LEGIONS_DEFAULT_CONFIG.teamFightDetectorEnabled, () -> LegionsClient.CONFIG.teamFightDetectorEnabled, value -> LegionsClient.CONFIG.teamFightDetectorEnabled = value);
+            if (LegionsClient.CONFIG.teamFightDetectorEnabled) {
+                rowY = legions_client$addNativeToggle(addToggle, toggleSetterType, leftX, rowY, controlWidth,
+                        "Spectator Only", LEGIONS_DEFAULT_CONFIG.teamFightDetectorSpectatorOnly, () -> LegionsClient.CONFIG.teamFightDetectorSpectatorOnly, value -> LegionsClient.CONFIG.teamFightDetectorSpectatorOnly = value);
+                rowY = legions_client$addNativeIntSlider(addIntSlider, intSetterType, leftX, rowY, controlWidth,
+                        "Fight Max Markers", LegionsClient.CONFIG.teamFightMaxMarkers, 1, 8, 1, LEGIONS_DEFAULT_CONFIG.teamFightMaxMarkers,
+                        () -> LegionsClient.CONFIG.teamFightMaxMarkers, value -> LegionsClient.CONFIG.teamFightMaxMarkers = value);
+                rowY = legions_client$addTextField(leftX, rowY, controlWidth, "Fight Color", LegionsClient.CONFIG.teamFightMarkerColor, "#ff5555", value -> LegionsClient.CONFIG.teamFightMarkerColor = value, LEGIONS_DEFAULT_CONFIG.teamFightMarkerColor);
+                rowY = legions_client$addNativeToggle(addToggle, toggleSetterType, leftX, rowY, controlWidth,
+                        "Fight Smoothing", LEGIONS_DEFAULT_CONFIG.teamFightSmoothingEnabled, () -> LegionsClient.CONFIG.teamFightSmoothingEnabled, value -> LegionsClient.CONFIG.teamFightSmoothingEnabled = value);
+                if (LegionsClient.CONFIG.teamFightSmoothingEnabled) {
+                    rowY = legions_client$addNativeIntSlider(addIntSlider, intSetterType, leftX, rowY, controlWidth,
+                            "Fight Smoothing %", LegionsClient.CONFIG.teamFightSmoothingStrength, 5, 100, 5, LEGIONS_DEFAULT_CONFIG.teamFightSmoothingStrength,
+                            () -> LegionsClient.CONFIG.teamFightSmoothingStrength, value -> LegionsClient.CONFIG.teamFightSmoothingStrength = value);
+                }
+                rowY = legions_client$addNativeIntSlider(addIntSlider, intSetterType, leftX, rowY, controlWidth,
+                        "Fight Fade-Out Seconds", LegionsClient.CONFIG.teamFightFadeOutSeconds, 1, 10, 1, LEGIONS_DEFAULT_CONFIG.teamFightFadeOutSeconds,
+                        () -> LegionsClient.CONFIG.teamFightFadeOutSeconds, value -> LegionsClient.CONFIG.teamFightFadeOutSeconds = value);
+            }
+
             rowY = legions_client$addSubHeader(leftX, rowY, controlWidth, "Overlays");
             rowY = legions_client$addNativeToggle(addToggle, toggleSetterType, leftX, rowY, controlWidth,
                     "Team Count Overlay", LEGIONS_DEFAULT_CONFIG.teamCountOverlayEnabled, () -> LegionsClient.CONFIG.teamCountOverlayEnabled, value -> LegionsClient.CONFIG.teamCountOverlayEnabled = value);
@@ -228,6 +290,8 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
                         "Render Distance (Blocks)", LegionsClient.CONFIG.playerRenderDistance, 16, 160, 8, LEGIONS_DEFAULT_CONFIG.playerRenderDistance,
                         () -> LegionsClient.CONFIG.playerRenderDistance, value -> LegionsClient.CONFIG.playerRenderDistance = value);
             }
+            rowY = legions_client$addNativeToggle(addToggle, toggleSetterType, leftX, rowY, controlWidth,
+                    "Render Debug", LEGIONS_DEFAULT_CONFIG.playerRenderOptimizationDebugEnabled, () -> LegionsClient.CONFIG.playerRenderOptimizationDebugEnabled, value -> LegionsClient.CONFIG.playerRenderOptimizationDebugEnabled = value);
 
             return rowY + 10;
         } catch (ReflectiveOperationException | RuntimeException e) {
@@ -458,7 +522,7 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
         if (query.isBlank()) {
             return true;
         }
-        String terms = "legions lc server ip ips address addresses list domain rating nametag foe outline render style full pulse spectator glow warning particle team ping customize keybind key mouse row rows duplicate color audience last attacker attacked attack block distance label team hud team counter team count player count scoreboard scoreboard teams left players left count move opponent opponents shown limit hidden hide render optimization distance fps performance opacity";
+        String terms = "legions lc server ip ips address addresses list domain rating nametag foe outline render style full pulse spectator glow warning particle team ping customize keybind key mouse row rows duplicate color audience last attacker attacked attack block distance label arrow offscreen edge scale opacity fight detector radius marker refresh local spectator team hud team counter team count player count scoreboard scoreboard teams left players left count move opponent opponents shown limit hidden hide render optimization debug distance fps performance opacity";
         return legions_client$matchesSearch(query, terms);
     }
 
