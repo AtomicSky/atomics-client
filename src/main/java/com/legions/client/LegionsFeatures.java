@@ -175,15 +175,15 @@ public final class LegionsFeatures {
     public static int getOverlayStyle(PlayerEntity player) {
         MinecraftClient client = MinecraftClient.getInstance();
         if (!LegionsClient.enabled(client) || client.player == null || player == null) {
-            return LegionsPlayerOverlayColorContext.STYLE_OUTLINE;
+            return LegionsPlayerOverlayColorContext.STYLE_FULL;
         }
         if (LegionsPingController.isMarkedPlayer(player) || shouldHighlightTeamAsSpectator(client, player)) {
-            return LegionsPlayerOverlayColorContext.STYLE_OUTLINE;
+            return LegionsPlayerOverlayColorContext.STYLE_FULL;
         }
         if (LegionsClient.CONFIG.automaticFoeOutlinesEnabled && isOpponent(client.player, player)) {
-            return LegionsClient.CONFIG.automaticFoeRenderStyle;
+            return visibleOnlyOverlayStyle(LegionsClient.CONFIG.automaticFoeRenderStyle);
         }
-        return LegionsPlayerOverlayColorContext.STYLE_OUTLINE;
+        return LegionsPlayerOverlayColorContext.STYLE_FULL;
     }
 
     public static int getFilledOverlayColor(PlayerEntity player, int overlayColor, int overlayStyle) {
@@ -202,6 +202,14 @@ public final class LegionsFeatures {
         return overlayStyle == LegionsPlayerOverlayColorContext.STYLE_FULL
                 || overlayStyle == LegionsPlayerOverlayColorContext.STYLE_OUTLINE_FULL
                 || overlayStyle == LegionsPlayerOverlayColorContext.STYLE_PULSE;
+    }
+
+    private static int visibleOnlyOverlayStyle(int overlayStyle) {
+        if (overlayStyle == LegionsPlayerOverlayColorContext.STYLE_OUTLINE
+                || overlayStyle == LegionsPlayerOverlayColorContext.STYLE_OUTLINE_FULL) {
+            return LegionsPlayerOverlayColorContext.STYLE_FULL;
+        }
+        return overlayStyle;
     }
 
     private static boolean isAutomaticFoeOverlay(PlayerEntity player) {

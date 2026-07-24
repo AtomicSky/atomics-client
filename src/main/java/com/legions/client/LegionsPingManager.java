@@ -209,12 +209,12 @@ public final class LegionsPingManager {
         renderBlockShapeOutline(client, pos);
         Vec3d center = Vec3d.ofCenter(pos);
         if (LegionsClient.CONFIG.blockPingDistanceLabelEnabled) {
-            GizmoDrawing.blockLabel(bracketDistanceLabel(client, center), pos, 0, PING_LABEL_COLOR, BLOCK_PING_LABEL_SCALE).ignoreOcclusion();
+            GizmoDrawing.blockLabel(bracketDistanceLabel(client, center), pos, 0, PING_LABEL_COLOR, BLOCK_PING_LABEL_SCALE);
         }
 
         Entity camera = client.getCameraEntity();
         if (camera != null && camera.squaredDistanceTo(center) > BLOCK_PING_FAR_MARKER_DISTANCE_SQUARED) {
-            GizmoDrawing.point(center, BLOCK_PING_MARKER_COLOR, BLOCK_PING_FAR_MARKER_SIZE).ignoreOcclusion();
+            GizmoDrawing.point(center, BLOCK_PING_MARKER_COLOR, BLOCK_PING_FAR_MARKER_SIZE);
         }
     }
 
@@ -237,11 +237,11 @@ public final class LegionsPingManager {
     }
 
     private static void renderBox(BlockPos pos) {
-        GizmoDrawing.box(pos, BLOCK_PING_EXPAND, blockPingDrawStyle()).ignoreOcclusion();
+        GizmoDrawing.box(pos, BLOCK_PING_EXPAND, blockPingDrawStyle());
     }
 
     private static void renderBox(Box box) {
-        GizmoDrawing.box(box.expand(BLOCK_PING_EXPAND), blockPingDrawStyle()).ignoreOcclusion();
+        GizmoDrawing.box(box.expand(BLOCK_PING_EXPAND), blockPingDrawStyle());
     }
 
     private static DrawStyle blockPingDrawStyle() {

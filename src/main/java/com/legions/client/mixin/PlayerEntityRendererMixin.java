@@ -42,7 +42,9 @@ public class PlayerEntityRendererMixin {
             access.legions_client$setFoeOverlayColor(filledOverlayColor);
             access.legions_client$setFoeOverlayStyle(overlayStyle);
         }
-        state.outlineColor = shouldDrawOutline(overlayColor, overlayStyle) ? overlayColor : 0;
+        if (shouldDrawOutline(overlayColor, overlayStyle)) {
+            state.outlineColor = overlayColor;
+        }
     }
 
     private static boolean shouldDrawOutline(int color, int style) {
