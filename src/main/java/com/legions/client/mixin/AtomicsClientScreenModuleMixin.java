@@ -95,7 +95,7 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
         }
 
         y = legions_client$addSubHeader(leftX, y, controlWidth, "General");
-        y = legions_client$addToggle(leftX, y, controlWidth, "Enable Legions Client", () -> LegionsClient.CONFIG.enabled, value -> LegionsClient.CONFIG.enabled = value, LEGIONS_DEFAULT_CONFIG.enabled);
+        y = legions_client$addToggle(leftX, y, controlWidth, "Enable Legions Client", () -> LegionsClient.CONFIG.enabled, LegionsClient::setEnabled, LEGIONS_DEFAULT_CONFIG.enabled);
         y = legions_client$addServerIpsButton(leftX, y, controlWidth);
 
         y = legions_client$addSubHeader(leftX, y, controlWidth, "Player Info");
@@ -106,7 +106,7 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
         y = legions_client$addToggle(leftX, y, controlWidth, "Foe Highlights", () -> LegionsClient.CONFIG.automaticFoeOutlinesEnabled, value -> LegionsClient.CONFIG.automaticFoeOutlinesEnabled = value, LEGIONS_DEFAULT_CONFIG.automaticFoeOutlinesEnabled);
         y = legions_client$addToggle(leftX, y, controlWidth, "Dynamic Highlight Opacity", () -> LegionsClient.CONFIG.dynamicHighlightOpacityEnabled, value -> LegionsClient.CONFIG.dynamicHighlightOpacityEnabled = value, LEGIONS_DEFAULT_CONFIG.dynamicHighlightOpacityEnabled);
         y = legions_client$addToggle(leftX, y, controlWidth, "Spectator Glow", () -> LegionsClient.CONFIG.spectatorGlowEnabled, value -> LegionsClient.CONFIG.spectatorGlowEnabled = value, LEGIONS_DEFAULT_CONFIG.spectatorGlowEnabled);
-        y = legions_client$addToggle(leftX, y, controlWidth, "Warning Particles", () -> LegionsClient.CONFIG.warningParticlesEnabled, value -> LegionsClient.CONFIG.warningParticlesEnabled = value, LEGIONS_DEFAULT_CONFIG.warningParticlesEnabled);
+        y = legions_client$addToggle(leftX, y, controlWidth, "Warning Particles", () -> LegionsClient.CONFIG.warningParticlesEnabled, LegionsClient::setWarningParticlesEnabled, LEGIONS_DEFAULT_CONFIG.warningParticlesEnabled);
 
         y = legions_client$addSubHeader(leftX, y, controlWidth, "Team Ping");
         y = legions_client$addToggle(leftX, y, controlWidth, "Team Ping", () -> LegionsClient.CONFIG.teamPingEnabled, value -> LegionsClient.CONFIG.teamPingEnabled = value, LEGIONS_DEFAULT_CONFIG.teamPingEnabled);
@@ -187,7 +187,7 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
 
             rowY = legions_client$addSubHeader(leftX, rowY, controlWidth, "General");
             rowY = legions_client$addNativeToggle(addToggle, toggleSetterType, leftX, rowY, controlWidth,
-                    "Enable Legions Client", LEGIONS_DEFAULT_CONFIG.enabled, () -> LegionsClient.CONFIG.enabled, value -> LegionsClient.CONFIG.enabled = value);
+                    "Enable Legions Client", LEGIONS_DEFAULT_CONFIG.enabled, () -> LegionsClient.CONFIG.enabled, LegionsClient::setEnabled);
             rowY = legions_client$addNativeWideButton(addWideButton, leftX, rowY, controlWidth, "Server IPs",
                     button -> this.client.setScreen(new LegionsServerListScreen(this)));
 
@@ -205,7 +205,7 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
             rowY = legions_client$addNativeToggle(addToggle, toggleSetterType, leftX, rowY, controlWidth,
                     "Spectator Glow", LEGIONS_DEFAULT_CONFIG.spectatorGlowEnabled, () -> LegionsClient.CONFIG.spectatorGlowEnabled, value -> LegionsClient.CONFIG.spectatorGlowEnabled = value);
             rowY = legions_client$addNativeToggle(addToggle, toggleSetterType, leftX, rowY, controlWidth,
-                    "Warning Particles", LEGIONS_DEFAULT_CONFIG.warningParticlesEnabled, () -> LegionsClient.CONFIG.warningParticlesEnabled, value -> LegionsClient.CONFIG.warningParticlesEnabled = value);
+                    "Warning Particles", LEGIONS_DEFAULT_CONFIG.warningParticlesEnabled, () -> LegionsClient.CONFIG.warningParticlesEnabled, LegionsClient::setWarningParticlesEnabled);
 
             rowY = legions_client$addSubHeader(leftX, rowY, controlWidth, "Team Ping");
             rowY = legions_client$addNativeToggle(addToggle, toggleSetterType, leftX, rowY, controlWidth,

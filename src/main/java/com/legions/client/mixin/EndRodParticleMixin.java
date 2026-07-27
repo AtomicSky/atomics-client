@@ -1,7 +1,6 @@
 package com.legions.client.mixin;
 
 import com.legions.client.LegionsClient;
-import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.particle.EndRodParticle;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -12,8 +11,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public class EndRodParticleMixin {
     @Inject(method = "<init>", at = @At("TAIL"))
     private void legions_client$makeLegionsEndRodsClearer(CallbackInfo ci) {
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (!LegionsClient.enabled(client) || !LegionsClient.CONFIG.warningParticlesEnabled) {
+        if (!LegionsClient.warningParticlesEnabled()) {
             return;
         }
         EndRodParticle particle = (EndRodParticle) (Object) this;

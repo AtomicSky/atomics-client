@@ -60,7 +60,7 @@ public class LegionsClientScreen extends Screen {
         int y = CONTENT_TOP;
 
         y = addSectionHeader(controlX, y, controlWidth, "General");
-        addToggle(controlX, screenY(y), controlWidth, "Enabled", () -> LegionsClient.CONFIG.enabled, value -> LegionsClient.CONFIG.enabled = value, defaultConfig.enabled);
+        addToggle(controlX, screenY(y), controlWidth, "Enabled", () -> LegionsClient.CONFIG.enabled, LegionsClient::setEnabled, defaultConfig.enabled);
         y += ROW_SPACING;
         addButton(controlX, screenY(y), controlWidth, Text.literal("Server IPs"), button -> MinecraftClient.getInstance().setScreen(new LegionsServerListScreen(this)));
         y += ROW_SPACING;
@@ -78,7 +78,7 @@ public class LegionsClientScreen extends Screen {
         y += ROW_SPACING;
         addToggle(controlX, screenY(y), controlWidth, "Spectator Glow", () -> LegionsClient.CONFIG.spectatorGlowEnabled, value -> LegionsClient.CONFIG.spectatorGlowEnabled = value, defaultConfig.spectatorGlowEnabled);
         y += ROW_SPACING;
-        addToggle(controlX, screenY(y), controlWidth, "Warning Particles", () -> LegionsClient.CONFIG.warningParticlesEnabled, value -> LegionsClient.CONFIG.warningParticlesEnabled = value, defaultConfig.warningParticlesEnabled);
+        addToggle(controlX, screenY(y), controlWidth, "Warning Particles", () -> LegionsClient.CONFIG.warningParticlesEnabled, LegionsClient::setWarningParticlesEnabled, defaultConfig.warningParticlesEnabled);
         y += ROW_SPACING;
 
         y = addSectionHeader(controlX, y, controlWidth, "Team Ping");
