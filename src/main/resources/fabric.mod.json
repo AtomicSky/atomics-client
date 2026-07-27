@@ -6,6 +6,7 @@
   "description": "Client-side team coordination tools for the Legions Minecraft server.",
   "icon": "assets/legions_client/icon.png",
   "authors": ["AtomicSky1"],
+  "contributors": ["Henrikque"],
   "contact": {
     "sources": "https://github.com/AtomicSky/atomics-client/tree/legions-client"
   },

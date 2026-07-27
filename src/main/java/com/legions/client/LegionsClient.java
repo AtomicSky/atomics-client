@@ -43,12 +43,14 @@ public class LegionsClient implements ClientModInitializer {
             while (openConfigKey != null && openConfigKey.wasPressed()) {
                 client.setScreen(new LegionsClientScreen(client.currentScreen));
             }
-            LegionsFeatures.tick(client);
             LegionsPingController.tick(client);
             LegionsSpectateLock.tick(client);
         });
 
         ClientReceiveMessageEvents.ALLOW_CHAT.register((message, signedMessage, sender, parameters, timestamp) -> {
+            if (LegionsPingController.shouldBlockIncomingPingText(message)) {
+                return false;
+            }
             if (!LegionsPingController.shouldCleanReceivedPingText(message)) {
                 return true;
             }
@@ -61,6 +63,9 @@ public class LegionsClient implements ClientModInitializer {
         });
         ClientReceiveMessageEvents.CHAT.register((message, signedMessage, sender, parameters, timestamp) ->
                 LegionsPingController.receiveChatPing(message, sender)
+        );
+        ClientReceiveMessageEvents.ALLOW_GAME.register((message, overlay) ->
+                !LegionsPingController.shouldBlockIncomingPingText(message)
         );
         ClientReceiveMessageEvents.MODIFY_GAME.register((message, overlay) -> {
             if (!LegionsPingController.shouldCleanReceivedPingText(message)) {
@@ -79,6 +84,13 @@ public class LegionsClient implements ClientModInitializer {
 
     public static boolean enabled(MinecraftClient client) {
         return CONFIG != null && CONFIG.enabled && LegionsFeatures.isLegionsServer(client);
+    }
+
+    public static boolean ratingNametagsEnabled(MinecraftClient client) {
+        return CONFIG != null
+                && CONFIG.enabled
+                && CONFIG.ratingNametagsEnabled
+                && (CONFIG.ratingNametagsIgnoreServerList || LegionsFeatures.isLegionsServer(client));
     }
 
     public static boolean isAtomicsClientLoaded() {

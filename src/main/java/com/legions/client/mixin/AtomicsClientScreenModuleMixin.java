@@ -45,8 +45,6 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
     private static final String LEGIONS_FEATURE_KEY = "legions.client";
     @Unique
     private static final LegionsConfig LEGIONS_DEFAULT_CONFIG = new LegionsConfig().normalize();
-    @Unique
-    private static final String[] FOE_RENDER_STYLE_LABELS = {"Full", "Outline", "Outline + Full", "Pulse"};
 
     @Unique
     private boolean legions_client$sectionCollapsed;
@@ -102,10 +100,11 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
 
         y = legions_client$addSubHeader(leftX, y, controlWidth, "Player Info");
         y = legions_client$addToggle(leftX, y, controlWidth, "Rating Nametags", () -> LegionsClient.CONFIG.ratingNametagsEnabled, value -> LegionsClient.CONFIG.ratingNametagsEnabled = value, LEGIONS_DEFAULT_CONFIG.ratingNametagsEnabled);
-        y = legions_client$addToggle(leftX, y, controlWidth, "Foe Outlines", () -> LegionsClient.CONFIG.automaticFoeOutlinesEnabled, value -> LegionsClient.CONFIG.automaticFoeOutlinesEnabled = value, LEGIONS_DEFAULT_CONFIG.automaticFoeOutlinesEnabled);
-        if (LegionsClient.CONFIG.automaticFoeOutlinesEnabled) {
-            y = legions_client$addCycle(leftX, y, controlWidth, "Foe Render Style", () -> LegionsClient.CONFIG.automaticFoeRenderStyle, value -> LegionsClient.CONFIG.automaticFoeRenderStyle = value, LEGIONS_DEFAULT_CONFIG.automaticFoeRenderStyle, FOE_RENDER_STYLE_LABELS);
+        if (LegionsClient.CONFIG.ratingNametagsEnabled) {
+            y = legions_client$addToggle(leftX, y, controlWidth, "Nametags Any Server", () -> LegionsClient.CONFIG.ratingNametagsIgnoreServerList, value -> LegionsClient.CONFIG.ratingNametagsIgnoreServerList = value, LEGIONS_DEFAULT_CONFIG.ratingNametagsIgnoreServerList);
         }
+        y = legions_client$addToggle(leftX, y, controlWidth, "Foe Highlights", () -> LegionsClient.CONFIG.automaticFoeOutlinesEnabled, value -> LegionsClient.CONFIG.automaticFoeOutlinesEnabled = value, LEGIONS_DEFAULT_CONFIG.automaticFoeOutlinesEnabled);
+        y = legions_client$addToggle(leftX, y, controlWidth, "Dynamic Highlight Opacity", () -> LegionsClient.CONFIG.dynamicHighlightOpacityEnabled, value -> LegionsClient.CONFIG.dynamicHighlightOpacityEnabled = value, LEGIONS_DEFAULT_CONFIG.dynamicHighlightOpacityEnabled);
         y = legions_client$addToggle(leftX, y, controlWidth, "Spectator Glow", () -> LegionsClient.CONFIG.spectatorGlowEnabled, value -> LegionsClient.CONFIG.spectatorGlowEnabled = value, LEGIONS_DEFAULT_CONFIG.spectatorGlowEnabled);
         y = legions_client$addToggle(leftX, y, controlWidth, "Warning Particles", () -> LegionsClient.CONFIG.warningParticlesEnabled, value -> LegionsClient.CONFIG.warningParticlesEnabled = value, LEGIONS_DEFAULT_CONFIG.warningParticlesEnabled);
 
@@ -131,7 +130,6 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
         y = legions_client$addToggle(leftX, y, controlWidth, "Fight Detector", () -> LegionsClient.CONFIG.teamFightDetectorEnabled, value -> LegionsClient.CONFIG.teamFightDetectorEnabled = value, LEGIONS_DEFAULT_CONFIG.teamFightDetectorEnabled);
         if (LegionsClient.CONFIG.teamFightDetectorEnabled) {
             y = legions_client$addToggle(leftX, y, controlWidth, "Spectator Only", () -> LegionsClient.CONFIG.teamFightDetectorSpectatorOnly, value -> LegionsClient.CONFIG.teamFightDetectorSpectatorOnly = value, LEGIONS_DEFAULT_CONFIG.teamFightDetectorSpectatorOnly);
-            y = legions_client$addIntSlider(leftX, y, controlWidth, "Fight Max Markers", 1, 8, LegionsClient.CONFIG.teamFightMaxMarkers, value -> LegionsClient.CONFIG.teamFightMaxMarkers = value, LEGIONS_DEFAULT_CONFIG.teamFightMaxMarkers);
             y = legions_client$addTextField(leftX, y, controlWidth, "Fight Color", LegionsClient.CONFIG.teamFightMarkerColor, "#ff5555", value -> LegionsClient.CONFIG.teamFightMarkerColor = value, LEGIONS_DEFAULT_CONFIG.teamFightMarkerColor);
             y = legions_client$addToggle(leftX, y, controlWidth, "Fight Smoothing", () -> LegionsClient.CONFIG.teamFightSmoothingEnabled, value -> LegionsClient.CONFIG.teamFightSmoothingEnabled = value, LEGIONS_DEFAULT_CONFIG.teamFightSmoothingEnabled);
             if (LegionsClient.CONFIG.teamFightSmoothingEnabled) {
@@ -143,6 +141,7 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
         y = legions_client$addSubHeader(leftX, y, controlWidth, "Overlays");
         y = legions_client$addToggle(leftX, y, controlWidth, "Team Count Overlay", () -> LegionsClient.CONFIG.teamCountOverlayEnabled, value -> LegionsClient.CONFIG.teamCountOverlayEnabled = value, LEGIONS_DEFAULT_CONFIG.teamCountOverlayEnabled);
         if (LegionsClient.CONFIG.teamCountOverlayEnabled) {
+            y = legions_client$addToggle(leftX, y, controlWidth, "Team Rating Totals", () -> LegionsClient.CONFIG.teamQuipTotalsEnabled, value -> LegionsClient.CONFIG.teamQuipTotalsEnabled = value, LEGIONS_DEFAULT_CONFIG.teamQuipTotalsEnabled);
             y = legions_client$addMoveTeamCountButton(leftX, y, controlWidth);
         }
         y = legions_client$addToggle(leftX, y, controlWidth, "Team HUD", () -> LegionsClient.CONFIG.teamHudEnabled, value -> LegionsClient.CONFIG.teamHudEnabled = value, LEGIONS_DEFAULT_CONFIG.teamHudEnabled);
@@ -195,12 +194,14 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
             rowY = legions_client$addSubHeader(leftX, rowY, controlWidth, "Player Info");
             rowY = legions_client$addNativeToggle(addToggle, toggleSetterType, leftX, rowY, controlWidth,
                     "Rating Nametags", LEGIONS_DEFAULT_CONFIG.ratingNametagsEnabled, () -> LegionsClient.CONFIG.ratingNametagsEnabled, value -> LegionsClient.CONFIG.ratingNametagsEnabled = value);
-            rowY = legions_client$addNativeToggle(addToggle, toggleSetterType, leftX, rowY, controlWidth,
-                    "Foe Outlines", LEGIONS_DEFAULT_CONFIG.automaticFoeOutlinesEnabled, () -> LegionsClient.CONFIG.automaticFoeOutlinesEnabled, value -> LegionsClient.CONFIG.automaticFoeOutlinesEnabled = value);
-            if (LegionsClient.CONFIG.automaticFoeOutlinesEnabled) {
-                rowY = legions_client$addNativeCycle(addWideButton, leftX, rowY, controlWidth,
-                        "Foe Render Style", () -> LegionsClient.CONFIG.automaticFoeRenderStyle, value -> LegionsClient.CONFIG.automaticFoeRenderStyle = value, FOE_RENDER_STYLE_LABELS);
+            if (LegionsClient.CONFIG.ratingNametagsEnabled) {
+                rowY = legions_client$addNativeToggle(addToggle, toggleSetterType, leftX, rowY, controlWidth,
+                        "Nametags Any Server", LEGIONS_DEFAULT_CONFIG.ratingNametagsIgnoreServerList, () -> LegionsClient.CONFIG.ratingNametagsIgnoreServerList, value -> LegionsClient.CONFIG.ratingNametagsIgnoreServerList = value);
             }
+            rowY = legions_client$addNativeToggle(addToggle, toggleSetterType, leftX, rowY, controlWidth,
+                    "Foe Highlights", LEGIONS_DEFAULT_CONFIG.automaticFoeOutlinesEnabled, () -> LegionsClient.CONFIG.automaticFoeOutlinesEnabled, value -> LegionsClient.CONFIG.automaticFoeOutlinesEnabled = value);
+            rowY = legions_client$addNativeToggle(addToggle, toggleSetterType, leftX, rowY, controlWidth,
+                    "Dynamic Highlight Opacity", LEGIONS_DEFAULT_CONFIG.dynamicHighlightOpacityEnabled, () -> LegionsClient.CONFIG.dynamicHighlightOpacityEnabled, value -> LegionsClient.CONFIG.dynamicHighlightOpacityEnabled = value);
             rowY = legions_client$addNativeToggle(addToggle, toggleSetterType, leftX, rowY, controlWidth,
                     "Spectator Glow", LEGIONS_DEFAULT_CONFIG.spectatorGlowEnabled, () -> LegionsClient.CONFIG.spectatorGlowEnabled, value -> LegionsClient.CONFIG.spectatorGlowEnabled = value);
             rowY = legions_client$addNativeToggle(addToggle, toggleSetterType, leftX, rowY, controlWidth,
@@ -245,9 +246,6 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
             if (LegionsClient.CONFIG.teamFightDetectorEnabled) {
                 rowY = legions_client$addNativeToggle(addToggle, toggleSetterType, leftX, rowY, controlWidth,
                         "Spectator Only", LEGIONS_DEFAULT_CONFIG.teamFightDetectorSpectatorOnly, () -> LegionsClient.CONFIG.teamFightDetectorSpectatorOnly, value -> LegionsClient.CONFIG.teamFightDetectorSpectatorOnly = value);
-                rowY = legions_client$addNativeIntSlider(addIntSlider, intSetterType, leftX, rowY, controlWidth,
-                        "Fight Max Markers", LegionsClient.CONFIG.teamFightMaxMarkers, 1, 8, 1, LEGIONS_DEFAULT_CONFIG.teamFightMaxMarkers,
-                        () -> LegionsClient.CONFIG.teamFightMaxMarkers, value -> LegionsClient.CONFIG.teamFightMaxMarkers = value);
                 rowY = legions_client$addTextField(leftX, rowY, controlWidth, "Fight Color", LegionsClient.CONFIG.teamFightMarkerColor, "#ff5555", value -> LegionsClient.CONFIG.teamFightMarkerColor = value, LEGIONS_DEFAULT_CONFIG.teamFightMarkerColor);
                 rowY = legions_client$addNativeToggle(addToggle, toggleSetterType, leftX, rowY, controlWidth,
                         "Fight Smoothing", LEGIONS_DEFAULT_CONFIG.teamFightSmoothingEnabled, () -> LegionsClient.CONFIG.teamFightSmoothingEnabled, value -> LegionsClient.CONFIG.teamFightSmoothingEnabled = value);
@@ -265,6 +263,8 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
             rowY = legions_client$addNativeToggle(addToggle, toggleSetterType, leftX, rowY, controlWidth,
                     "Team Count Overlay", LEGIONS_DEFAULT_CONFIG.teamCountOverlayEnabled, () -> LegionsClient.CONFIG.teamCountOverlayEnabled, value -> LegionsClient.CONFIG.teamCountOverlayEnabled = value);
             if (LegionsClient.CONFIG.teamCountOverlayEnabled) {
+                rowY = legions_client$addNativeToggle(addToggle, toggleSetterType, leftX, rowY, controlWidth,
+                        "Team Rating Totals", LEGIONS_DEFAULT_CONFIG.teamQuipTotalsEnabled, () -> LegionsClient.CONFIG.teamQuipTotalsEnabled, value -> LegionsClient.CONFIG.teamQuipTotalsEnabled = value);
                 rowY = legions_client$addNativeWideButton(addWideButton, leftX, rowY, controlWidth, "Move Team Count Overlay",
                         button -> this.client.setScreen(new LegionsTeamCountOverlayLayoutScreen(this)));
             }
@@ -332,19 +332,6 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
     }
 
     @Unique
-    private int legions_client$addNativeCycle(Method addWideButton, int x, int y, int width, String label,
-                                             IntSupplier getter, IntConsumer setter, String[] labels) throws ReflectiveOperationException {
-        addWideButton.invoke(this, x, y, width, cycleText(label, getter.getAsInt(), labels).getString(), (ButtonWidget.PressAction) button -> {
-            int value = Math.floorMod(getter.getAsInt() + 1, labels.length);
-            setter.accept(value);
-            LegionsClient.CONFIG.normalize();
-            LegionsClient.saveConfig();
-            clearAndInit();
-        });
-        return y + LEGIONS_ROW_HEIGHT;
-    }
-
-    @Unique
     private Object legions_client$toggleSetter(Class<?> setterType, BooleanSupplier getter, Consumer<Boolean> setter) {
         return Proxy.newProxyInstance(setterType.getClassLoader(), new Class<?>[]{setterType}, (proxy, method, args) -> {
             if ("set".equals(method.getName()) && args != null && args.length == 1 && args[0] instanceof Boolean value) {
@@ -395,27 +382,6 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
             }));
             legions_client$addResetButton(x, y, width, getter.getAsBoolean() != defaultValue, () -> {
                 setter.accept(defaultValue);
-                LegionsClient.saveConfig();
-                clearAndInit();
-            });
-        }
-        return y + LEGIONS_ROW_HEIGHT;
-    }
-
-    @Unique
-    private int legions_client$addCycle(int x, int y, int width, String label, IntSupplier getter,
-                                        IntConsumer setter, int defaultValue, String[] labels) {
-        if (legions_client$isWidgetVisible(y) && labels.length > 0) {
-            addDrawableChild(ButtonWidget.builder(cycleText(label, getter.getAsInt(), labels), button -> {
-                int value = Math.floorMod(getter.getAsInt() + 1, labels.length);
-                setter.accept(value);
-                LegionsClient.CONFIG.normalize();
-                LegionsClient.saveConfig();
-                clearAndInit();
-            }).dimensions(x, y, width, LEGIONS_BUTTON_HEIGHT).build());
-            legions_client$addResetButton(x, y, width, getter.getAsInt() != defaultValue, () -> {
-                setter.accept(defaultValue);
-                LegionsClient.CONFIG.normalize();
                 LegionsClient.saveConfig();
                 clearAndInit();
             });
@@ -522,7 +488,7 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
         if (query.isBlank()) {
             return true;
         }
-        String terms = "legions lc server ip ips address addresses list domain rating nametag foe outline render style full pulse spectator glow warning particle team ping customize keybind key mouse row rows duplicate color audience last attacker attacked attack block distance label arrow offscreen edge scale opacity fight detector radius marker refresh local spectator team hud team counter team count player count scoreboard scoreboard teams left players left count move opponent opponents shown limit hidden hide render optimization debug distance fps performance opacity";
+        String terms = "legions lc server ip ips address addresses list domain rating quip quips ranking total totals sum nametag nametags any ignore bypass foe highlight dynamic fixed spectator glow warning particle team ping customize keybind key mouse row rows duplicate color audience last attacker attacked attack block distance label arrow offscreen edge scale opacity fight detector radius marker refresh local spectator team hud team counter team count player count scoreboard scoreboard teams left players left count move opponent opponents shown limit hidden hide render optimization debug distance fps performance opacity";
         return legions_client$matchesSearch(query, terms);
     }
 
@@ -579,8 +545,4 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
         return method;
     }
 
-    @Unique
-    private static Text cycleText(String label, int value, String[] labels) {
-        return Text.literal(label + "        " + labels[Math.floorMod(value, labels.length)]);
-    }
 }

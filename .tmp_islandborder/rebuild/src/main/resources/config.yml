@@ -1,0 +1,115 @@
+# IslandBorder configuration
+# ---------------------------------------------------------------
+# One big outer border, split into two sections: Plains and Desert.
+# Edit the coordinates below to match your world, then run /border reload.
+
+world: world
+
+# The outer border is a rectangle defined by two opposite corners.
+outer:
+  x1: -500
+  z1: -500
+  x2: 500
+  z2: 500
+
+# The divider splits the outer rectangle into the Plains half and the Desert half.
+# axis: "x" or "z" - which coordinate the dividing line runs along
+# coordinate: the value on that axis where the line sits
+# positive-side: which zone is on the numerically higher side of the coordinate ("plains" or "desert")
+# enforce: if true, players cannot walk across the divider (push-back like the outer border)
+#          if false (default), the divider is purely visual
+divider:
+  axis: x
+  coordinate: 0
+  positive-side: plains
+  enforce: false
+
+colors:
+  plains: "60,220,60"     # green, R,G,B
+  desert: "230,150,40"    # orange, R,G,B
+  divider-line: "255,60,60" # red, only used when the divider itself is drawn as a distinct line
+
+border:
+  enabled: true
+  push-back: true
+  warn-cooldown-seconds: 3
+  particle-render-distance: 24
+  particle-spacing: 0.5
+  particle-update-interval-ticks: 5
+
+  # Extra particle lines above and below the main one, so the border looks like a
+  # wall instead of a single stripe. They only appear once a player is close.
+  # particle-layers:         how many extra lines above AND below (0 = off, max 10)
+  # particle-layer-spacing:  vertical gap in blocks between those lines
+  # particle-layer-distance: how close a player has to be (in blocks) before they show
+  # Also settable in-game: /border layers <count> [gap] [distance]
+  particle-layers: 2
+  particle-layer-spacing: 2.0
+  particle-layer-distance: 12
+
+# Hard border: stop players reaching, building, shooting or riding across the line.
+# These apply to the outer border always, and to the Plains/Desert divider only while
+# divider.enforce is true. Anyone with islandborder.bypass (ops by default) is exempt.
+# Master switch also available in-game: /border protection <true|false>
+protection:
+  enabled: true
+  block-place: true        # placing blocks on the other side
+  block-break: true        # breaking blocks on the other side
+  interact: true           # chests, doors, buttons, armor stands, right-clicking entities
+  combat: true             # hitting players/mobs on the other side, melee or ranged
+  projectiles: true        # arrows, snowballs, eggs, ender pearls flying across
+  dropped-items: true      # dropped/thrown items drifting across
+  pistons: true            # pistons pushing blocks across
+  vehicles: true           # minecarts and boats crossing
+  entity-check-interval-ticks: 2   # how often flying items/projectiles are checked
+
+# Biome teams control which divider side each player may enter.
+# Plains players use the side identified by divider.positive-side; Desert players
+# use the opposite side. Admin-team players may use both divider sides.
+biome-regions:
+  migration-complete: false
+
+desert-start:
+  world: world
+  x: 0.0
+  y: 64.0
+  z: 0.0
+  yaw: 0.0
+  pitch: 0.0
+
+plains-start:
+  world: world
+  x: 0.0
+  y: 64.0
+  z: 0.0
+  yaw: 0.0
+  pitch: 0.0
+
+teams:
+  admin: []
+  desert: []
+  plains: []
+
+messages:
+  prefix: "&8[&aIslandBorder&8] &r"
+  hit-outer: "&cYou have reached the edge of the world border!"
+  hit-divider: "&cYou cannot cross into the other zone right now!"
+  reloaded: "&aConfiguration reloaded."
+  toggled-on: "&aBorder enabled."
+  toggled-off: "&cBorder disabled."
+  blocked-build: "&cYou cannot build past the border."
+  blocked-interact: "&cYou cannot reach through the border."
+  blocked-attack: "&cYou cannot hit anything on the other side."
+  protection-on: "&aBorder protection enabled - no building, hitting or shooting across."
+  protection-off: "&eBorder protection disabled - the border is push-back only again."
+  divider-enforce-on: "&aDivider crossing is now blocked."
+  divider-enforce-off: "&eDivider crossing is now allowed (visual only)."
+  no-permission: "&cYou do not have permission to do that."
+  invalid-usage: "&cUnknown command. Run &e/border help &cfor the setup steps."
+  outer-set: "&aOuter border updated."
+  divider-set: "&aDivider set to &f%axis% = %coord%&a."
+  layers-set: "&aParticle layers: &f%count%&a above and below, &f%gap%&a blocks apart, showing from &f%distance%&a blocks away."
+  world-set: "&aBorder world set to &f%world%&a."
+  pos1-set: "&aCorner 1 set to &fx %x%, z %z%&a. Now stand in the opposite corner and run &e/border pos2&a."
+  pos2-set: "&aCorner 2 set to &fx %x%, z %z%&a."
+  pos1-missing: "&cSet corner 1 first: stand in one corner and run &e/border pos1&c."

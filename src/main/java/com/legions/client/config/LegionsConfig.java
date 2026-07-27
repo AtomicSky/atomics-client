@@ -20,8 +20,9 @@ public class LegionsConfig {
     public boolean enabled = true;
     public List<String> allowedServerAddresses = new ArrayList<>(List.of("legions"));
     public boolean ratingNametagsEnabled = true;
+    public boolean ratingNametagsIgnoreServerList = false;
     public boolean automaticFoeOutlinesEnabled = false;
-    public int automaticFoeRenderStyle = 1;
+    public boolean dynamicHighlightOpacityEnabled = true;
     public boolean spectatorGlowEnabled = true;
     public boolean warningParticlesEnabled = true;
     public boolean teamPingEnabled = true;
@@ -51,6 +52,7 @@ public class LegionsConfig {
     public int teamFightFadeOutSeconds = 3;
     public boolean teamHudEnabled = true;
     public boolean teamCountOverlayEnabled = false;
+    public boolean teamQuipTotalsEnabled = true;
     public boolean opponentLimitEnabled = true;
     public boolean playerRenderOptimizationEnabled = true;
     public boolean playerRenderOptimizationDebugEnabled = false;
@@ -83,7 +85,6 @@ public class LegionsConfig {
 
     public LegionsConfig normalize() {
         allowedServerAddresses = normalizeServerAddresses(allowedServerAddresses);
-        automaticFoeRenderStyle = clamp(automaticFoeRenderStyle, 0, 3);
         opponentLimit = clamp(opponentLimit, 1, 20);
         playerRenderDistance = clamp(playerRenderDistance, 16, 160);
         pingDurationSeconds = clamp(pingDurationSeconds, 1, 25);
@@ -116,8 +117,9 @@ public class LegionsConfig {
         copy.enabled = enabled;
         copy.allowedServerAddresses = new ArrayList<>(allowedServerAddresses);
         copy.ratingNametagsEnabled = ratingNametagsEnabled;
+        copy.ratingNametagsIgnoreServerList = ratingNametagsIgnoreServerList;
         copy.automaticFoeOutlinesEnabled = automaticFoeOutlinesEnabled;
-        copy.automaticFoeRenderStyle = automaticFoeRenderStyle;
+        copy.dynamicHighlightOpacityEnabled = dynamicHighlightOpacityEnabled;
         copy.spectatorGlowEnabled = spectatorGlowEnabled;
         copy.warningParticlesEnabled = warningParticlesEnabled;
         copy.teamPingEnabled = teamPingEnabled;
@@ -147,6 +149,7 @@ public class LegionsConfig {
         copy.teamFightFadeOutSeconds = teamFightFadeOutSeconds;
         copy.teamHudEnabled = teamHudEnabled;
         copy.teamCountOverlayEnabled = teamCountOverlayEnabled;
+        copy.teamQuipTotalsEnabled = teamQuipTotalsEnabled;
         copy.opponentLimitEnabled = opponentLimitEnabled;
         copy.playerRenderOptimizationEnabled = playerRenderOptimizationEnabled;
         copy.playerRenderOptimizationDebugEnabled = playerRenderOptimizationDebugEnabled;
@@ -167,8 +170,9 @@ public class LegionsConfig {
                 && enabled == other.enabled
                 && allowedServerAddresses.equals(other.allowedServerAddresses)
                 && ratingNametagsEnabled == other.ratingNametagsEnabled
+                && ratingNametagsIgnoreServerList == other.ratingNametagsIgnoreServerList
                 && automaticFoeOutlinesEnabled == other.automaticFoeOutlinesEnabled
-                && automaticFoeRenderStyle == other.automaticFoeRenderStyle
+                && dynamicHighlightOpacityEnabled == other.dynamicHighlightOpacityEnabled
                 && spectatorGlowEnabled == other.spectatorGlowEnabled
                 && warningParticlesEnabled == other.warningParticlesEnabled
                 && teamPingEnabled == other.teamPingEnabled
@@ -198,6 +202,7 @@ public class LegionsConfig {
                 && teamFightFadeOutSeconds == other.teamFightFadeOutSeconds
                 && teamHudEnabled == other.teamHudEnabled
                 && teamCountOverlayEnabled == other.teamCountOverlayEnabled
+                && teamQuipTotalsEnabled == other.teamQuipTotalsEnabled
                 && opponentLimitEnabled == other.opponentLimitEnabled
                 && playerRenderOptimizationEnabled == other.playerRenderOptimizationEnabled
                 && playerRenderOptimizationDebugEnabled == other.playerRenderOptimizationDebugEnabled

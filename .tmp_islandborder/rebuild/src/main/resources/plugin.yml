@@ -1,0 +1,43 @@
+name: IslandBorder
+version: '1.4.0-combined'
+main: de.derjannik.islandborder.IslandBorderPlugin
+api-version: '1.21'
+author: Jannik
+description: Team-linked Plains and Desert regions with border enforcement and live particle rendering.
+
+commands:
+  border:
+    description: Manage the IslandBorder outer border and Plains/Desert divider.
+    usage: /border <help|info|pos1|pos2|setworld|setdivider|enforcedivider|switchside|layers|protection|setouter|toggle|reload>
+    permission: islandborder.admin
+    aliases: [islandborder]
+  admin:
+    description: Assign players to the admin biome team.
+    usage: /admin <player|selector>
+    permission: biomeregions.admin
+  desert:
+    description: Assign players to the Desert team and border side.
+    usage: /desert <player|selector>
+    permission: biomeregions.admin
+  plains:
+    description: Assign players to the Plains team and border side.
+    usage: /plains <player|selector>
+    permission: biomeregions.admin
+  start:
+    description: Teleport non-admin players to their biome start locations.
+    usage: /start
+  locationstart:
+    description: Set a biome start location.
+    usage: /locationstart <desert|plains> [x y z [yaw pitch]]
+    permission: biomeregions.admin
+
+permissions:
+  islandborder.admin:
+    description: Allows managing and configuring the island border.
+    default: op
+  islandborder.bypass:
+    description: Allows bypassing the border and divider push-back.
+    default: op
+  biomeregions.admin:
+    description: Allows biome team and start-location administration.
+    default: op

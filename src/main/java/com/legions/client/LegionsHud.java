@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.UUID;
 
 public final class LegionsHud {
     private static final String TEAM_COUNT_TITLE = "Teams Left";
@@ -24,14 +25,17 @@ public final class LegionsHud {
     private static final int TEAM_COUNT_MARGIN = 8;
     private static final int TEAM_COUNT_DEFAULT_Y = 36;
     private static final List<TeamCount> SAMPLE_TEAM_COUNTS = List.of(
-            new TeamCount("BLUE", 0xFF5555FF, 8),
-            new TeamCount("RED", 0xFFFF5555, 7)
+            new TeamCount("BLUE", 0xFF5555FF, 8, 12400, 8),
+            new TeamCount("RED", 0xFFFF5555, 7, 10900, 7)
     );
     private static final ArrayList<TeamCount> teamCountCache = new ArrayList<>();
     private static final LinkedHashMap<String, TeamCount> teamCountScratch = new LinkedHashMap<>();
     private static Object teamCountCacheHandler;
     private static long teamCountCacheTick = Long.MIN_VALUE;
     private static int teamCountCacheSize = -1;
+    private static UUID lastTeamHudPlayerUuid;
+    private static String lastTeamHudTeamName;
+    private static int lastTeamHudTeamColor = 0xFFE7F0FF;
 
     private LegionsHud() {
     }
@@ -50,35 +54,60 @@ public final class LegionsHud {
         }
 
         TextRenderer renderer = client.textRenderer;
-        String text = teamHudText(client);
+        TeamHudState state = teamHudState(client);
+        String text = "Team: " + state.name();
         int x = clamp(LegionsClient.CONFIG.teamHudX, 0, Math.max(0, context.getScaledWindowWidth() - renderer.getWidth(text)));
         int y = clamp(LegionsClient.CONFIG.teamHudY, 0, Math.max(0, context.getScaledWindowHeight() - renderer.fontHeight));
-        context.drawTextWithShadow(renderer, Text.literal(text), x, y, teamHudColor(client));
+        context.drawTextWithShadow(renderer, Text.literal(text), x, y, state.color());
     }
 
     public static String teamHudText(MinecraftClient client) {
-        if (client == null || client.player == null) {
-            return "Team: ?";
-        }
-        Team team = client.player.getScoreboardTeam();
-        if (team == null) {
-            return "Team: None";
-        }
-        String name = team.getDisplayName().getString();
-        if (name == null || name.isBlank()) {
-            name = team.getName();
-        }
-        return "Team: " + readableTeamName(name);
+        return "Team: " + teamHudState(client).name();
     }
 
     public static int teamHudColor(MinecraftClient client) {
+        return teamHudState(client).color();
+    }
+
+    private static TeamHudState teamHudState(MinecraftClient client) {
         if (client == null || client.player == null) {
-            return 0xFFE7F0FF;
+            return new TeamHudState("?", 0xFFE7F0FF);
         }
+
+        UUID playerUuid = client.player.getUuid();
+        if (!playerUuid.equals(lastTeamHudPlayerUuid)) {
+            lastTeamHudPlayerUuid = playerUuid;
+            lastTeamHudTeamName = null;
+            lastTeamHudTeamColor = 0xFFE7F0FF;
+        }
+
         Team team = client.player.getScoreboardTeam();
         if (team == null) {
-            return 0xFFE7F0FF;
+            if (client.player.isSpectator() && lastTeamHudTeamName != null) {
+                return new TeamHudState(lastTeamHudTeamName, lastTeamHudTeamColor);
+            }
+            return new TeamHudState("None", 0xFFE7F0FF);
         }
+
+        String teamName = team.getName();
+        if ((client.player.isSpectator() || isSpectatorTeamName(teamName)) && lastTeamHudTeamName != null) {
+            return new TeamHudState(lastTeamHudTeamName, lastTeamHudTeamColor);
+        }
+
+        String name = team.getDisplayName().getString();
+        if (name == null || name.isBlank()) {
+            name = teamName;
+        }
+        String readableName = readableTeamName(name);
+        int color = rawTeamHudColor(team);
+        if (!isSpectatorTeamName(teamName)) {
+            lastTeamHudTeamName = readableName;
+            lastTeamHudTeamColor = color;
+        }
+        return new TeamHudState(readableName, color);
+    }
+
+    private static int rawTeamHudColor(Team team) {
         Formatting color = team.getColor();
         Integer rgb = color == null ? null : color.getColorValue();
         if (rgb != null) {
@@ -158,8 +187,9 @@ public final class LegionsHud {
 
         context.fill(x, y, x + width, y + height, 0x66000000);
         context.fill(x, y, x + width, y + TEAM_COUNT_HEADER_HEIGHT, 0x99000000);
-        int titleX = x + width / 2 - client.textRenderer.getWidth(TEAM_COUNT_TITLE) / 2;
-        context.drawTextWithShadow(client.textRenderer, TEAM_COUNT_TITLE, titleX, y + 2, 0xFFFFFF55);
+        String title = teamCountTitle();
+        int titleX = x + width / 2 - client.textRenderer.getWidth(title) / 2;
+        context.drawTextWithShadow(client.textRenderer, title, titleX, y + 2, 0xFFFFFF55);
 
         int rowY = y + TEAM_COUNT_HEADER_HEIGHT + 2;
         for (int i = 0; i < counts.size(); i++) {
@@ -174,7 +204,7 @@ public final class LegionsHud {
     }
 
     private static int teamCountOverlayWidth(MinecraftClient client, List<TeamCount> counts) {
-        int width = client.textRenderer.getWidth(TEAM_COUNT_TITLE) + TEAM_COUNT_PADDING_X * 2;
+        int width = client.textRenderer.getWidth(teamCountTitle()) + TEAM_COUNT_PADDING_X * 2;
         for (TeamCount count : counts) {
             String value = count.valueText();
             int rowWidth = client.textRenderer.getWidth(count.name()) + client.textRenderer.getWidth(value) + TEAM_COUNT_PADDING_X * 3 + 8;
@@ -220,11 +250,15 @@ public final class LegionsHud {
             }
 
             String key = team.getName();
+            int quips = LegionsFeatures.getQuips(client, entry.getProfile().name());
+            int quipTotal = quips < 0 ? 0 : quips;
+            int knownQuips = quips < 0 ? 0 : 1;
             TeamCount current = teamCountScratch.get(key);
             if (current == null) {
-                teamCountScratch.put(key, new TeamCount(teamDisplayName(team), teamTextColor(team), 1));
+                teamCountScratch.put(key, new TeamCount(teamDisplayName(team), teamTextColor(team), 1, quipTotal, knownQuips));
             } else {
-                teamCountScratch.put(key, new TeamCount(current.name(), current.color(), current.count() + 1));
+                teamCountScratch.put(key, new TeamCount(current.name(), current.color(), current.count() + 1,
+                        current.quipTotal() + quipTotal, current.knownQuips() + knownQuips));
             }
         }
 
@@ -324,13 +358,36 @@ public final class LegionsHud {
         return 0xFFE7F0FF;
     }
 
+    private static String teamCountTitle() {
+        return teamQuipTotalsEnabled() ? "Team Ratings" : TEAM_COUNT_TITLE;
+    }
+
+    private static boolean teamQuipTotalsEnabled() {
+        return LegionsClient.CONFIG != null && LegionsClient.CONFIG.teamQuipTotalsEnabled;
+    }
+
+    private static String formatRatingTotal(int ratingTotal, int knownRatings, int count) {
+        if (knownRatings <= 0) {
+            return "?";
+        }
+        int whole = ratingTotal / 1000;
+        int tenths = (ratingTotal % 1000) / 100;
+        return whole + "." + tenths + (knownRatings < count ? "+" : "");
+    }
+
     private static int clamp(int value, int min, int max) {
         return Math.max(min, Math.min(max, value));
     }
 
-    private record TeamCount(String name, int color, int count) {
+    private record TeamCount(String name, int color, int count, int quipTotal, int knownQuips) {
         private String valueText() {
-            return String.valueOf(count);
+            if (!teamQuipTotalsEnabled()) {
+                return String.valueOf(count);
+            }
+            return count + " | " + formatRatingTotal(quipTotal, knownQuips, count);
         }
+    }
+
+    private record TeamHudState(String name, int color) {
     }
 }

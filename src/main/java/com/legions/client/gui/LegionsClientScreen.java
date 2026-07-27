@@ -31,7 +31,6 @@ public class LegionsClientScreen extends Screen {
     private static final int RESET_BUTTON_WIDTH = 28;
     private static final int RESET_GAP = 4;
     private static final int TEXT_FIELD_LABEL_WIDTH = 94;
-    private static final String[] FOE_RENDER_STYLE_LABELS = {"Full", "Outline", "Outline + Full", "Pulse"};
     private final Screen parent;
     private final List<SectionHeader> sectionHeaders = new ArrayList<>();
     private final List<TextFieldLabel> textFieldLabels = new ArrayList<>();
@@ -69,12 +68,14 @@ public class LegionsClientScreen extends Screen {
         y = addSectionHeader(controlX, y, controlWidth, "Player Info");
         addToggle(controlX, screenY(y), controlWidth, "Rating Nametags", () -> LegionsClient.CONFIG.ratingNametagsEnabled, value -> LegionsClient.CONFIG.ratingNametagsEnabled = value, defaultConfig.ratingNametagsEnabled);
         y += ROW_SPACING;
-        addToggle(controlX, screenY(y), controlWidth, "Foe Outlines", () -> LegionsClient.CONFIG.automaticFoeOutlinesEnabled, value -> LegionsClient.CONFIG.automaticFoeOutlinesEnabled = value, defaultConfig.automaticFoeOutlinesEnabled);
-        y += ROW_SPACING;
-        if (LegionsClient.CONFIG.automaticFoeOutlinesEnabled) {
-            addCycle(controlX, screenY(y), controlWidth, "Foe Render Style", () -> LegionsClient.CONFIG.automaticFoeRenderStyle, value -> LegionsClient.CONFIG.automaticFoeRenderStyle = value, defaultConfig.automaticFoeRenderStyle, FOE_RENDER_STYLE_LABELS);
+        if (LegionsClient.CONFIG.ratingNametagsEnabled) {
+            addToggle(controlX, screenY(y), controlWidth, "Nametags Any Server", () -> LegionsClient.CONFIG.ratingNametagsIgnoreServerList, value -> LegionsClient.CONFIG.ratingNametagsIgnoreServerList = value, defaultConfig.ratingNametagsIgnoreServerList);
             y += ROW_SPACING;
         }
+        addToggle(controlX, screenY(y), controlWidth, "Foe Highlights", () -> LegionsClient.CONFIG.automaticFoeOutlinesEnabled, value -> LegionsClient.CONFIG.automaticFoeOutlinesEnabled = value, defaultConfig.automaticFoeOutlinesEnabled);
+        y += ROW_SPACING;
+        addToggle(controlX, screenY(y), controlWidth, "Dynamic Highlight Opacity", () -> LegionsClient.CONFIG.dynamicHighlightOpacityEnabled, value -> LegionsClient.CONFIG.dynamicHighlightOpacityEnabled = value, defaultConfig.dynamicHighlightOpacityEnabled);
+        y += ROW_SPACING;
         addToggle(controlX, screenY(y), controlWidth, "Spectator Glow", () -> LegionsClient.CONFIG.spectatorGlowEnabled, value -> LegionsClient.CONFIG.spectatorGlowEnabled = value, defaultConfig.spectatorGlowEnabled);
         y += ROW_SPACING;
         addToggle(controlX, screenY(y), controlWidth, "Warning Particles", () -> LegionsClient.CONFIG.warningParticlesEnabled, value -> LegionsClient.CONFIG.warningParticlesEnabled = value, defaultConfig.warningParticlesEnabled);
@@ -114,8 +115,6 @@ public class LegionsClientScreen extends Screen {
         if (LegionsClient.CONFIG.teamFightDetectorEnabled) {
             addToggle(controlX, screenY(y), controlWidth, "Spectator Only", () -> LegionsClient.CONFIG.teamFightDetectorSpectatorOnly, value -> LegionsClient.CONFIG.teamFightDetectorSpectatorOnly = value, defaultConfig.teamFightDetectorSpectatorOnly);
             y += ROW_SPACING;
-            addSlider(controlX, screenY(y), controlWidth, "Fight Max Markers", 1, 8, () -> LegionsClient.CONFIG.teamFightMaxMarkers, value -> LegionsClient.CONFIG.teamFightMaxMarkers = value, defaultConfig.teamFightMaxMarkers);
-            y += ROW_SPACING;
             addTextField(controlX, screenY(y), controlWidth, "Fight Color", LegionsClient.CONFIG.teamFightMarkerColor, "#ff5555", value -> LegionsClient.CONFIG.teamFightMarkerColor = value, defaultConfig.teamFightMarkerColor);
             y += ROW_SPACING;
             addToggle(controlX, screenY(y), controlWidth, "Fight Smoothing", () -> LegionsClient.CONFIG.teamFightSmoothingEnabled, value -> LegionsClient.CONFIG.teamFightSmoothingEnabled = value, defaultConfig.teamFightSmoothingEnabled);
@@ -132,6 +131,8 @@ public class LegionsClientScreen extends Screen {
         addToggle(controlX, screenY(y), controlWidth, "Team Count Overlay", () -> LegionsClient.CONFIG.teamCountOverlayEnabled, value -> LegionsClient.CONFIG.teamCountOverlayEnabled = value, defaultConfig.teamCountOverlayEnabled);
         y += ROW_SPACING;
         if (LegionsClient.CONFIG.teamCountOverlayEnabled) {
+            addToggle(controlX, screenY(y), controlWidth, "Team Rating Totals", () -> LegionsClient.CONFIG.teamQuipTotalsEnabled, value -> LegionsClient.CONFIG.teamQuipTotalsEnabled = value, defaultConfig.teamQuipTotalsEnabled);
+            y += ROW_SPACING;
             addButton(controlX, screenY(y), controlWidth, Text.literal("Move Team Count Overlay"), button -> MinecraftClient.getInstance().setScreen(new LegionsTeamCountOverlayLayoutScreen(this)));
             y += ROW_SPACING;
         }
@@ -265,24 +266,6 @@ public class LegionsClientScreen extends Screen {
         }
     }
 
-    private void addCycle(int x, int y, int width, String label, IntSupplier getter, IntConsumer setter, int defaultValue, String[] labels) {
-        if (!isRowVisible(y) || labels.length == 0) {
-            return;
-        }
-        int settingWidth = settingControlWidth(width);
-        addDrawableChild(ButtonWidget.builder(cycleText(label, getter.getAsInt(), labels), button -> {
-            int value = Math.floorMod(getter.getAsInt() + 1, labels.length);
-            setter.accept(value);
-            button.setMessage(cycleText(label, value, labels));
-            clearAndInit();
-        }).dimensions(x, y, settingWidth, BUTTON_HEIGHT).build());
-        addResetButton(x, y, width, getter.getAsInt() != defaultValue, () -> {
-            setter.accept(defaultValue);
-            LegionsClient.CONFIG.normalize();
-            clearAndInit();
-        });
-    }
-
     private void addTextField(int x, int y, int width, String label, String value, String placeholder, Consumer<String> setter, String defaultValue) {
         if (!isRowVisible(y)) {
             return;
@@ -383,10 +366,6 @@ public class LegionsClientScreen extends Screen {
 
     private static Text toggleText(String label, boolean enabled) {
         return Text.literal(label + "        " + (enabled ? "ON" : "OFF"));
-    }
-
-    private static Text cycleText(String label, int value, String[] labels) {
-        return Text.literal(label + "        " + labels[Math.floorMod(value, labels.length)]);
     }
 
     private record SectionHeader(int x, int y, int width, String title) {
