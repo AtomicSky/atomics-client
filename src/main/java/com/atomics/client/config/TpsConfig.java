@@ -701,6 +701,8 @@ public class TpsConfig {
         public boolean dualSpectateAutoFill = false;
         public String dualSpectatePlayerOne = "";
         public String dualSpectatePlayerTwo = "";
+        public boolean dualSpectateLockPlayerOne = false;
+        public boolean dualSpectateLockPlayerTwo = false;
         public boolean dualSpectateForceThirdPerson = true;
         public float dualSpectatePadding = 1.35f;
         public float dualSpectateMinDistance = 6.0f;

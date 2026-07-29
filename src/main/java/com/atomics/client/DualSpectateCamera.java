@@ -74,8 +74,7 @@ public final class DualSpectateCamera {
         if (pvp.dualSpectateAutoFill) {
             PlayerPair pair = findAutoSpectatePair(client, pvp, teamRules);
             if (pair != null) {
-                pvp.dualSpectatePlayerOne = pair.first.getNameForScoreboard();
-                pvp.dualSpectatePlayerTwo = pair.second.getNameForScoreboard();
+                applyAutoFilledPair(pvp, pair);
                 first = pair.first;
                 second = pair.second;
             } else {
@@ -227,7 +226,10 @@ public final class DualSpectateCamera {
         TpsConfig.PvpSettings pvp = AtomicsClient.CONFIG == null || AtomicsClient.CONFIG.pvp == null
                 ? new TpsConfig.PvpSettings()
                 : AtomicsClient.CONFIG.pvp;
-        PlayerPair pair = findBestPlayerPair(client, pvp, scoreboardTeamRules(client));
+        TeamRules teamRules = scoreboardTeamRules(client);
+        PlayerPair pair = hasLockedSlots(pvp)
+                ? findBestLockedPair(client, pvp, teamRules)
+                : findBestPlayerPair(client, pvp, teamRules);
         if (pair == null) {
             return null;
         }
@@ -236,6 +238,10 @@ public final class DualSpectateCamera {
     }
 
     private static PlayerPair findAutoSpectatePair(MinecraftClient client, TpsConfig.PvpSettings pvp, TeamRules teamRules) {
+        if (hasLockedSlots(pvp)) {
+            return findLockedAutoSpectatePair(client, pvp, teamRules);
+        }
+
         PlayerPair configured = findConfiguredPair(client, pvp, teamRules);
         PlayerPair best = findBestPlayerPair(client, pvp, teamRules);
         if (configured == null) {
@@ -248,6 +254,82 @@ public final class DualSpectateCamera {
         PairScore configuredScore = scorePair(client, configured);
         PairScore bestScore = scorePair(client, best);
         return shouldSwitchPair(configuredScore, bestScore) ? best : configured;
+    }
+
+    private static PlayerPair findLockedAutoSpectatePair(MinecraftClient client, TpsConfig.PvpSettings pvp, TeamRules teamRules) {
+        PlayerPair configured = findConfiguredPair(client, pvp, teamRules);
+        if (pvp.dualSpectateLockPlayerOne && pvp.dualSpectateLockPlayerTwo) {
+            return configured;
+        }
+
+        PlayerPair best = findBestLockedPair(client, pvp, teamRules);
+        if (configured == null) {
+            return best;
+        }
+        if (best == null || isSamePair(configured, best)) {
+            return configured;
+        }
+
+        PairScore configuredScore = scorePair(client, configured);
+        PairScore bestScore = scorePair(client, best);
+        return shouldSwitchPair(configuredScore, bestScore) ? best : configured;
+    }
+
+    private static PlayerPair findBestLockedPair(MinecraftClient client, TpsConfig.PvpSettings pvp, TeamRules teamRules) {
+        if (pvp.dualSpectateLockPlayerOne && pvp.dualSpectateLockPlayerTwo) {
+            return findConfiguredPair(client, pvp, teamRules);
+        }
+        if (pvp.dualSpectateLockPlayerOne) {
+            PlayerEntity locked = findPlayer(client, pvp.dualSpectatePlayerOne);
+            return findBestPartnerForLockedPlayer(client, pvp, teamRules, locked, true);
+        }
+        if (pvp.dualSpectateLockPlayerTwo) {
+            PlayerEntity locked = findPlayer(client, pvp.dualSpectatePlayerTwo);
+            return findBestPartnerForLockedPlayer(client, pvp, teamRules, locked, false);
+        }
+        return findBestPlayerPair(client, pvp, teamRules);
+    }
+
+    private static PlayerPair findBestPartnerForLockedPlayer(MinecraftClient client, TpsConfig.PvpSettings pvp,
+                                                             TeamRules teamRules, PlayerEntity locked,
+                                                             boolean lockedInFirstSlot) {
+        if (!isSpectateCandidate(client, locked)) {
+            return null;
+        }
+
+        List<PlayerEntity> candidates = autofillCandidates(client);
+        PlayerPair bestPair = null;
+        PairScore bestScore = null;
+        for (PlayerEntity candidate : candidates) {
+            if (candidate.getUuid().equals(locked.getUuid())) {
+                continue;
+            }
+
+            PlayerPair pair = lockedInFirstSlot ? new PlayerPair(locked, candidate) : new PlayerPair(candidate, locked);
+            if (!isAllowedSpectatePair(client, pair.first, pair.second, pvp, teamRules)) {
+                continue;
+            }
+
+            PairScore score = scorePair(client, pair);
+            if (bestScore == null || isBetterPair(score, bestScore)) {
+                bestPair = pair;
+                bestScore = score;
+            }
+        }
+        return bestPair;
+    }
+
+    private static void applyAutoFilledPair(TpsConfig.PvpSettings pvp, PlayerPair pair) {
+        if (!pvp.dualSpectateLockPlayerOne) {
+            pvp.dualSpectatePlayerOne = pair.first.getNameForScoreboard();
+        }
+        if (!pvp.dualSpectateLockPlayerTwo) {
+            pvp.dualSpectatePlayerTwo = pair.second.getNameForScoreboard();
+        }
+    }
+
+    private static boolean hasLockedSlots(TpsConfig.PvpSettings pvp) {
+        return pvp != null && (pvp.dualSpectateLockPlayerOne || pvp.dualSpectateLockPlayerTwo);
     }
 
     private static PlayerPair findBestPlayerPair(MinecraftClient client, TpsConfig.PvpSettings pvp, TeamRules teamRules) {
@@ -442,6 +524,7 @@ public final class DualSpectateCamera {
     private static PlayerEntity findPlayer(MinecraftClient client, String username) {
         String normalized = normalizeName(username);
         if (normalized.isEmpty()) return null;
+        if (client == null || client.world == null) return null;
         for (AbstractClientPlayerEntity player : client.world.getPlayers()) {
             if (player != null && normalizeName(player.getNameForScoreboard()).equals(normalized)) {
                 return player;

@@ -84,6 +84,8 @@ public class AtomicsClientScreen extends Screen {
     private boolean pingNametagEnabled;
     private boolean dualSpectateEnabled;
     private boolean dualSpectateAutoFill;
+    private boolean dualSpectateLockPlayerOne;
+    private boolean dualSpectateLockPlayerTwo;
     private boolean dualSpectateForceThirdPerson;
     private boolean dualSpectateOverheadEnabled;
     private boolean friendFoeOverlayEnabled;
@@ -739,14 +741,14 @@ public class AtomicsClientScreen extends Screen {
             y += 10;
         }
 
-        if (shouldShowFeature("pvp.dual_spectate", "Dual Spectate Camera", "fight camera", "autofill", "third person", "overhead", "top down", "group distance", "y-level", "vertical")) {
+        if (shouldShowFeature("pvp.dual_spectate", "Dual Spectate Camera", "fight camera", "autofill", "lock", "locked", "third person", "overhead", "top down", "group distance", "y-level", "vertical")) {
             y = addFeatureSection(y, "pvp.dual_spectate", "Dual Spectate Camera");
             if (!isFeatureCollapsed("pvp.dual_spectate")) {
                 addToggle(leftX, y, controlWidth, "Enable Dual Spectate Camera", dualSpectateEnabled, false, () -> dualSpectateEnabled, value -> dualSpectateEnabled = value, true); y += ROW_HEIGHT;
                 if (dualSpectateEnabled) {
                     addToggle(leftX, y, controlWidth, "Auto Fill Nearest Pair", dualSpectateAutoFill, false, () -> dualSpectateAutoFill, value -> dualSpectateAutoFill = value, true); y += ROW_HEIGHT;
-                    addTextField(leftX, y, controlWidth, "Player One", dualSpectatePlayerOne, "Username", value -> dualSpectatePlayerOne = value); y += ROW_HEIGHT;
-                    addTextField(leftX, y, controlWidth, "Player Two", dualSpectatePlayerTwo, "Username", value -> dualSpectatePlayerTwo = value); y += ROW_HEIGHT;
+                    addDualSpectatePlayerField(leftX, y, controlWidth, "Player One", dualSpectatePlayerOne, value -> dualSpectatePlayerOne = value, () -> dualSpectateLockPlayerOne, value -> dualSpectateLockPlayerOne = value); y += ROW_HEIGHT;
+                    addDualSpectatePlayerField(leftX, y, controlWidth, "Player Two", dualSpectatePlayerTwo, value -> dualSpectatePlayerTwo = value, () -> dualSpectateLockPlayerTwo, value -> dualSpectateLockPlayerTwo = value); y += ROW_HEIGHT;
                     addWideButton(leftX, y, controlWidth, "Autofill Nearest Pair", b -> autofillDualSpectatePlayers()); y += ROW_HEIGHT;
                     addToggle(leftX, y, controlWidth, "Force Third Person", dualSpectateForceThirdPerson, true, () -> dualSpectateForceThirdPerson, value -> dualSpectateForceThirdPerson = value, false); y += ROW_HEIGHT;
                     addToggle(leftX, y, controlWidth, "Overhead View", dualSpectateOverheadEnabled, TpsConfig.DEFAULT_DUAL_SPECTATE_OVERHEAD_ENABLED, () -> dualSpectateOverheadEnabled, value -> dualSpectateOverheadEnabled = value, true); y += ROW_HEIGHT;
@@ -912,14 +914,15 @@ public class AtomicsClientScreen extends Screen {
 
         String[] pair = DualSpectateCamera.findNearestPair(client);
         if (pair == null) {
-            status = Text.literal("Autofill needs at least two nearby players").formatted(Formatting.RED);
+            status = Text.literal(dualSpectateLockPlayerOne || dualSpectateLockPlayerTwo
+                    ? "Autofill needs the locked player and a valid partner"
+                    : "Autofill needs at least two nearby players").formatted(Formatting.RED);
             return;
         }
 
-        dualSpectatePlayerOne = pair[0];
-        dualSpectatePlayerTwo = pair[1];
+        applyDualSpectatePair(pair);
         changed();
-        status = Text.literal("Autofilled " + dualSpectatePlayerOne + " and " + dualSpectatePlayerTwo).formatted(Formatting.GREEN);
+        status = Text.literal("Autofilled " + dualSpectatePairLabel()).formatted(Formatting.GREEN);
         clearAndInit();
     }
 
@@ -933,15 +936,17 @@ public class AtomicsClientScreen extends Screen {
             return;
         }
 
-        if (pair[0].equals(dualSpectatePlayerOne) && pair[1].equals(dualSpectatePlayerTwo)) {
+        String nextPlayerOne = dualSpectateLockPlayerOne ? nonNull(dualSpectatePlayerOne) : pair[0];
+        String nextPlayerTwo = dualSpectateLockPlayerTwo ? nonNull(dualSpectatePlayerTwo) : pair[1];
+        if (nextPlayerOne.equals(nonNull(dualSpectatePlayerOne)) && nextPlayerTwo.equals(nonNull(dualSpectatePlayerTwo))) {
             applyToConfig();
             return;
         }
 
-        dualSpectatePlayerOne = pair[0];
-        dualSpectatePlayerTwo = pair[1];
+        dualSpectatePlayerOne = nextPlayerOne;
+        dualSpectatePlayerTwo = nextPlayerTwo;
         applyToConfig();
-        status = Text.literal("Auto-filled " + dualSpectatePlayerOne + " and " + dualSpectatePlayerTwo).formatted(Formatting.AQUA);
+        status = Text.literal("Auto-filled " + dualSpectatePairLabel()).formatted(Formatting.AQUA);
         if (selectedTab == Tab.PVP) {
             clearAndInit();
         }
@@ -1135,6 +1140,61 @@ public class AtomicsClientScreen extends Screen {
         return field;
     }
 
+    private TextFieldWidget addDualSpectatePlayerField(int x, int y, int controlWidth, String label, String initialValue,
+                                                       Consumer<String> setter, BooleanSupplier lockGetter,
+                                                       ToggleSetter lockSetter) {
+        labels.add(new DrawLabel(label, x + 4, y - 11, TEXT_MUTED));
+        if (!isWidgetVisible(y)) return null;
+
+        int gap = 6;
+        int lockWidth = Math.min(74, Math.max(58, controlWidth / 4));
+        int fieldWidth = Math.max(80, controlWidth - lockWidth - gap);
+        TextFieldWidget field = new TextFieldWidget(this.textRenderer, x, y, fieldWidth, BUTTON_HEIGHT, Text.literal(label));
+        field.setText(initialValue == null ? "" : initialValue);
+        field.setPlaceholder(Text.literal("Username").formatted(Formatting.DARK_GRAY));
+        field.setChangedListener(value -> { setter.accept(value); changed(); });
+        addDrawableChild(field);
+
+        ButtonWidget lockButton = ButtonWidget.builder(dualSpectateLockText(lockGetter.getAsBoolean()), b -> {
+            boolean locked = !lockGetter.getAsBoolean();
+            lockSetter.set(locked);
+            b.setMessage(dualSpectateLockText(locked));
+            changed();
+        }).dimensions(x + fieldWidth + gap, y, lockWidth, BUTTON_HEIGHT).build();
+        addDrawableChild(lockButton);
+
+        addDrawableChild(ButtonWidget.builder(Text.literal("\u21BB"), b -> {
+            setter.accept("");
+            field.setText("");
+            changed();
+        }).dimensions(x + controlWidth + 6, y, RESET_WIDTH, BUTTON_HEIGHT).build());
+        return field;
+    }
+
+    private void applyDualSpectatePair(String[] pair) {
+        if (pair == null || pair.length < 2) {
+            return;
+        }
+        if (!dualSpectateLockPlayerOne) {
+            dualSpectatePlayerOne = pair[0];
+        }
+        if (!dualSpectateLockPlayerTwo) {
+            dualSpectatePlayerTwo = pair[1];
+        }
+    }
+
+    private String dualSpectatePairLabel() {
+        return nonNull(dualSpectatePlayerOne) + " and " + nonNull(dualSpectatePlayerTwo);
+    }
+
+    private static Text dualSpectateLockText(boolean locked) {
+        return Text.literal(locked ? "Locked" : "Lock");
+    }
+
+    private static String nonNull(String value) {
+        return value == null ? "" : value;
+    }
+
     private int addDropdown(int x, int y, int controlWidth, String key, String label, List<? extends AutoVillagerTradeCatalog.Choice> options, String currentValue, String defaultValue, Consumer<String> setter) {
         if (options == null || options.isEmpty()) {
             return y;
@@ -1307,6 +1367,8 @@ public class AtomicsClientScreen extends Screen {
         dualSpectateAutoFill = cfg.pvp.dualSpectateAutoFill;
         dualSpectatePlayerOne = cfg.pvp.dualSpectatePlayerOne;
         dualSpectatePlayerTwo = cfg.pvp.dualSpectatePlayerTwo;
+        dualSpectateLockPlayerOne = cfg.pvp.dualSpectateLockPlayerOne;
+        dualSpectateLockPlayerTwo = cfg.pvp.dualSpectateLockPlayerTwo;
         dualSpectateForceThirdPerson = cfg.pvp.dualSpectateForceThirdPerson;
         dualSpectatePadding = cfg.pvp.dualSpectatePadding;
         dualSpectateMinDistance = cfg.pvp.dualSpectateMinDistance;
@@ -1502,6 +1564,8 @@ public class AtomicsClientScreen extends Screen {
         dualSpectateAutoFill = false;
         dualSpectatePlayerOne = "";
         dualSpectatePlayerTwo = "";
+        dualSpectateLockPlayerOne = false;
+        dualSpectateLockPlayerTwo = false;
         dualSpectateForceThirdPerson = true;
         dualSpectatePadding = 1.35f;
         dualSpectateMinDistance = 6.0f;
@@ -1644,6 +1708,8 @@ public class AtomicsClientScreen extends Screen {
         cfg.pvp.dualSpectateAutoFill = dualSpectateAutoFill;
         cfg.pvp.dualSpectatePlayerOne = dualSpectatePlayerOne == null ? "" : dualSpectatePlayerOne.trim();
         cfg.pvp.dualSpectatePlayerTwo = dualSpectatePlayerTwo == null ? "" : dualSpectatePlayerTwo.trim();
+        cfg.pvp.dualSpectateLockPlayerOne = dualSpectateLockPlayerOne;
+        cfg.pvp.dualSpectateLockPlayerTwo = dualSpectateLockPlayerTwo;
         cfg.pvp.dualSpectateForceThirdPerson = dualSpectateForceThirdPerson;
         cfg.pvp.dualSpectatePadding = Math.max(1.0f, Math.min(2.5f, dualSpectatePadding));
         cfg.pvp.dualSpectateMinDistance = Math.max(2.0f, Math.min(30.0f, dualSpectateMinDistance));
