@@ -5,9 +5,11 @@ public final class LegionsPlayerOverlayColorContext {
     public static final int STYLE_OUTLINE = 1;
     public static final int STYLE_OUTLINE_FULL = 2;
     public static final int STYLE_PULSE = 3;
+    public static final int STYLE_ARMOR_FULL = 4;
 
     private static int color = -1;
     private static int style = STYLE_FULL;
+    private static int armorRenderDepth;
 
     private LegionsPlayerOverlayColorContext() {
     }
@@ -20,11 +22,23 @@ public final class LegionsPlayerOverlayColorContext {
     public static void clear() {
         color = -1;
         style = STYLE_FULL;
+        armorRenderDepth = 0;
+    }
+
+    public static void pushArmorRender() {
+        armorRenderDepth++;
+    }
+
+    public static void popArmorRender() {
+        armorRenderDepth = Math.max(0, armorRenderDepth - 1);
     }
 
     public static int apply(int originalColor) {
         int overlayColor = color;
         if (overlayColor == -1 || style == STYLE_OUTLINE) {
+            return originalColor;
+        }
+        if (style == STYLE_ARMOR_FULL && armorRenderDepth <= 0) {
             return originalColor;
         }
         if (style == STYLE_PULSE) {

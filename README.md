@@ -1,1 +1,1 @@
-# Legions Client
+# Legions Utils

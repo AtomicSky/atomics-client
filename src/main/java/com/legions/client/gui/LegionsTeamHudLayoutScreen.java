@@ -3,7 +3,6 @@ package com.legions.client.gui;
 import com.legions.client.LegionsClient;
 import com.legions.client.LegionsHud;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
@@ -13,6 +12,7 @@ import org.lwjgl.glfw.GLFW;
 
 public class LegionsTeamHudLayoutScreen extends Screen {
     private static final int BUTTON_HEIGHT = 20;
+    private static final int SCALE_SLIDER_WIDTH = 220;
     private final Screen parent;
     private boolean dragging;
 
@@ -25,8 +25,11 @@ public class LegionsTeamHudLayoutScreen extends Screen {
     protected void init() {
         int buttonWidth = 86;
         int gap = 8;
+        int sliderX = this.width / 2 - SCALE_SLIDER_WIDTH / 2;
+        int sliderY = this.height - 56;
         int y = this.height - 28;
         int x = this.width / 2 - buttonWidth - gap / 2;
+        addDrawableChild(new LegionsUiScaleSlider(sliderX, sliderY, SCALE_SLIDER_WIDTH, BUTTON_HEIGHT, this::clampTeamText));
         addDrawableChild(ButtonWidget.builder(Text.literal("Reset"), button -> {
             LegionsClient.CONFIG.teamHudX = 8;
             LegionsClient.CONFIG.teamHudY = 8;
@@ -46,11 +49,14 @@ public class LegionsTeamHudLayoutScreen extends Screen {
 
     @Override
     public boolean mouseClicked(Click click, boolean doubleClick) {
+        if (super.mouseClicked(click, doubleClick)) {
+            return true;
+        }
         if (click.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT && isOverTeamText(click.x(), click.y())) {
             dragging = true;
             return true;
         }
-        return super.mouseClicked(click, doubleClick);
+        return false;
     }
 
     @Override
@@ -88,28 +94,22 @@ public class LegionsTeamHudLayoutScreen extends Screen {
 
     private void drawTeamText(DrawContext context) {
         MinecraftClient client = MinecraftClient.getInstance();
-        TextRenderer renderer = client.textRenderer;
-        String text = LegionsHud.teamHudText(client);
         clampTeamText();
-        context.drawTextWithShadow(renderer, Text.literal(text), LegionsClient.CONFIG.teamHudX, LegionsClient.CONFIG.teamHudY, LegionsHud.teamHudColor(client));
+        LegionsHud.renderTeamHudPreview(context, client, LegionsClient.CONFIG.teamHudX, LegionsClient.CONFIG.teamHudY);
     }
 
     private boolean isOverTeamText(double mouseX, double mouseY) {
         MinecraftClient client = MinecraftClient.getInstance();
-        TextRenderer renderer = client.textRenderer;
-        String text = LegionsHud.teamHudText(client);
         int x = LegionsClient.CONFIG.teamHudX;
         int y = LegionsClient.CONFIG.teamHudY;
-        return mouseX >= x && mouseX <= x + renderer.getWidth(text)
-                && mouseY >= y && mouseY <= y + renderer.fontHeight;
+        return mouseX >= x && mouseX <= x + LegionsHud.teamHudPreviewWidth(client)
+                && mouseY >= y && mouseY <= y + LegionsHud.teamHudPreviewHeight(client);
     }
 
     private void clampTeamText() {
         MinecraftClient client = MinecraftClient.getInstance();
-        TextRenderer renderer = client.textRenderer;
-        String text = LegionsHud.teamHudText(client);
-        LegionsClient.CONFIG.teamHudX = clamp(LegionsClient.CONFIG.teamHudX, 0, Math.max(0, this.width - renderer.getWidth(text)));
-        LegionsClient.CONFIG.teamHudY = clamp(LegionsClient.CONFIG.teamHudY, 0, Math.max(0, this.height - renderer.fontHeight));
+        LegionsClient.CONFIG.teamHudX = clamp(LegionsClient.CONFIG.teamHudX, 0, Math.max(0, this.width - LegionsHud.teamHudPreviewWidth(client)));
+        LegionsClient.CONFIG.teamHudY = clamp(LegionsClient.CONFIG.teamHudY, 0, Math.max(0, this.height - LegionsHud.teamHudPreviewHeight(client)));
     }
 
     private static int clamp(int value, int min, int max) {

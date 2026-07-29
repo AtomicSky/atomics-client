@@ -19,7 +19,7 @@ import org.slf4j.LoggerFactory;
 import java.util.concurrent.CompletableFuture;
 
 public class LegionsClient implements ClientModInitializer {
-    public static final String MOD_ID = "legions_client";
+    public static final String MOD_ID = "legions_utils";
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
     public static LegionsConfig CONFIG;
@@ -30,6 +30,7 @@ public class LegionsClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         CONFIG = LegionsConfig.load().normalize();
+        LegionsRatingBackendCache.preloadAll();
 
         if (!ATOMICS_CLIENT_LOADED) {
             KeyBinding.Category category = KeyBinding.Category.create(Identifier.of(MOD_ID, "main"));
@@ -81,11 +82,19 @@ public class LegionsClient implements ClientModInitializer {
     }
 
     public static void saveConfig() {
-        CONFIG.normalize().save(FabricLoader.getInstance().getConfigDir().resolve("legions_client.json"));
+        CONFIG.normalize().save(LegionsConfig.configPath());
     }
 
     public static boolean enabled(MinecraftClient client) {
         return CONFIG != null && CONFIG.enabled && LegionsFeatures.isLegionsServer(client);
+    }
+
+    public static boolean hudVisible(MinecraftClient client) {
+        return client != null && client.options != null && !client.options.hudHidden;
+    }
+
+    public static float uiScaleFactor() {
+        return CONFIG == null ? 1.0f : Math.max(50, Math.min(200, CONFIG.uiScale)) / 100.0f;
     }
 
     public static boolean ratingNametagsEnabled(MinecraftClient client) {

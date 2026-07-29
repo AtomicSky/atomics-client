@@ -33,8 +33,8 @@ public final class LegionsFeatures {
     private static final int QUIP_UNKNOWN_COLOR = 0xA0A0A0;
     private static final int MIN_QUIP_OVERLAY_RATING = 100;
     private static final int MAX_QUIP_OVERLAY_RATING = 2000;
-    private static final int MIN_QUIP_FULL_OVERLAY_ALPHA = 64;
-    private static final int FIXED_HIGHLIGHT_OVERLAY_ALPHA = 255;
+    private static final int MIN_HIGHLIGHT_OVERLAY_ALPHA = 128;
+    private static final int MAX_HIGHLIGHT_OVERLAY_ALPHA = 255;
     private static final Set<UUID> visibleOpponentCache = new HashSet<>();
     private static final ArrayList<VisibleOpponent> visibleOpponentScratch = new ArrayList<>();
     private static final Map<String, TabListTag> tabListTagCache = new HashMap<>();
@@ -50,10 +50,6 @@ public final class LegionsFeatures {
     private static boolean atomicsTierSlotEnabledCache;
     private static Method atomicsTierSuffixMethod;
     private static boolean atomicsTierSuffixMethodChecked;
-    private static long renderOptimizationStatsTick = Long.MIN_VALUE;
-    private static int renderOptimizationChecked;
-    private static int renderOptimizationHidden;
-
     private LegionsFeatures() {
     }
 
@@ -163,13 +159,17 @@ public final class LegionsFeatures {
         if (shouldHighlightTeamAsSpectator(client, player)) {
             return getTeamOutlineColor(player);
         }
-        if (LegionsClient.CONFIG.automaticFoeOutlinesEnabled && isOpponent(client.player, player)) {
+        if (LegionsClient.CONFIG.enemyHighlightsEnabled && isOpponent(client.player, player)) {
             return getTeamOutlineColor(player);
         }
         return 0;
     }
 
     public static int getOverlayStyle(PlayerEntity player) {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (!LegionsPingController.isMarkedPlayer(player) && isAutomaticFoeOverlay(client, player)) {
+            return LegionsPlayerOverlayColorContext.STYLE_ARMOR_FULL;
+        }
         return LegionsPlayerOverlayColorContext.STYLE_FULL;
     }
 
@@ -189,7 +189,8 @@ public final class LegionsFeatures {
     private static boolean usesFilledOverlay(int overlayStyle) {
         return overlayStyle == LegionsPlayerOverlayColorContext.STYLE_FULL
                 || overlayStyle == LegionsPlayerOverlayColorContext.STYLE_OUTLINE_FULL
-                || overlayStyle == LegionsPlayerOverlayColorContext.STYLE_PULSE;
+                || overlayStyle == LegionsPlayerOverlayColorContext.STYLE_PULSE
+                || overlayStyle == LegionsPlayerOverlayColorContext.STYLE_ARMOR_FULL;
     }
 
     private static boolean usesHighlightOverlayAlpha(MinecraftClient client, PlayerEntity player) {
@@ -201,29 +202,29 @@ public final class LegionsFeatures {
         return LegionsClient.enabled(client)
                 && client.player != null
                 && player != null
-                && LegionsClient.CONFIG.automaticFoeOutlinesEnabled
+                && LegionsClient.CONFIG.enemyHighlightsEnabled
                 && isOpponent(client.player, player)
                 && !shouldHighlightTeamAsSpectator(client, player);
     }
 
     private static int highlightOverlayAlpha(PlayerEntity player) {
         if (LegionsClient.CONFIG == null || !LegionsClient.CONFIG.dynamicHighlightOpacityEnabled) {
-            return FIXED_HIGHLIGHT_OVERLAY_ALPHA;
+            return MAX_HIGHLIGHT_OVERLAY_ALPHA;
         }
         if (player == null) {
-            return MIN_QUIP_FULL_OVERLAY_ALPHA;
+            return MIN_HIGHLIGHT_OVERLAY_ALPHA;
         }
 
         MinecraftClient client = MinecraftClient.getInstance();
         TabListTag tag = getRatingTag(client, realUsername(player));
         if (tag == null || tag.isUnknown()) {
-            return MIN_QUIP_FULL_OVERLAY_ALPHA;
+            return MIN_HIGHLIGHT_OVERLAY_ALPHA;
         }
 
         int clampedRating = clamp(tag.numericRating, MIN_QUIP_OVERLAY_RATING, MAX_QUIP_OVERLAY_RATING);
         float opacity = (float) (clampedRating - MIN_QUIP_OVERLAY_RATING)
                 / (MAX_QUIP_OVERLAY_RATING - MIN_QUIP_OVERLAY_RATING);
-        return MIN_QUIP_FULL_OVERLAY_ALPHA + Math.round(opacity * (255.0f - MIN_QUIP_FULL_OVERLAY_ALPHA));
+        return MIN_HIGHLIGHT_OVERLAY_ALPHA + Math.round(opacity * (MAX_HIGHLIGHT_OVERLAY_ALPHA - MIN_HIGHLIGHT_OVERLAY_ALPHA));
     }
 
     public static boolean shouldHidePlayerModel(PlayerEntity player) {
@@ -302,41 +303,7 @@ public final class LegionsFeatures {
             return false;
         }
         Entity entity = client.world.getEntityById(state.id);
-        boolean checked = entity instanceof PlayerEntity;
-        boolean hidden = checked && shouldHidePlayerModel((PlayerEntity) entity);
-        recordRenderOptimizationDecision(client, checked, hidden);
-        return hidden;
-    }
-
-    public static String renderOptimizationDebugText(MinecraftClient client) {
-        if (client == null || client.world == null || LegionsClient.CONFIG == null
-                || !LegionsClient.CONFIG.playerRenderOptimizationDebugEnabled) {
-            return "";
-        }
-        resetRenderOptimizationStatsIfNeeded(client);
-        int rendered = Math.max(0, renderOptimizationChecked - renderOptimizationHidden);
-        return "Player renders: " + rendered + " shown / " + renderOptimizationHidden + " hidden";
-    }
-
-    private static void recordRenderOptimizationDecision(MinecraftClient client, boolean checked, boolean hidden) {
-        if (client == null || client.world == null || LegionsClient.CONFIG == null
-                || !LegionsClient.CONFIG.playerRenderOptimizationDebugEnabled || !checked) {
-            return;
-        }
-        resetRenderOptimizationStatsIfNeeded(client);
-        renderOptimizationChecked++;
-        if (hidden) {
-            renderOptimizationHidden++;
-        }
-    }
-
-    private static void resetRenderOptimizationStatsIfNeeded(MinecraftClient client) {
-        long tick = client.world == null ? Long.MIN_VALUE : client.world.getTime();
-        if (renderOptimizationStatsTick != tick) {
-            renderOptimizationStatsTick = tick;
-            renderOptimizationChecked = 0;
-            renderOptimizationHidden = 0;
-        }
+        return entity instanceof PlayerEntity player && shouldHidePlayerModel(player);
     }
 
     public static int getRating(MinecraftClient client, String playerName) {

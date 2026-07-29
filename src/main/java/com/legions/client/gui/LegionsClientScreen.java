@@ -43,7 +43,7 @@ public class LegionsClientScreen extends Screen {
     private int contentHeight;
 
     public LegionsClientScreen(Screen parent) {
-        super(Text.literal("Legions Client"));
+        super(Text.literal("Legions Utils"));
         this.parent = parent;
         this.savedConfig = LegionsClient.CONFIG == null ? new LegionsConfig().normalize() : LegionsClient.CONFIG.copy();
     }
@@ -62,6 +62,8 @@ public class LegionsClientScreen extends Screen {
         y = addSectionHeader(controlX, y, controlWidth, "General");
         addToggle(controlX, screenY(y), controlWidth, "Enabled", () -> LegionsClient.CONFIG.enabled, LegionsClient::setEnabled, defaultConfig.enabled);
         y += ROW_SPACING;
+        addSlider(controlX, screenY(y), controlWidth, "UI Scale %", 50, 200, () -> LegionsClient.CONFIG.uiScale, value -> LegionsClient.CONFIG.uiScale = value, defaultConfig.uiScale);
+        y += ROW_SPACING;
         addButton(controlX, screenY(y), controlWidth, Text.literal("Server IPs"), button -> MinecraftClient.getInstance().setScreen(new LegionsServerListScreen(this)));
         y += ROW_SPACING;
 
@@ -72,7 +74,7 @@ public class LegionsClientScreen extends Screen {
             addToggle(controlX, screenY(y), controlWidth, "Nametags Any Server", () -> LegionsClient.CONFIG.ratingNametagsIgnoreServerList, value -> LegionsClient.CONFIG.ratingNametagsIgnoreServerList = value, defaultConfig.ratingNametagsIgnoreServerList);
             y += ROW_SPACING;
         }
-        addToggle(controlX, screenY(y), controlWidth, "Foe Highlights", () -> LegionsClient.CONFIG.automaticFoeOutlinesEnabled, value -> LegionsClient.CONFIG.automaticFoeOutlinesEnabled = value, defaultConfig.automaticFoeOutlinesEnabled);
+        addToggle(controlX, screenY(y), controlWidth, "Enemy Highlights", () -> LegionsClient.CONFIG.enemyHighlightsEnabled, value -> LegionsClient.CONFIG.enemyHighlightsEnabled = value, defaultConfig.enemyHighlightsEnabled);
         y += ROW_SPACING;
         addToggle(controlX, screenY(y), controlWidth, "Dynamic Highlight Opacity", () -> LegionsClient.CONFIG.dynamicHighlightOpacityEnabled, value -> LegionsClient.CONFIG.dynamicHighlightOpacityEnabled = value, defaultConfig.dynamicHighlightOpacityEnabled);
         y += ROW_SPACING;
@@ -131,7 +133,7 @@ public class LegionsClientScreen extends Screen {
         addToggle(controlX, screenY(y), controlWidth, "Team Count Overlay", () -> LegionsClient.CONFIG.teamCountOverlayEnabled, value -> LegionsClient.CONFIG.teamCountOverlayEnabled = value, defaultConfig.teamCountOverlayEnabled);
         y += ROW_SPACING;
         if (LegionsClient.CONFIG.teamCountOverlayEnabled) {
-            addToggle(controlX, screenY(y), controlWidth, "Team Rating Totals", () -> LegionsClient.CONFIG.teamQuipTotalsEnabled, value -> LegionsClient.CONFIG.teamQuipTotalsEnabled = value, defaultConfig.teamQuipTotalsEnabled);
+            addToggle(controlX, screenY(y), controlWidth, "Team Rating Totals", () -> LegionsClient.CONFIG.teamRatingTotalsEnabled, value -> LegionsClient.CONFIG.teamRatingTotalsEnabled = value, defaultConfig.teamRatingTotalsEnabled);
             y += ROW_SPACING;
             addButton(controlX, screenY(y), controlWidth, Text.literal("Move Team Count Overlay"), button -> MinecraftClient.getInstance().setScreen(new LegionsTeamCountOverlayLayoutScreen(this)));
             y += ROW_SPACING;
@@ -156,8 +158,6 @@ public class LegionsClientScreen extends Screen {
             addSlider(controlX, screenY(y), controlWidth, "Render Distance (Blocks)", 16, 160, () -> LegionsClient.CONFIG.playerRenderDistance, value -> LegionsClient.CONFIG.playerRenderDistance = value, defaultConfig.playerRenderDistance);
             y += ROW_SPACING;
         }
-        addToggle(controlX, screenY(y), controlWidth, "Render Debug", () -> LegionsClient.CONFIG.playerRenderOptimizationDebugEnabled, value -> LegionsClient.CONFIG.playerRenderOptimizationDebugEnabled = value, defaultConfig.playerRenderOptimizationDebugEnabled);
-        y += ROW_SPACING;
         y += 20;
 
         int buttonY = screenY(y);

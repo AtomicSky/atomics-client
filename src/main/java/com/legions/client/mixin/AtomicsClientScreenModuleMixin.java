@@ -95,7 +95,8 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
         }
 
         y = legions_client$addSubHeader(leftX, y, controlWidth, "General");
-        y = legions_client$addToggle(leftX, y, controlWidth, "Enable Legions Client", () -> LegionsClient.CONFIG.enabled, LegionsClient::setEnabled, LEGIONS_DEFAULT_CONFIG.enabled);
+        y = legions_client$addToggle(leftX, y, controlWidth, "Enable Legions Utils", () -> LegionsClient.CONFIG.enabled, LegionsClient::setEnabled, LEGIONS_DEFAULT_CONFIG.enabled);
+        y = legions_client$addIntSlider(leftX, y, controlWidth, "UI Scale %", 50, 200, LegionsClient.CONFIG.uiScale, value -> LegionsClient.CONFIG.uiScale = value, LEGIONS_DEFAULT_CONFIG.uiScale);
         y = legions_client$addServerIpsButton(leftX, y, controlWidth);
 
         y = legions_client$addSubHeader(leftX, y, controlWidth, "Player Info");
@@ -103,7 +104,7 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
         if (LegionsClient.CONFIG.ratingNametagsEnabled) {
             y = legions_client$addToggle(leftX, y, controlWidth, "Nametags Any Server", () -> LegionsClient.CONFIG.ratingNametagsIgnoreServerList, value -> LegionsClient.CONFIG.ratingNametagsIgnoreServerList = value, LEGIONS_DEFAULT_CONFIG.ratingNametagsIgnoreServerList);
         }
-        y = legions_client$addToggle(leftX, y, controlWidth, "Foe Highlights", () -> LegionsClient.CONFIG.automaticFoeOutlinesEnabled, value -> LegionsClient.CONFIG.automaticFoeOutlinesEnabled = value, LEGIONS_DEFAULT_CONFIG.automaticFoeOutlinesEnabled);
+        y = legions_client$addToggle(leftX, y, controlWidth, "Enemy Highlights", () -> LegionsClient.CONFIG.enemyHighlightsEnabled, value -> LegionsClient.CONFIG.enemyHighlightsEnabled = value, LEGIONS_DEFAULT_CONFIG.enemyHighlightsEnabled);
         y = legions_client$addToggle(leftX, y, controlWidth, "Dynamic Highlight Opacity", () -> LegionsClient.CONFIG.dynamicHighlightOpacityEnabled, value -> LegionsClient.CONFIG.dynamicHighlightOpacityEnabled = value, LEGIONS_DEFAULT_CONFIG.dynamicHighlightOpacityEnabled);
         y = legions_client$addToggle(leftX, y, controlWidth, "Spectator Glow", () -> LegionsClient.CONFIG.spectatorGlowEnabled, value -> LegionsClient.CONFIG.spectatorGlowEnabled = value, LEGIONS_DEFAULT_CONFIG.spectatorGlowEnabled);
         y = legions_client$addToggle(leftX, y, controlWidth, "Warning Particles", () -> LegionsClient.CONFIG.warningParticlesEnabled, LegionsClient::setWarningParticlesEnabled, LEGIONS_DEFAULT_CONFIG.warningParticlesEnabled);
@@ -141,7 +142,7 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
         y = legions_client$addSubHeader(leftX, y, controlWidth, "Overlays");
         y = legions_client$addToggle(leftX, y, controlWidth, "Team Count Overlay", () -> LegionsClient.CONFIG.teamCountOverlayEnabled, value -> LegionsClient.CONFIG.teamCountOverlayEnabled = value, LEGIONS_DEFAULT_CONFIG.teamCountOverlayEnabled);
         if (LegionsClient.CONFIG.teamCountOverlayEnabled) {
-            y = legions_client$addToggle(leftX, y, controlWidth, "Team Rating Totals", () -> LegionsClient.CONFIG.teamQuipTotalsEnabled, value -> LegionsClient.CONFIG.teamQuipTotalsEnabled = value, LEGIONS_DEFAULT_CONFIG.teamQuipTotalsEnabled);
+            y = legions_client$addToggle(leftX, y, controlWidth, "Team Rating Totals", () -> LegionsClient.CONFIG.teamRatingTotalsEnabled, value -> LegionsClient.CONFIG.teamRatingTotalsEnabled = value, LEGIONS_DEFAULT_CONFIG.teamRatingTotalsEnabled);
             y = legions_client$addMoveTeamCountButton(leftX, y, controlWidth);
         }
         y = legions_client$addToggle(leftX, y, controlWidth, "Team HUD", () -> LegionsClient.CONFIG.teamHudEnabled, value -> LegionsClient.CONFIG.teamHudEnabled = value, LEGIONS_DEFAULT_CONFIG.teamHudEnabled);
@@ -158,7 +159,6 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
         if (LegionsClient.CONFIG.playerRenderOptimizationEnabled) {
             y = legions_client$addIntSlider(leftX, y, controlWidth, "Render Distance (Blocks)", 16, 160, LegionsClient.CONFIG.playerRenderDistance, value -> LegionsClient.CONFIG.playerRenderDistance = value, LEGIONS_DEFAULT_CONFIG.playerRenderDistance);
         }
-        y = legions_client$addToggle(leftX, y, controlWidth, "Render Debug", () -> LegionsClient.CONFIG.playerRenderOptimizationDebugEnabled, value -> LegionsClient.CONFIG.playerRenderOptimizationDebugEnabled = value, LEGIONS_DEFAULT_CONFIG.playerRenderOptimizationDebugEnabled);
 
         return y + 10;
     }
@@ -187,7 +187,10 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
 
             rowY = legions_client$addSubHeader(leftX, rowY, controlWidth, "General");
             rowY = legions_client$addNativeToggle(addToggle, toggleSetterType, leftX, rowY, controlWidth,
-                    "Enable Legions Client", LEGIONS_DEFAULT_CONFIG.enabled, () -> LegionsClient.CONFIG.enabled, LegionsClient::setEnabled);
+                    "Enable Legions Utils", LEGIONS_DEFAULT_CONFIG.enabled, () -> LegionsClient.CONFIG.enabled, LegionsClient::setEnabled);
+            rowY = legions_client$addNativeIntSlider(addIntSlider, intSetterType, leftX, rowY, controlWidth,
+                    "UI Scale %", LegionsClient.CONFIG.uiScale, 50, 200, 5, LEGIONS_DEFAULT_CONFIG.uiScale,
+                    () -> LegionsClient.CONFIG.uiScale, value -> LegionsClient.CONFIG.uiScale = value);
             rowY = legions_client$addNativeWideButton(addWideButton, leftX, rowY, controlWidth, "Server IPs",
                     button -> this.client.setScreen(new LegionsServerListScreen(this)));
 
@@ -199,7 +202,7 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
                         "Nametags Any Server", LEGIONS_DEFAULT_CONFIG.ratingNametagsIgnoreServerList, () -> LegionsClient.CONFIG.ratingNametagsIgnoreServerList, value -> LegionsClient.CONFIG.ratingNametagsIgnoreServerList = value);
             }
             rowY = legions_client$addNativeToggle(addToggle, toggleSetterType, leftX, rowY, controlWidth,
-                    "Foe Highlights", LEGIONS_DEFAULT_CONFIG.automaticFoeOutlinesEnabled, () -> LegionsClient.CONFIG.automaticFoeOutlinesEnabled, value -> LegionsClient.CONFIG.automaticFoeOutlinesEnabled = value);
+                    "Enemy Highlights", LEGIONS_DEFAULT_CONFIG.enemyHighlightsEnabled, () -> LegionsClient.CONFIG.enemyHighlightsEnabled, value -> LegionsClient.CONFIG.enemyHighlightsEnabled = value);
             rowY = legions_client$addNativeToggle(addToggle, toggleSetterType, leftX, rowY, controlWidth,
                     "Dynamic Highlight Opacity", LEGIONS_DEFAULT_CONFIG.dynamicHighlightOpacityEnabled, () -> LegionsClient.CONFIG.dynamicHighlightOpacityEnabled, value -> LegionsClient.CONFIG.dynamicHighlightOpacityEnabled = value);
             rowY = legions_client$addNativeToggle(addToggle, toggleSetterType, leftX, rowY, controlWidth,
@@ -264,7 +267,7 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
                     "Team Count Overlay", LEGIONS_DEFAULT_CONFIG.teamCountOverlayEnabled, () -> LegionsClient.CONFIG.teamCountOverlayEnabled, value -> LegionsClient.CONFIG.teamCountOverlayEnabled = value);
             if (LegionsClient.CONFIG.teamCountOverlayEnabled) {
                 rowY = legions_client$addNativeToggle(addToggle, toggleSetterType, leftX, rowY, controlWidth,
-                        "Team Rating Totals", LEGIONS_DEFAULT_CONFIG.teamQuipTotalsEnabled, () -> LegionsClient.CONFIG.teamQuipTotalsEnabled, value -> LegionsClient.CONFIG.teamQuipTotalsEnabled = value);
+                        "Team Rating Totals", LEGIONS_DEFAULT_CONFIG.teamRatingTotalsEnabled, () -> LegionsClient.CONFIG.teamRatingTotalsEnabled, value -> LegionsClient.CONFIG.teamRatingTotalsEnabled = value);
                 rowY = legions_client$addNativeWideButton(addWideButton, leftX, rowY, controlWidth, "Move Team Count Overlay",
                         button -> this.client.setScreen(new LegionsTeamCountOverlayLayoutScreen(this)));
             }
@@ -290,8 +293,6 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
                         "Render Distance (Blocks)", LegionsClient.CONFIG.playerRenderDistance, 16, 160, 8, LEGIONS_DEFAULT_CONFIG.playerRenderDistance,
                         () -> LegionsClient.CONFIG.playerRenderDistance, value -> LegionsClient.CONFIG.playerRenderDistance = value);
             }
-            rowY = legions_client$addNativeToggle(addToggle, toggleSetterType, leftX, rowY, controlWidth,
-                    "Render Debug", LEGIONS_DEFAULT_CONFIG.playerRenderOptimizationDebugEnabled, () -> LegionsClient.CONFIG.playerRenderOptimizationDebugEnabled, value -> LegionsClient.CONFIG.playerRenderOptimizationDebugEnabled = value);
 
             return rowY + 10;
         } catch (ReflectiveOperationException | RuntimeException e) {
@@ -488,7 +489,7 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
         if (query.isBlank()) {
             return true;
         }
-        String terms = "legions lc server ip ips address addresses list domain rating quip quips ranking total totals sum nametag nametags any ignore bypass foe highlight dynamic fixed spectator glow warning particle team ping customize keybind key mouse row rows duplicate color audience last attacker attacked attack block distance label arrow offscreen edge scale opacity fight detector radius marker refresh local spectator team hud team counter team count player count scoreboard scoreboard teams left players left count move opponent opponents shown limit hidden hide render optimization debug distance fps performance opacity";
+        String terms = "legions lc server ip ips address addresses list domain rating quip quips ranking total totals sum nametag nametags any ignore bypass enemy highlight dynamic fixed armor spectator glow warning particle team ping customize keybind key mouse row rows duplicate color audience last attacker attacked attack block distance label arrow offscreen edge scale ui opacity fight detector radius marker refresh local spectator team hud team counter team count player count scoreboard scoreboard teams left players left count move opponent opponents shown limit hidden hide render optimization distance fps performance opacity";
         return legions_client$matchesSearch(query, terms);
     }
 

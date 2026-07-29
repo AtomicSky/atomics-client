@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
-  "id": "legions_client",
+  "id": "legions_utils",
   "version": "${version}",
-  "name": "Legions Client",
-  "description": "Client-side team coordination tools for the Legions Minecraft server.",
-  "icon": "assets/legions_client/icon.png",
+  "name": "Legions Utils",
+  "description": "Client-side utility tools for the Legions Minecraft server.",
+  "icon": "assets/legions_utils/icon.png",
   "authors": ["AtomicSky1"],
   "contributors": ["Henrikque"],
   "contact": {
@@ -16,7 +16,7 @@
     "client": ["com.legions.client.LegionsClient"],
     "modmenu": ["com.legions.client.compat.LegionsModMenuApi"]
   },
-  "mixins": ["legions_client.mixins.json"],
+  "mixins": ["legions_utils.mixins.json"],
   "depends": {
     "fabricloader": ">=${loader_version}",
     "minecraft": "${minecraft_version}",

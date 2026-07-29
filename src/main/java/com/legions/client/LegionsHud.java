@@ -41,10 +41,13 @@ public final class LegionsHud {
     }
 
     public static void renderHud(DrawContext context) {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (!LegionsClient.hudVisible(client)) {
+            return;
+        }
         renderTeamHud(context);
         renderTeamCountOverlay(context);
         LegionsPingController.renderHud(context);
-        renderRenderOptimizationDebug(context);
     }
 
     public static void renderTeamHud(DrawContext context) {
@@ -53,12 +56,39 @@ public final class LegionsHud {
             return;
         }
 
+        renderTeamHudText(context, client, LegionsClient.CONFIG.teamHudX, LegionsClient.CONFIG.teamHudY);
+    }
+
+    public static void renderTeamHudPreview(DrawContext context, MinecraftClient client, int x, int y) {
+        MinecraftClient renderClient = client == null ? MinecraftClient.getInstance() : client;
+        renderTeamHudText(context, renderClient, x, y);
+    }
+
+    public static int teamHudPreviewWidth(MinecraftClient client) {
+        MinecraftClient renderClient = client == null ? MinecraftClient.getInstance() : client;
+        return scaledDimension(renderClient.textRenderer.getWidth(teamHudText(renderClient)));
+    }
+
+    public static int teamHudPreviewHeight(MinecraftClient client) {
+        MinecraftClient renderClient = client == null ? MinecraftClient.getInstance() : client;
+        return scaledDimension(renderClient.textRenderer.fontHeight);
+    }
+
+    private static void renderTeamHudText(DrawContext context, MinecraftClient client, int configuredX, int configuredY) {
         TextRenderer renderer = client.textRenderer;
         TeamHudState state = teamHudState(client);
         String text = "Team: " + state.name();
-        int x = clamp(LegionsClient.CONFIG.teamHudX, 0, Math.max(0, context.getScaledWindowWidth() - renderer.getWidth(text)));
-        int y = clamp(LegionsClient.CONFIG.teamHudY, 0, Math.max(0, context.getScaledWindowHeight() - renderer.fontHeight));
-        context.drawTextWithShadow(renderer, Text.literal(text), x, y, state.color());
+        float scale = LegionsClient.uiScaleFactor();
+        int width = scaledDimension(renderer.getWidth(text));
+        int height = scaledDimension(renderer.fontHeight);
+        int x = clamp(configuredX, 0, Math.max(0, context.getScaledWindowWidth() - width));
+        int y = clamp(configuredY, 0, Math.max(0, context.getScaledWindowHeight() - height));
+
+        context.getMatrices().pushMatrix();
+        context.getMatrices().translate(x, y);
+        context.getMatrices().scale(scale, scale);
+        context.drawTextWithShadow(renderer, Text.literal(text), 0, 0, state.color());
+        context.getMatrices().popMatrix();
     }
 
     public static String teamHudText(MinecraftClient client) {
@@ -127,11 +157,11 @@ public final class LegionsHud {
 
     public static int teamCountOverlayPreviewWidth(MinecraftClient client) {
         MinecraftClient renderClient = client == null ? MinecraftClient.getInstance() : client;
-        return teamCountOverlayWidth(renderClient, displayTeamCounts(client, true));
+        return scaledDimension(teamCountOverlayWidth(renderClient, displayTeamCounts(client, true)));
     }
 
     public static int teamCountOverlayPreviewHeight(MinecraftClient client) {
-        return teamCountOverlayHeight(displayTeamCounts(client, true));
+        return scaledDimension(teamCountOverlayHeight(displayTeamCounts(client, true)));
     }
 
     public static int defaultTeamCountOverlayX(MinecraftClient client) {
@@ -149,31 +179,16 @@ public final class LegionsHud {
         renderTeamCountOverlay(context, renderClient, x, y, true);
     }
 
-    private static void renderRenderOptimizationDebug(DrawContext context) {
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (!LegionsClient.enabled(client)
-                || LegionsClient.CONFIG == null
-                || !LegionsClient.CONFIG.playerRenderOptimizationDebugEnabled) {
-            return;
-        }
-
-        String text = LegionsFeatures.renderOptimizationDebugText(client);
-        if (text.isBlank()) {
-            return;
-        }
-        int x = 8;
-        int y = Math.max(8, context.getScaledWindowHeight() - client.textRenderer.fontHeight - 8);
-        context.drawTextWithShadow(client.textRenderer, Text.literal(text), x, y, 0xFF55E6FF);
-    }
-
     private static void renderTeamCountOverlay(DrawContext context, MinecraftClient client, int configuredX, int configuredY, boolean preview) {
         List<TeamCount> counts = displayTeamCounts(client, preview);
         if (counts.isEmpty()) {
             return;
         }
 
-        int width = teamCountOverlayWidth(client, counts);
-        int height = teamCountOverlayHeight(counts);
+        int baseWidth = teamCountOverlayWidth(client, counts);
+        int baseHeight = teamCountOverlayHeight(counts);
+        int width = scaledDimension(baseWidth);
+        int height = scaledDimension(baseHeight);
         int screenWidth = context.getScaledWindowWidth();
         int screenHeight = context.getScaledWindowHeight();
         int x = configuredX;
@@ -185,20 +200,30 @@ public final class LegionsHud {
         x = clamp(x, 0, Math.max(0, screenWidth - width));
         y = clamp(y, 0, Math.max(0, screenHeight - height));
 
-        context.fill(x, y, x + width, y + height, 0x66000000);
-        context.fill(x, y, x + width, y + TEAM_COUNT_HEADER_HEIGHT, 0x99000000);
-        String title = teamCountTitle();
-        int titleX = x + width / 2 - client.textRenderer.getWidth(title) / 2;
-        context.drawTextWithShadow(client.textRenderer, title, titleX, y + 2, 0xFFFFFF55);
+        float scale = LegionsClient.uiScaleFactor();
+        context.getMatrices().pushMatrix();
+        context.getMatrices().translate(x, y);
+        context.getMatrices().scale(scale, scale);
+        renderTeamCountOverlayContents(context, client, counts, baseWidth, baseHeight);
+        context.getMatrices().popMatrix();
+    }
 
-        int rowY = y + TEAM_COUNT_HEADER_HEIGHT + 2;
+    private static void renderTeamCountOverlayContents(DrawContext context, MinecraftClient client,
+                                                       List<TeamCount> counts, int width, int height) {
+        context.fill(0, 0, width, height, 0x66000000);
+        context.fill(0, 0, width, TEAM_COUNT_HEADER_HEIGHT, 0x99000000);
+        String title = teamCountTitle();
+        int titleX = width / 2 - client.textRenderer.getWidth(title) / 2;
+        context.drawTextWithShadow(client.textRenderer, title, titleX, 2, 0xFFFFFF55);
+
+        int rowY = TEAM_COUNT_HEADER_HEIGHT + 2;
         for (int i = 0; i < counts.size(); i++) {
             TeamCount count = counts.get(i);
             int rowTop = rowY + i * TEAM_COUNT_ROW_HEIGHT;
-            context.fill(x, rowTop, x + width, rowTop + TEAM_COUNT_ROW_HEIGHT, (i & 1) == 0 ? 0x52000000 : 0x3F000000);
-            context.drawTextWithShadow(client.textRenderer, count.name(), x + TEAM_COUNT_PADDING_X, rowTop + 1, count.color());
+            context.fill(0, rowTop, width, rowTop + TEAM_COUNT_ROW_HEIGHT, (i & 1) == 0 ? 0x52000000 : 0x3F000000);
+            context.drawTextWithShadow(client.textRenderer, count.name(), TEAM_COUNT_PADDING_X, rowTop + 1, count.color());
             String value = count.valueText();
-            int valueX = x + width - TEAM_COUNT_PADDING_X - client.textRenderer.getWidth(value);
+            int valueX = width - TEAM_COUNT_PADDING_X - client.textRenderer.getWidth(value);
             context.drawTextWithShadow(client.textRenderer, value, valueX, rowTop + 1, 0xFFFFFFFF);
         }
     }
@@ -359,11 +384,11 @@ public final class LegionsHud {
     }
 
     private static String teamCountTitle() {
-        return teamQuipTotalsEnabled() ? "Team Ratings" : TEAM_COUNT_TITLE;
+        return teamRatingTotalsEnabled() ? "Team Ratings" : TEAM_COUNT_TITLE;
     }
 
-    private static boolean teamQuipTotalsEnabled() {
-        return LegionsClient.CONFIG != null && LegionsClient.CONFIG.teamQuipTotalsEnabled;
+    private static boolean teamRatingTotalsEnabled() {
+        return LegionsClient.CONFIG != null && LegionsClient.CONFIG.teamRatingTotalsEnabled;
     }
 
     private static String formatRatingTotal(int ratingTotal, int knownRatings, int count) {
@@ -379,9 +404,13 @@ public final class LegionsHud {
         return Math.max(min, Math.min(max, value));
     }
 
+    private static int scaledDimension(int value) {
+        return Math.max(0, (int) Math.ceil(value * LegionsClient.uiScaleFactor()));
+    }
+
     private record TeamCount(String name, int color, int count, int quipTotal, int knownQuips) {
         private String valueText() {
-            if (!teamQuipTotalsEnabled()) {
+            if (!teamRatingTotalsEnabled()) {
                 return String.valueOf(count);
             }
             return count + " | " + formatRatingTotal(quipTotal, knownQuips, count);

@@ -2,6 +2,9 @@ package com.legions.client.config;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import com.legions.client.LegionsClient;
 import net.fabricmc.loader.api.FabricLoader;
 
@@ -16,23 +19,23 @@ import java.util.Locale;
 
 public class LegionsConfig {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
+    private static final String CONFIG_FILE_NAME = "legions_utils.json";
+    private static final String LEGACY_CONFIG_FILE_NAME = "legions_client.json";
 
     public boolean enabled = true;
+    public int uiScale = 100;
     public List<String> allowedServerAddresses = new ArrayList<>(List.of("legions"));
     public boolean ratingNametagsEnabled = true;
     public boolean ratingNametagsIgnoreServerList = false;
-    public boolean automaticFoeOutlinesEnabled = false;
+    public boolean enemyHighlightsEnabled = false;
     public boolean dynamicHighlightOpacityEnabled = true;
     public boolean spectatorGlowEnabled = true;
     public boolean warningParticlesEnabled = true;
     public boolean teamPingEnabled = true;
-    public boolean pingLastAttackedPlayerEnabled = false;
     public boolean blockPingDistanceLabelEnabled = true;
     public boolean offscreenPingArrowsEnabled = true;
     public boolean offscreenPingArrowDistanceEnabled = true;
     public int offscreenPingArrowScale = 100;
-    public int offscreenPingArrowOpacity = 85;
-    public int offscreenPingArrowMaxDistance = 0;
     public boolean offscreenPingArrowDistanceFadeEnabled = true;
     public int offscreenPingArrowMinOpacity = 35;
     public int offscreenPingArrowMaxOpacity = 100;
@@ -42,20 +45,16 @@ public class LegionsConfig {
     public int teamFightMinPlayers = 3;
     public int teamFightMinTeams = 2;
     public int teamFightMarkerDurationSeconds = 6;
-    public int teamFightRefreshTicks = 10;
     public String teamFightMarkerColor = "#ff5555";
     public boolean teamFightDistanceLabelEnabled = true;
-    public int teamFightMaxDistance = 0;
-    public int teamFightMaxMarkers = 3;
     public boolean teamFightSmoothingEnabled = true;
     public int teamFightSmoothingStrength = 35;
     public int teamFightFadeOutSeconds = 3;
     public boolean teamHudEnabled = true;
     public boolean teamCountOverlayEnabled = false;
-    public boolean teamQuipTotalsEnabled = true;
+    public boolean teamRatingTotalsEnabled = true;
     public boolean opponentLimitEnabled = true;
     public boolean playerRenderOptimizationEnabled = true;
-    public boolean playerRenderOptimizationDebugEnabled = false;
     public int opponentLimit = 5;
     public int playerRenderDistance = 64;
     public int pingDurationSeconds = 10;
@@ -67,41 +66,61 @@ public class LegionsConfig {
     public int teamCountOverlayY = -1;
 
     public static LegionsConfig load() {
-        Path path = FabricLoader.getInstance().getConfigDir().resolve("legions_client.json");
+        Path path = configPath();
+        Path legacyPath = legacyConfigPath();
+        LegionsConfig config = null;
         if (Files.exists(path)) {
-            try (Reader reader = Files.newBufferedReader(path)) {
-                LegionsConfig config = GSON.fromJson(reader, LegionsConfig.class);
-                if (config != null) {
-                    return config;
-                }
-            } catch (IOException | RuntimeException e) {
-                LegionsClient.LOGGER.warn("Failed to load Legions Client config", e);
+            config = loadFrom(path);
+        }
+        if (config == null && Files.exists(legacyPath)) {
+            config = loadFrom(legacyPath);
+            if (config != null) {
+                LegionsClient.LOGGER.info("Migrated Legions Utils config from {} to {}.", legacyPath.getFileName(), path.getFileName());
             }
         }
-        LegionsConfig config = new LegionsConfig();
+        if (config == null) {
+            config = new LegionsConfig();
+        }
+
+        config.normalize();
         config.save(path);
         return config;
     }
 
+    public static Path configPath() {
+        return FabricLoader.getInstance().getConfigDir().resolve(CONFIG_FILE_NAME);
+    }
+
+    private static Path legacyConfigPath() {
+        return FabricLoader.getInstance().getConfigDir().resolve(LEGACY_CONFIG_FILE_NAME);
+    }
+
+    private static LegionsConfig loadFrom(Path path) {
+        try (Reader reader = Files.newBufferedReader(path)) {
+            JsonElement element = JsonParser.parseReader(reader);
+            migrateLegacyFields(element);
+            return GSON.fromJson(element, LegionsConfig.class);
+        } catch (IOException | RuntimeException e) {
+            LegionsClient.LOGGER.warn("Failed to load Legions Utils config from {}", path.getFileName(), e);
+            return null;
+        }
+    }
+
     public LegionsConfig normalize() {
         allowedServerAddresses = normalizeServerAddresses(allowedServerAddresses);
+        uiScale = clamp(uiScale, 50, 200);
         opponentLimit = clamp(opponentLimit, 1, 20);
         playerRenderDistance = clamp(playerRenderDistance, 16, 160);
         pingDurationSeconds = clamp(pingDurationSeconds, 1, 25);
         pingRecentTargetTimeoutSeconds = clamp(pingRecentTargetTimeoutSeconds, 1, 60);
         offscreenPingArrowScale = clamp(offscreenPingArrowScale, 50, 200);
-        offscreenPingArrowOpacity = clamp(offscreenPingArrowOpacity, 20, 100);
-        offscreenPingArrowMaxDistance = clamp(offscreenPingArrowMaxDistance, 0, 1000);
         offscreenPingArrowMinOpacity = clamp(offscreenPingArrowMinOpacity, 10, 100);
         offscreenPingArrowMaxOpacity = clamp(offscreenPingArrowMaxOpacity, offscreenPingArrowMinOpacity, 100);
         teamFightDetectionRadius = clamp(teamFightDetectionRadius, 8, 96);
         teamFightMinPlayers = clamp(teamFightMinPlayers, 2, 20);
         teamFightMinTeams = clamp(teamFightMinTeams, 2, 8);
         teamFightMarkerDurationSeconds = clamp(teamFightMarkerDurationSeconds, 1, 20);
-        teamFightRefreshTicks = clamp(teamFightRefreshTicks, 2, 40);
         teamFightMarkerColor = normalizeColor(teamFightMarkerColor);
-        teamFightMaxDistance = clamp(teamFightMaxDistance, 0, 1000);
-        teamFightMaxMarkers = clamp(teamFightMaxMarkers, 1, 8);
         teamFightSmoothingStrength = clamp(teamFightSmoothingStrength, 5, 100);
         teamFightFadeOutSeconds = clamp(teamFightFadeOutSeconds, 1, 10);
         pingRows = normalizePingRows(pingRows);
@@ -115,21 +134,19 @@ public class LegionsConfig {
     public LegionsConfig copy() {
         LegionsConfig copy = new LegionsConfig();
         copy.enabled = enabled;
+        copy.uiScale = uiScale;
         copy.allowedServerAddresses = new ArrayList<>(allowedServerAddresses);
         copy.ratingNametagsEnabled = ratingNametagsEnabled;
         copy.ratingNametagsIgnoreServerList = ratingNametagsIgnoreServerList;
-        copy.automaticFoeOutlinesEnabled = automaticFoeOutlinesEnabled;
+        copy.enemyHighlightsEnabled = enemyHighlightsEnabled;
         copy.dynamicHighlightOpacityEnabled = dynamicHighlightOpacityEnabled;
         copy.spectatorGlowEnabled = spectatorGlowEnabled;
         copy.warningParticlesEnabled = warningParticlesEnabled;
         copy.teamPingEnabled = teamPingEnabled;
-        copy.pingLastAttackedPlayerEnabled = pingLastAttackedPlayerEnabled;
         copy.blockPingDistanceLabelEnabled = blockPingDistanceLabelEnabled;
         copy.offscreenPingArrowsEnabled = offscreenPingArrowsEnabled;
         copy.offscreenPingArrowDistanceEnabled = offscreenPingArrowDistanceEnabled;
         copy.offscreenPingArrowScale = offscreenPingArrowScale;
-        copy.offscreenPingArrowOpacity = offscreenPingArrowOpacity;
-        copy.offscreenPingArrowMaxDistance = offscreenPingArrowMaxDistance;
         copy.offscreenPingArrowDistanceFadeEnabled = offscreenPingArrowDistanceFadeEnabled;
         copy.offscreenPingArrowMinOpacity = offscreenPingArrowMinOpacity;
         copy.offscreenPingArrowMaxOpacity = offscreenPingArrowMaxOpacity;
@@ -139,20 +156,16 @@ public class LegionsConfig {
         copy.teamFightMinPlayers = teamFightMinPlayers;
         copy.teamFightMinTeams = teamFightMinTeams;
         copy.teamFightMarkerDurationSeconds = teamFightMarkerDurationSeconds;
-        copy.teamFightRefreshTicks = teamFightRefreshTicks;
         copy.teamFightMarkerColor = teamFightMarkerColor;
         copy.teamFightDistanceLabelEnabled = teamFightDistanceLabelEnabled;
-        copy.teamFightMaxDistance = teamFightMaxDistance;
-        copy.teamFightMaxMarkers = teamFightMaxMarkers;
         copy.teamFightSmoothingEnabled = teamFightSmoothingEnabled;
         copy.teamFightSmoothingStrength = teamFightSmoothingStrength;
         copy.teamFightFadeOutSeconds = teamFightFadeOutSeconds;
         copy.teamHudEnabled = teamHudEnabled;
         copy.teamCountOverlayEnabled = teamCountOverlayEnabled;
-        copy.teamQuipTotalsEnabled = teamQuipTotalsEnabled;
+        copy.teamRatingTotalsEnabled = teamRatingTotalsEnabled;
         copy.opponentLimitEnabled = opponentLimitEnabled;
         copy.playerRenderOptimizationEnabled = playerRenderOptimizationEnabled;
-        copy.playerRenderOptimizationDebugEnabled = playerRenderOptimizationDebugEnabled;
         copy.opponentLimit = opponentLimit;
         copy.playerRenderDistance = playerRenderDistance;
         copy.pingDurationSeconds = pingDurationSeconds;
@@ -168,21 +181,19 @@ public class LegionsConfig {
     public boolean sameSettings(LegionsConfig other) {
         return other != null
                 && enabled == other.enabled
+                && uiScale == other.uiScale
                 && allowedServerAddresses.equals(other.allowedServerAddresses)
                 && ratingNametagsEnabled == other.ratingNametagsEnabled
                 && ratingNametagsIgnoreServerList == other.ratingNametagsIgnoreServerList
-                && automaticFoeOutlinesEnabled == other.automaticFoeOutlinesEnabled
+                && enemyHighlightsEnabled == other.enemyHighlightsEnabled
                 && dynamicHighlightOpacityEnabled == other.dynamicHighlightOpacityEnabled
                 && spectatorGlowEnabled == other.spectatorGlowEnabled
                 && warningParticlesEnabled == other.warningParticlesEnabled
                 && teamPingEnabled == other.teamPingEnabled
-                && pingLastAttackedPlayerEnabled == other.pingLastAttackedPlayerEnabled
                 && blockPingDistanceLabelEnabled == other.blockPingDistanceLabelEnabled
                 && offscreenPingArrowsEnabled == other.offscreenPingArrowsEnabled
                 && offscreenPingArrowDistanceEnabled == other.offscreenPingArrowDistanceEnabled
                 && offscreenPingArrowScale == other.offscreenPingArrowScale
-                && offscreenPingArrowOpacity == other.offscreenPingArrowOpacity
-                && offscreenPingArrowMaxDistance == other.offscreenPingArrowMaxDistance
                 && offscreenPingArrowDistanceFadeEnabled == other.offscreenPingArrowDistanceFadeEnabled
                 && offscreenPingArrowMinOpacity == other.offscreenPingArrowMinOpacity
                 && offscreenPingArrowMaxOpacity == other.offscreenPingArrowMaxOpacity
@@ -192,20 +203,16 @@ public class LegionsConfig {
                 && teamFightMinPlayers == other.teamFightMinPlayers
                 && teamFightMinTeams == other.teamFightMinTeams
                 && teamFightMarkerDurationSeconds == other.teamFightMarkerDurationSeconds
-                && teamFightRefreshTicks == other.teamFightRefreshTicks
                 && teamFightMarkerColor.equals(other.teamFightMarkerColor)
                 && teamFightDistanceLabelEnabled == other.teamFightDistanceLabelEnabled
-                && teamFightMaxDistance == other.teamFightMaxDistance
-                && teamFightMaxMarkers == other.teamFightMaxMarkers
                 && teamFightSmoothingEnabled == other.teamFightSmoothingEnabled
                 && teamFightSmoothingStrength == other.teamFightSmoothingStrength
                 && teamFightFadeOutSeconds == other.teamFightFadeOutSeconds
                 && teamHudEnabled == other.teamHudEnabled
                 && teamCountOverlayEnabled == other.teamCountOverlayEnabled
-                && teamQuipTotalsEnabled == other.teamQuipTotalsEnabled
+                && teamRatingTotalsEnabled == other.teamRatingTotalsEnabled
                 && opponentLimitEnabled == other.opponentLimitEnabled
                 && playerRenderOptimizationEnabled == other.playerRenderOptimizationEnabled
-                && playerRenderOptimizationDebugEnabled == other.playerRenderOptimizationDebugEnabled
                 && opponentLimit == other.opponentLimit
                 && playerRenderDistance == other.playerRenderDistance
                 && pingDurationSeconds == other.pingDurationSeconds
@@ -224,12 +231,27 @@ public class LegionsConfig {
                 GSON.toJson(this, writer);
             }
         } catch (IOException | RuntimeException e) {
-            LegionsClient.LOGGER.warn("Failed to save Legions Client config", e);
+            LegionsClient.LOGGER.warn("Failed to save Legions Utils config", e);
         }
     }
 
     private static int clamp(int value, int min, int max) {
         return Math.max(min, Math.min(max, value));
+    }
+
+    private static void migrateLegacyFields(JsonElement element) {
+        if (element == null || !element.isJsonObject()) {
+            return;
+        }
+        JsonObject object = element.getAsJsonObject();
+        migrateField(object, "automaticFoeOutlinesEnabled", "enemyHighlightsEnabled");
+        migrateField(object, "teamQuipTotalsEnabled", "teamRatingTotalsEnabled");
+    }
+
+    private static void migrateField(JsonObject object, String oldName, String newName) {
+        if (!object.has(newName) && object.has(oldName)) {
+            object.add(newName, object.get(oldName));
+        }
     }
 
     private static String normalizeColor(String value) {

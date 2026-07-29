@@ -12,6 +12,7 @@ import org.lwjgl.glfw.GLFW;
 
 public class LegionsTeamCountOverlayLayoutScreen extends Screen {
     private static final int BUTTON_HEIGHT = 20;
+    private static final int SCALE_SLIDER_WIDTH = 220;
     private final Screen parent;
     private int overlayX;
     private int overlayY;
@@ -36,8 +37,11 @@ public class LegionsTeamCountOverlayLayoutScreen extends Screen {
 
         int buttonWidth = 86;
         int gap = 8;
+        int sliderX = this.width / 2 - SCALE_SLIDER_WIDTH / 2;
+        int sliderY = this.height - 56;
         int y = this.height - 28;
         int x = this.width / 2 - buttonWidth - gap / 2;
+        addDrawableChild(new LegionsUiScaleSlider(sliderX, sliderY, SCALE_SLIDER_WIDTH, BUTTON_HEIGHT, this::clampAndApply));
         addDrawableChild(ButtonWidget.builder(Text.literal("Reset"), button -> resetOverlay())
                 .dimensions(x, y, buttonWidth, BUTTON_HEIGHT).build());
         addDrawableChild(ButtonWidget.builder(Text.literal("Done"), button -> close())
@@ -54,13 +58,16 @@ public class LegionsTeamCountOverlayLayoutScreen extends Screen {
 
     @Override
     public boolean mouseClicked(Click click, boolean doubleClick) {
+        if (super.mouseClicked(click, doubleClick)) {
+            return true;
+        }
         if (click.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT && isInsideOverlay(click.x(), click.y())) {
             dragging = true;
             dragOffsetX = (int) Math.round(click.x()) - overlayX;
             dragOffsetY = (int) Math.round(click.y()) - overlayY;
             return true;
         }
-        return super.mouseClicked(click, doubleClick);
+        return false;
     }
 
     @Override
@@ -144,6 +151,11 @@ public class LegionsTeamCountOverlayLayoutScreen extends Screen {
     private void apply() {
         LegionsClient.CONFIG.teamCountOverlayX = overlayX;
         LegionsClient.CONFIG.teamCountOverlayY = overlayY;
+    }
+
+    private void clampAndApply() {
+        clampOverlay();
+        apply();
     }
 
     private static int clamp(int value, int min, int max) {
