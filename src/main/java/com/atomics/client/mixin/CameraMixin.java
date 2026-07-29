@@ -2,6 +2,7 @@ package com.atomics.client.mixin;
 
 import com.atomics.client.DualSpectateCamera;
 import com.atomics.client.FreelookManager;
+import com.atomics.client.SpectatorAutoFreelookCamera;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.Camera;
 import net.minecraft.entity.Entity;
@@ -26,7 +27,10 @@ public class CameraMixin {
             float tickProgress,
             CallbackInfo ci
     ) {
-        if (DualSpectateCamera.isActive()) {
+        if (SpectatorAutoFreelookCamera.isActive()) {
+            this.thirdPerson = true;
+            SpectatorAutoFreelookCamera.applyToCamera((Camera) (Object) this, MinecraftClient.getInstance(), tickProgress);
+        } else if (DualSpectateCamera.isActive()) {
             this.thirdPerson = false;
             DualSpectateCamera.applyToCamera((Camera) (Object) this, MinecraftClient.getInstance(), tickProgress);
         } else if (FreelookManager.isActive()) {

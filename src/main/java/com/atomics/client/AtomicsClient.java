@@ -171,6 +171,7 @@ public class AtomicsClient implements ClientModInitializer {
             TotemPopEffects.tick(client);
             PvpNametagStatsManager.tick(client);
             DualSpectateCamera.tick(client);
+            SpectatorAutoFreelookCamera.tick(client);
             FreelookManager.tick(client);
             ClientFeatureManager.tick(client);
             InventorySorter.tick(client);
@@ -223,6 +224,13 @@ public class AtomicsClient implements ClientModInitializer {
         return CONFIG != null
                 && CONFIG.visual != null
                 && CONFIG.visual.freelookToggleMode;
+    }
+
+    public static boolean isSpectatorAutoFreelookEnabled() {
+        return CONFIG != null
+                && CONFIG.enabled
+                && CONFIG.visual != null
+                && CONFIG.visual.spectatorCombatOrbitEnabled;
     }
 
     public static KeyBinding getOpenStudioKeyBinding() {

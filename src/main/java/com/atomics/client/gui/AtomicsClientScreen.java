@@ -106,6 +106,7 @@ public class AtomicsClientScreen extends Screen {
     private boolean zoomEnabled;
     private boolean freelookEnabled;
     private boolean freelookToggleMode;
+    private boolean spectatorCombatOrbitEnabled;
     private boolean chatMacrosEnabled;
     private boolean autoVillagerTraderEnabled;
     private boolean autoVillagerTraderCheckChests;
@@ -557,7 +558,7 @@ public class AtomicsClientScreen extends Screen {
             y += 10;
         }
 
-        if (shouldShowFeature("tools.freelook", "Freelook", "third person", "camera", "look around")) {
+        if (shouldShowFeature("tools.freelook", "Freelook", "third person", "camera", "look around", "spectator", "auto freelook")) {
             y = addFeatureSection(y, "tools.freelook", "Freelook");
             if (!isFeatureCollapsed("tools.freelook")) {
                 addToggle(leftX, y, controlWidth, "Enable Freelook", freelookEnabled, TpsConfig.DEFAULT_FREELOOK_ENABLED, () -> freelookEnabled, value -> freelookEnabled = value, true); y += ROW_HEIGHT;
@@ -568,6 +569,7 @@ public class AtomicsClientScreen extends Screen {
                         clearAndInit();
                     }); y += ROW_HEIGHT;
                 }
+                addToggle(leftX, y, controlWidth, "Spectator Auto Freelook", spectatorCombatOrbitEnabled, TpsConfig.DEFAULT_SPECTATOR_COMBAT_ORBIT_ENABLED, () -> spectatorCombatOrbitEnabled, value -> spectatorCombatOrbitEnabled = value, false); y += ROW_HEIGHT;
             }
             y += 10;
         }
@@ -1421,6 +1423,7 @@ public class AtomicsClientScreen extends Screen {
         zoomMultiplier = cfg.visual.zoomMultiplier;
         freelookEnabled = cfg.visual.freelookEnabled;
         freelookToggleMode = cfg.visual.freelookToggleMode;
+        spectatorCombatOrbitEnabled = cfg.visual.spectatorCombatOrbitEnabled;
         autoVillagerTraderEnabled = cfg.utility.autoVillagerTraderEnabled;
         autoVillagerTraderProfession = cfg.utility.autoVillagerTraderProfession;
         autoVillagerTraderTrade = cfg.utility.autoVillagerTraderTrade;
@@ -1618,6 +1621,7 @@ public class AtomicsClientScreen extends Screen {
         zoomMultiplier = TpsConfig.DEFAULT_ZOOM_MULTIPLIER;
         freelookEnabled = TpsConfig.DEFAULT_FREELOOK_ENABLED;
         freelookToggleMode = TpsConfig.DEFAULT_FREELOOK_TOGGLE_MODE;
+        spectatorCombatOrbitEnabled = TpsConfig.DEFAULT_SPECTATOR_COMBAT_ORBIT_ENABLED;
         autoVillagerTraderEnabled = TpsConfig.DEFAULT_AUTO_VILLAGER_TRADER_ENABLED;
         autoVillagerTraderProfession = TpsConfig.DEFAULT_AUTO_VILLAGER_TRADER_PROFESSION;
         autoVillagerTraderTrade = TpsConfig.DEFAULT_AUTO_VILLAGER_TRADER_TRADE;
@@ -1769,6 +1773,7 @@ public class AtomicsClientScreen extends Screen {
         cfg.visual.zoomMultiplier = Math.max(TpsConfig.MIN_ZOOM_MULTIPLIER, Math.min(TpsConfig.MAX_ZOOM_MULTIPLIER, zoomMultiplier));
         cfg.visual.freelookEnabled = freelookEnabled;
         cfg.visual.freelookToggleMode = freelookToggleMode;
+        cfg.visual.spectatorCombatOrbitEnabled = spectatorCombatOrbitEnabled;
         normalizeAutoVillagerTraderSelection();
         cfg.utility.autoVillagerTraderEnabled = autoVillagerTraderEnabled;
         cfg.utility.autoVillagerTraderProfession = autoVillagerTraderProfession == null ? "" : autoVillagerTraderProfession.trim();

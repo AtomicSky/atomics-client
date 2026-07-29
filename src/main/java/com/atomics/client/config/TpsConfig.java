@@ -115,6 +115,7 @@ public class TpsConfig {
     public static final float DEFAULT_ZOOM_MULTIPLIER = 4.0f;
     public static final boolean DEFAULT_FREELOOK_ENABLED = true;
     public static final boolean DEFAULT_FREELOOK_TOGGLE_MODE = false;
+    public static final boolean DEFAULT_SPECTATOR_COMBAT_ORBIT_ENABLED = true;
     public static final int MIN_MACRO_SLOTS = 4;
     public static final int MAX_MACRO_SLOTS = 12;
     public static final boolean DEFAULT_AUTO_VILLAGER_TRADER_ENABLED = false;
@@ -648,6 +649,7 @@ public class TpsConfig {
         public float zoomMultiplier = DEFAULT_ZOOM_MULTIPLIER;
         public boolean freelookEnabled = DEFAULT_FREELOOK_ENABLED;
         public boolean freelookToggleMode = DEFAULT_FREELOOK_TOGGLE_MODE;
+        public boolean spectatorCombatOrbitEnabled = DEFAULT_SPECTATOR_COMBAT_ORBIT_ENABLED;
     }
 
     public static class MacroSettings {
