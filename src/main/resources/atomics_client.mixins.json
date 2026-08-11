@@ -17,6 +17,7 @@
     "ItemRenderStateMixin",
     "LayerRenderStateMixin",
     "LivingEntityRendererMixin",
+    "MinecraftClientMixin",
     "MouseMixin",
     "OutlineVertexConsumerCompatMixin",
     "PerspectiveMixin",
@@ -25,7 +26,8 @@
     "RenderCommandQueueMixin",
     "ShieldModelRendererMixin",
     "TntEntityRendererMixin",
-    "TitleScreenMixin"
+    "TitleScreenMixin",
+    "WorldRendererMixin"
   ],
   "injectors": {
     "defaultRequire": 0

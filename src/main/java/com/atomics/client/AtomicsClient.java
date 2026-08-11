@@ -638,6 +638,22 @@ public class AtomicsClient implements ClientModInitializer {
                 || style == PlayerOverlayColorContext.STYLE_OUTLINE_FULL;
     }
 
+    public static boolean shouldRenderFriendFoeOutline(Entity entity) {
+        return getPlayerFriendFoeOutlineColor(entity) != -1;
+    }
+
+    public static int getPlayerFriendFoeOutlineColor(Entity entity) {
+        if (!(entity instanceof PlayerEntity player)) {
+            return -1;
+        }
+
+        int color = getPlayerFriendFoeOverlayColor(player);
+        if (color == -1 || !usesFriendFoeOutline(getPlayerFriendFoeOverlayStyle(player))) {
+            return -1;
+        }
+        return color & 0x00FFFFFF;
+    }
+
     public static boolean shouldBlockFriendAttack(PlayerEntity target) {
         syncFriendFoeCache();
         return target != null
