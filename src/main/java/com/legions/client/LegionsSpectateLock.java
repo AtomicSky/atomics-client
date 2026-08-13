@@ -10,7 +10,6 @@ import net.minecraft.util.math.Vec3d;
 
 import java.lang.reflect.Field;
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
@@ -19,6 +18,8 @@ public final class LegionsSpectateLock {
     private static final double MAX_SECOND_PLAYER_DISTANCE = 96.0;
     private static final double MAX_SECOND_PLAYER_DISTANCE_SQUARED =
             MAX_SECOND_PLAYER_DISTANCE * MAX_SECOND_PLAYER_DISTANCE;
+    private static final String MISSING_SECOND_PLAYER_REASON =
+            "none nearby within " + (int) MAX_SECOND_PLAYER_DISTANCE + " blocks";
     private static String lockedPlayerName;
     private static boolean savedAtomicsState;
     private static boolean savedDualSpectateEnabled;
@@ -26,7 +27,9 @@ public final class LegionsSpectateLock {
     private static String savedDualSpectatePlayerOne = "";
     private static String savedDualSpectatePlayerTwo = "";
     private static String lastSecondPlayerName = "";
-    private static String lastLoggedPair = "";
+    private static String lastLoggedLockedName = "";
+    private static String lastLoggedSecondName = "";
+    private static String lastLoggedMissingReason = "";
     private static Class<?> atomicsClientClass;
     private static final Map<Class<?>, Map<String, Field>> FIELD_CACHE = new HashMap<>();
 
@@ -135,7 +138,7 @@ public final class LegionsSpectateLock {
                 if (lockedPlayer != null) {
                     lockedPlayerName = LegionsFeatures.realUsername(lockedPlayer);
                     lastSecondPlayerName = "";
-                    lastLoggedPair = "";
+                    clearLastLoggedPair();
                     sendAction(client, "Dual spectate relocked: " + lockedPlayerName);
                 }
             }
@@ -266,15 +269,16 @@ public final class LegionsSpectateLock {
                                          boolean autoFill) throws ReflectiveOperationException {
         setField(pvp, "dualSpectateEnabled", true);
         setField(pvp, "dualSpectateAutoFill", autoFill);
-        setField(pvp, "dualSpectatePlayerOne", LegionsFeatures.realUsername(lockedPlayer));
+        String lockedName = LegionsFeatures.realUsername(lockedPlayer);
+        setField(pvp, "dualSpectatePlayerOne", lockedName);
 
         PlayerEntity second = findBestSecondPlayer(client, lockedPlayer);
         String secondName = second == null ? "" : LegionsFeatures.realUsername(second);
         setField(pvp, "dualSpectatePlayerTwo", secondName);
         lastSecondPlayerName = secondName;
-        logPairChange(LegionsFeatures.realUsername(lockedPlayer), secondName,
-                second == null ? -1.0 : Math.sqrt(lockedPlayer.squaredDistanceTo(second)),
-                "none nearby within " + (int) MAX_SECOND_PLAYER_DISTANCE + " blocks");
+        logPairChange(lockedName, secondName,
+                second == null ? -1.0 : lockedPlayer.squaredDistanceTo(second),
+                MISSING_SECOND_PLAYER_REASON);
     }
 
     private static void lockTo(MinecraftClient client, String playerName) {
@@ -290,7 +294,7 @@ public final class LegionsSpectateLock {
 
             lockedPlayerName = playerName;
             lastSecondPlayerName = "";
-            lastLoggedPair = "";
+            clearLastLoggedPair();
             setField(pvp, "dualSpectateEnabled", true);
             tick(client);
             String suffix = lastSecondPlayerName == null || lastSecondPlayerName.isBlank() ? "" : " + " + lastSecondPlayerName;
@@ -309,7 +313,7 @@ public final class LegionsSpectateLock {
         String previous = lockedPlayerName;
         lockedPlayerName = null;
         lastSecondPlayerName = "";
-        lastLoggedPair = "";
+        clearLastLoggedPair();
         try {
             if (savedAtomicsState) {
                 Object pvp = atomicsPvp();
@@ -373,19 +377,29 @@ public final class LegionsSpectateLock {
         return best;
     }
 
-    private static void logPairChange(String lockedName, String secondName, double secondDistance, String missingReason) {
-        String pair = lockedName + "\u0000" + secondName + "\u0000" + missingReason;
-        if (pair.equals(lastLoggedPair)) {
+    private static void logPairChange(String lockedName, String secondName, double secondDistanceSquared,
+                                      String missingReason) {
+        if (lockedName.equals(lastLoggedLockedName)
+                && secondName.equals(lastLoggedSecondName)
+                && missingReason.equals(lastLoggedMissingReason)) {
             return;
         }
 
-        lastLoggedPair = pair;
+        lastLoggedLockedName = lockedName;
+        lastLoggedSecondName = secondName;
+        lastLoggedMissingReason = missingReason;
         if (secondName == null || secondName.isBlank()) {
             LegionsClient.LOGGER.info("Dual spectate lock pair: {} + {}", lockedName, missingReason);
         } else {
             LegionsClient.LOGGER.info("Dual spectate lock pair: {} + {} ({} blocks)",
-                    lockedName, secondName, Math.round(secondDistance));
+                    lockedName, secondName, Math.round(Math.sqrt(secondDistanceSquared)));
         }
+    }
+
+    private static void clearLastLoggedPair() {
+        lastLoggedLockedName = "";
+        lastLoggedSecondName = "";
+        lastLoggedMissingReason = "";
     }
 
     private static double facingDot(PlayerEntity from, PlayerEntity to) {
@@ -463,9 +477,9 @@ public final class LegionsSpectateLock {
         if (client == null || client.world == null || name == null || name.isBlank()) {
             return null;
         }
-        String normalized = name.trim().toLowerCase(Locale.ROOT);
+        String normalized = name.trim();
         for (PlayerEntity player : client.world.getPlayers()) {
-            if (LegionsFeatures.realUsername(player).toLowerCase(Locale.ROOT).equals(normalized)) {
+            if (LegionsFeatures.realUsername(player).equalsIgnoreCase(normalized)) {
                 return player;
             }
         }

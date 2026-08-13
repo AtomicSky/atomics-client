@@ -262,7 +262,20 @@ public class LegionsConfig {
         if (cleaned.startsWith("#")) {
             cleaned = cleaned.substring(1);
         }
-        return cleaned.matches("[0-9a-f]{6}") ? "#" + cleaned : "#ff5555";
+        return isSixDigitHex(cleaned) ? "#" + cleaned : "#ff5555";
+    }
+
+    private static boolean isSixDigitHex(String value) {
+        if (value.length() != 6) {
+            return false;
+        }
+        for (int i = 0; i < value.length(); i++) {
+            char character = value.charAt(i);
+            if (!(character >= '0' && character <= '9') && !(character >= 'a' && character <= 'f')) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static List<String> normalizeServerAddresses(List<String> addresses) {
@@ -487,7 +500,7 @@ public class LegionsConfig {
             if (cleaned.startsWith("#")) {
                 cleaned = cleaned.substring(1);
             }
-            return cleaned.matches("[0-9a-f]{6}") ? "#" + cleaned : "#ffa500";
+            return isSixDigitHex(cleaned) ? "#" + cleaned : "#ffa500";
         }
 
         private static int normalizeIconOrDefault(int value, int fallback) {

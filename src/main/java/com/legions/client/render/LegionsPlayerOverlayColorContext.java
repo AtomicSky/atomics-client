@@ -10,6 +10,9 @@ public final class LegionsPlayerOverlayColorContext {
     private static int color = -1;
     private static int style = STYLE_FULL;
     private static int armorRenderDepth;
+    private static long lastPulseMillis = Long.MIN_VALUE;
+    private static int lastPulseInputColor;
+    private static int lastPulseOutputColor;
 
     private LegionsPlayerOverlayColorContext() {
     }
@@ -68,8 +71,15 @@ public final class LegionsPlayerOverlayColorContext {
         if (alpha <= 0) {
             return overlayColor;
         }
-        double wave = (Math.sin(System.currentTimeMillis() / 260.0) + 1.0) * 0.5;
+        long now = System.currentTimeMillis();
+        if (now == lastPulseMillis && overlayColor == lastPulseInputColor) {
+            return lastPulseOutputColor;
+        }
+        double wave = (Math.sin(now / 260.0) + 1.0) * 0.5;
         int pulsedAlpha = Math.max(1, Math.min(255, Math.round((float) (alpha * (0.35 + wave * 0.65)))));
-        return (overlayColor & 0x00FFFFFF) | (pulsedAlpha << 24);
+        lastPulseMillis = now;
+        lastPulseInputColor = overlayColor;
+        lastPulseOutputColor = (overlayColor & 0x00FFFFFF) | (pulsedAlpha << 24);
+        return lastPulseOutputColor;
     }
 }

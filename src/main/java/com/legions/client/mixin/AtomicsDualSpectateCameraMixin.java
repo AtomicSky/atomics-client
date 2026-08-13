@@ -16,6 +16,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import java.lang.reflect.Field;
+import java.util.HashMap;
+import java.util.Map;
 
 @Pseudo
 @Mixin(targets = "com.atomics.client.DualSpectateCamera")
@@ -26,6 +28,8 @@ public abstract class AtomicsDualSpectateCameraMixin {
     private static final float LOCKED_MAX_Y_DIFFERENCE = 10.0F;
     private static final double MIN_USEFUL_CAMERA_DISTANCE_SQUARED = 4.0D;
     private static final double WALL_BACKOFF = 0.35D;
+    private static final Map<Class<?>, Map<String, Field>> FIELD_CACHE = new HashMap<>();
+    private static Class<?> atomicsClientClass;
 
     @Inject(method = "tick", at = @At("HEAD"), remap = false)
     private static void legions_client$forceDualSpectateDefaults(MinecraftClient client, CallbackInfo ci) {
@@ -94,23 +98,33 @@ public abstract class AtomicsDualSpectateCameraMixin {
             return preferred;
         }
 
-        Vec3d[] candidates = new Vec3d[] {
-                preferred.add(0.0D, 0.75D, 0.0D),
-                preferred.add(0.0D, 1.5D, 0.0D),
-                preferred.add(0.0D, -0.75D, 0.0D),
-                preferred.add(0.0D, -1.5D, 0.0D),
-                lookTarget.add(direction.multiply(0.75D)),
-                lookTarget.add(direction.multiply(0.5D))
-        };
-
-        for (Vec3d candidate : candidates) {
-            Vec3d candidateClip = hasClearPath(client, lookTarget, candidate) ? candidate : clipBeforeWall(client, lookTarget, candidate);
-            if (isUsableCameraPosition(client, lookTarget, candidateClip)) {
-                return candidateClip;
-            }
+        Vec3d candidate = usableCameraCandidate(client, lookTarget, preferred.add(0.0D, 0.75D, 0.0D));
+        if (candidate != null) {
+            return candidate;
         }
+        candidate = usableCameraCandidate(client, lookTarget, preferred.add(0.0D, 1.5D, 0.0D));
+        if (candidate != null) {
+            return candidate;
+        }
+        candidate = usableCameraCandidate(client, lookTarget, preferred.add(0.0D, -0.75D, 0.0D));
+        if (candidate != null) {
+            return candidate;
+        }
+        candidate = usableCameraCandidate(client, lookTarget, preferred.add(0.0D, -1.5D, 0.0D));
+        if (candidate != null) {
+            return candidate;
+        }
+        candidate = usableCameraCandidate(client, lookTarget, lookTarget.add(direction.multiply(0.75D)));
+        if (candidate != null) {
+            return candidate;
+        }
+        candidate = usableCameraCandidate(client, lookTarget, lookTarget.add(direction.multiply(0.5D)));
+        return candidate == null ? preferred : candidate;
+    }
 
-        return preferred;
+    private static Vec3d usableCameraCandidate(MinecraftClient client, Vec3d lookTarget, Vec3d candidate) {
+        Vec3d clipped = clipBeforeWall(client, lookTarget, candidate);
+        return isUsableCameraPosition(client, lookTarget, clipped) ? clipped : null;
     }
 
     private static boolean isUsableCameraPosition(MinecraftClient client, Vec3d lookTarget, Vec3d position) {
@@ -156,17 +170,12 @@ public abstract class AtomicsDualSpectateCameraMixin {
 
     private static void forceDualSpectateDefaults() {
         try {
-            Class<?> atomicsClientClass = Class.forName("com.atomics.client.AtomicsClient");
-            Field configField = atomicsClientClass.getDeclaredField("CONFIG");
-            configField.setAccessible(true);
-            Object config = configField.get(null);
+            Object config = cachedField(atomicsClientClass(), "CONFIG").get(null);
             if (config == null) {
                 return;
             }
 
-            Field pvpField = config.getClass().getDeclaredField("pvp");
-            pvpField.setAccessible(true);
-            Object pvp = pvpField.get(config);
+            Object pvp = cachedField(config.getClass(), "pvp").get(config);
             if (pvp == null) {
                 return;
             }
@@ -184,9 +193,7 @@ public abstract class AtomicsDualSpectateCameraMixin {
             return false;
         }
         try {
-            Field field = pvp.getClass().getDeclaredField("dualSpectateOverheadEnabled");
-            field.setAccessible(true);
-            Object value = field.get(pvp);
+            Object value = cachedField(pvp.getClass(), "dualSpectateOverheadEnabled").get(pvp);
             return value instanceof Boolean enabled && enabled;
         } catch (ReflectiveOperationException | RuntimeException ignored) {
             return false;
@@ -194,12 +201,29 @@ public abstract class AtomicsDualSpectateCameraMixin {
     }
 
     private static void setFloatField(Object owner, String fieldName, float value) throws ReflectiveOperationException {
-        Field field = owner.getClass().getDeclaredField(fieldName);
-        field.setAccessible(true);
+        Field field = cachedField(owner.getClass(), fieldName);
         if (field.getType() == float.class) {
             field.setFloat(owner, value);
         } else if (field.getType() == double.class) {
             field.setDouble(owner, value);
         }
+    }
+
+    private static Class<?> atomicsClientClass() throws ClassNotFoundException {
+        if (atomicsClientClass == null) {
+            atomicsClientClass = Class.forName("com.atomics.client.AtomicsClient");
+        }
+        return atomicsClientClass;
+    }
+
+    private static Field cachedField(Class<?> owner, String name) throws NoSuchFieldException {
+        Map<String, Field> fields = FIELD_CACHE.computeIfAbsent(owner, ignored -> new HashMap<>());
+        Field field = fields.get(name);
+        if (field == null) {
+            field = owner.getDeclaredField(name);
+            field.setAccessible(true);
+            fields.put(name, field);
+        }
+        return field;
     }
 }

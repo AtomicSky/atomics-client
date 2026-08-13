@@ -18,17 +18,15 @@ import com.legions.client.render.LegionsPlayerOverlayColorContext;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public final class LegionsFeatures {
-    private static final Pattern LEGIONS_TAB_TAG_PATTERN = Pattern.compile("\\[(\\d\\.\\d|\\?)\\]");
     private static final boolean ATOMICS_CLIENT_LOADED = FabricLoader.getInstance().isModLoaded("atomics_client");
     private static final int QUIP_UNKNOWN_COLOR = 0xA0A0A0;
     private static final int MIN_QUIP_OVERLAY_RATING = 100;
@@ -36,8 +34,21 @@ public final class LegionsFeatures {
     private static final int MIN_HIGHLIGHT_OVERLAY_ALPHA = 128;
     private static final int MAX_HIGHLIGHT_OVERLAY_ALPHA = 255;
     private static final Set<UUID> visibleOpponentCache = new HashSet<>();
-    private static final ArrayList<VisibleOpponent> visibleOpponentScratch = new ArrayList<>();
     private static final Map<String, TabListTag> tabListTagCache = new HashMap<>();
+    private static final Map<String, TabListTag> backendRatingTagCache = new HashMap<>();
+    private static final Map<String, String> normalizedPlayerNameCache = new HashMap<>();
+    private static final Map<String, Boolean> spectatorTeamNameCache = new HashMap<>();
+    private static final Map<String, Integer> namedTeamColorCache = new HashMap<>();
+    private static final Map<Class<?>, Map<String, Field>> reflectionFieldCache = new HashMap<>();
+    private static final TabListTag UNKNOWN_RATING_TAG = new TabListTag("?", -1);
+    private static final TabListTag[] parsedRatingTags = new TabListTag[100];
+    private static UUID[] visibleOpponentUuids = new UUID[0];
+    private static double[] visibleOpponentDistances = new double[0];
+    private static String cachedRawServerAddress;
+    private static String cachedNormalizedServerAddress;
+    private static String cachedCheckedServerAddress;
+    private static ArrayList<String> cachedAllowedServerAddresses;
+    private static boolean cachedServerAllowed;
     private static long visibleOpponentCacheTick = Long.MIN_VALUE;
     private static UUID visibleOpponentCacheLocalPlayer;
     private static int visibleOpponentCacheLimit = -1;
@@ -48,6 +59,7 @@ public final class LegionsFeatures {
     private static int tabListTagCacheSize = -1;
     private static long atomicsTierSlotCacheTick = Long.MIN_VALUE;
     private static boolean atomicsTierSlotEnabledCache;
+    private static Class<?> atomicsClientClass;
     private static Method atomicsTierSuffixMethod;
     private static boolean atomicsTierSuffixMethodChecked;
     private LegionsFeatures() {
@@ -61,18 +73,27 @@ public final class LegionsFeatures {
         if (server == null || server.address == null) {
             return client.isIntegratedServerRunning();
         }
-        String address = normalizeServerAddress(server.address);
+        String address = normalizedCurrentServerAddress(server.address);
         if (LegionsClient.CONFIG == null || LegionsClient.CONFIG.allowedServerAddresses == null) {
             return address.contains("legions");
         }
-        for (String allowedAddress : LegionsClient.CONFIG.allowedServerAddresses) {
+        if (address.equals(cachedCheckedServerAddress)
+                && LegionsClient.CONFIG.allowedServerAddresses.equals(cachedAllowedServerAddresses)) {
+            return cachedServerAllowed;
+        }
+
+        cachedCheckedServerAddress = address;
+        cachedAllowedServerAddresses = new ArrayList<>(LegionsClient.CONFIG.allowedServerAddresses);
+        cachedServerAllowed = false;
+        for (String allowedAddress : cachedAllowedServerAddresses) {
             String normalizedAllowedAddress = normalizeServerAddress(allowedAddress);
             if (!normalizedAllowedAddress.isBlank()
                     && (address.equals(normalizedAllowedAddress) || address.contains(normalizedAllowedAddress))) {
-                return true;
+                cachedServerAllowed = true;
+                break;
             }
         }
-        return false;
+        return cachedServerAllowed;
     }
 
     public static String serverAddressesText() {
@@ -110,6 +131,14 @@ public final class LegionsFeatures {
         }
         int slash = normalized.indexOf('/');
         return slash >= 0 ? normalized.substring(0, slash) : normalized;
+    }
+
+    private static String normalizedCurrentServerAddress(String address) {
+        if (!address.equals(cachedRawServerAddress)) {
+            cachedRawServerAddress = address;
+            cachedNormalizedServerAddress = normalizeServerAddress(address);
+        }
+        return cachedNormalizedServerAddress;
     }
 
     public static Text customizeNametag(PlayerEntity player, Text original) {
@@ -153,8 +182,9 @@ public final class LegionsFeatures {
         if (!LegionsClient.enabled(client) || client.player == null) {
             return 0;
         }
-        if (LegionsPingController.isMarkedPlayer(player)) {
-            return LegionsPingController.markedPlayerColor(player);
+        int markedPlayerColor = LegionsPingController.enabledMarkedPlayerColor(player);
+        if (markedPlayerColor != 0) {
+            return markedPlayerColor;
         }
         if (shouldHighlightTeamAsSpectator(client, player)) {
             return getTeamOutlineColor(player);
@@ -281,20 +311,52 @@ public final class LegionsFeatures {
             return visibleOpponentCache;
         }
 
-        visibleOpponentScratch.clear();
         PlayerEntity localPlayer = client.player;
+        if (visibleOpponents == 0) {
+            return visibleOpponentCache;
+        }
+
+        ensureVisibleOpponentCapacity(visibleOpponents);
+        int selectedOpponents = 0;
         for (PlayerEntity candidate : client.world.getPlayers()) {
             if (isOpponent(localPlayer, candidate)) {
-                visibleOpponentScratch.add(new VisibleOpponent(candidate, candidate.squaredDistanceTo(localPlayer)));
+                selectedOpponents = insertVisibleOpponent(candidate.getUuid(), candidate.squaredDistanceTo(localPlayer),
+                        visibleOpponents, selectedOpponents);
             }
         }
-        visibleOpponentScratch.sort((first, second) -> Double.compare(first.distanceSquared, second.distanceSquared));
-        int limit = Math.min(visibleOpponents, visibleOpponentScratch.size());
-        for (int i = 0; i < limit; i++) {
-            visibleOpponentCache.add(visibleOpponentScratch.get(i).player.getUuid());
+        for (int i = 0; i < selectedOpponents; i++) {
+            visibleOpponentCache.add(visibleOpponentUuids[i]);
         }
-        visibleOpponentScratch.clear();
+        Arrays.fill(visibleOpponentUuids, 0, selectedOpponents, null);
         return visibleOpponentCache;
+    }
+
+    private static void ensureVisibleOpponentCapacity(int capacity) {
+        if (visibleOpponentUuids.length >= capacity) {
+            return;
+        }
+        visibleOpponentUuids = new UUID[capacity];
+        visibleOpponentDistances = new double[capacity];
+    }
+
+    private static int insertVisibleOpponent(UUID uuid, double distanceSquared, int limit, int size) {
+        int insertionIndex = Math.min(size, limit - 1);
+        while (insertionIndex > 0 && distanceSquared < visibleOpponentDistances[insertionIndex - 1]) {
+            insertionIndex--;
+        }
+        if (size >= limit && insertionIndex == limit - 1
+                && distanceSquared >= visibleOpponentDistances[insertionIndex]) {
+            return size;
+        }
+
+        int movedEntries = Math.min(size, limit - 1) - insertionIndex;
+        if (movedEntries > 0) {
+            System.arraycopy(visibleOpponentUuids, insertionIndex, visibleOpponentUuids, insertionIndex + 1, movedEntries);
+            System.arraycopy(visibleOpponentDistances, insertionIndex, visibleOpponentDistances, insertionIndex + 1, movedEntries);
+        }
+        visibleOpponentUuids[insertionIndex] = uuid;
+        visibleOpponentDistances[insertionIndex] = distanceSquared;
+        return Math.min(size + 1, limit);
     }
 
     public static boolean shouldHidePlayerRenderState(PlayerEntityRenderState state) {
@@ -356,8 +418,7 @@ public final class LegionsFeatures {
 
         atomicsTierSlotCacheTick = tick;
         try {
-            Class<?> atomicsClient = Class.forName("com.atomics.client.AtomicsClient");
-            Object config = getStaticField(atomicsClient, "CONFIG");
+            Object config = getStaticField(atomicsClientClass(), "CONFIG");
             if (config == null || !getBooleanField(config, "enabled")) {
                 atomicsTierSlotEnabledCache = false;
                 return false;
@@ -377,7 +438,7 @@ public final class LegionsFeatures {
             return null;
         }
         refreshTabListTagCache(client);
-        return tabListTagCache.get(playerName.toLowerCase(Locale.ROOT));
+        return tabListTagCache.get(normalizedPlayerName(playerName));
     }
 
     private static TabListTag getRatingTag(MinecraftClient client, String playerName) {
@@ -401,12 +462,20 @@ public final class LegionsFeatures {
             return null;
         }
 
-        Double rating = LegionsRatingBackendCache.getCached(playerName);
+        String key = normalizedPlayerName(playerName.trim());
+        TabListTag cachedTag = backendRatingTagCache.get(key);
+        if (cachedTag != null) {
+            return cachedTag;
+        }
+
+        Double rating = LegionsRatingBackendCache.getCachedNormalized(key);
         if (rating == null) {
-            LegionsRatingBackendCache.preload(playerName);
+            LegionsRatingBackendCache.preloadAll();
             return null;
         }
-        return backendRatingTag(rating);
+        TabListTag tag = backendRatingTag(rating);
+        backendRatingTagCache.put(key, tag);
+        return tag;
     }
 
     private static boolean canUseBackendRatings(MinecraftClient client) {
@@ -431,7 +500,7 @@ public final class LegionsFeatures {
             String text = displayName == null ? entry.getProfile().name() : displayName.getString();
             TabListTag tag = parseTabListTag(text);
             if (tag != null) {
-                tabListTagCache.put(entry.getProfile().name().toLowerCase(Locale.ROOT), tag);
+                tabListTagCache.put(normalizedPlayerName(entry.getProfile().name()), tag);
             }
         }
     }
@@ -470,27 +539,45 @@ public final class LegionsFeatures {
     }
 
     private static TabListTag parseTabListTag(String text) {
-        Matcher matcher = LEGIONS_TAB_TAG_PATTERN.matcher(text);
-        if (!matcher.find()) {
-            return null;
-        }
-        String value = matcher.group(1);
-        if ("?".equals(value)) {
-            return new TabListTag(value, -1);
-        }
+        int lastStart = text.length() - 3;
+        for (int start = 0; start <= lastStart; start++) {
+            if (text.charAt(start) != '[') {
+                continue;
+            }
+            char first = text.charAt(start + 1);
+            if (first == '?' && text.charAt(start + 2) == ']') {
+                return UNKNOWN_RATING_TAG;
+            }
+            if (start + 4 >= text.length()
+                    || first < '0' || first > '9'
+                    || text.charAt(start + 2) != '.'
+                    || text.charAt(start + 3) < '0' || text.charAt(start + 3) > '9'
+                    || text.charAt(start + 4) != ']') {
+                continue;
+            }
 
-        int rating = ((value.charAt(0) - '0') * 1000) + ((value.charAt(2) - '0') * 100);
-        return new TabListTag(value, rating);
+            int whole = first - '0';
+            int tenth = text.charAt(start + 3) - '0';
+            int index = whole * 10 + tenth;
+            TabListTag tag = parsedRatingTags[index];
+            if (tag == null) {
+                tag = new TabListTag(whole + "." + tenth, whole * 1000 + tenth * 100);
+                parsedRatingTags[index] = tag;
+            }
+            return tag;
+        }
+        return null;
     }
 
     private static TabListTag backendRatingTag(double rating) {
-        String value = String.format(Locale.US, "%.1f", rating);
+        int ratingTenths = (int) Math.round(rating * 10.0);
+        String value = ratingTenths / 10 + "." + ratingTenths % 10;
         int numericRating = (int) Math.round(rating * 1000.0);
         return new TabListTag(value, numericRating);
     }
 
     private static TabListTag unknownRatingTag() {
-        return new TabListTag("?", -1);
+        return UNKNOWN_RATING_TAG;
     }
 
     private static Style quipStyle(TabListTag tag) {
@@ -575,20 +662,34 @@ public final class LegionsFeatures {
     }
 
     private static Object getStaticField(Class<?> owner, String name) throws ReflectiveOperationException {
-        Field field = owner.getDeclaredField(name);
-        field.setAccessible(true);
-        return field.get(null);
+        return cachedField(owner, name).get(null);
     }
 
     private static Object getField(Object owner, String name) throws ReflectiveOperationException {
-        Field field = owner.getClass().getDeclaredField(name);
-        field.setAccessible(true);
-        return field.get(owner);
+        return cachedField(owner.getClass(), name).get(owner);
     }
 
     private static boolean getBooleanField(Object owner, String name) throws ReflectiveOperationException {
         Object value = getField(owner, name);
         return value instanceof Boolean bool && bool;
+    }
+
+    private static Field cachedField(Class<?> owner, String name) throws NoSuchFieldException {
+        Map<String, Field> ownerFields = reflectionFieldCache.computeIfAbsent(owner, ignored -> new HashMap<>());
+        Field field = ownerFields.get(name);
+        if (field == null) {
+            field = owner.getDeclaredField(name);
+            field.setAccessible(true);
+            ownerFields.put(name, field);
+        }
+        return field;
+    }
+
+    private static Class<?> atomicsClientClass() throws ClassNotFoundException {
+        if (atomicsClientClass == null) {
+            atomicsClientClass = Class.forName("com.atomics.client.AtomicsClient");
+        }
+        return atomicsClientClass;
     }
 
     private static int getTeamOutlineColor(PlayerEntity player) {
@@ -608,6 +709,10 @@ public final class LegionsFeatures {
     }
 
     private static int getNamedTeamColor(String name) {
+        return namedTeamColorCache.computeIfAbsent(name, LegionsFeatures::computeNamedTeamColor);
+    }
+
+    private static int computeNamedTeamColor(String name) {
         String normalized = name.toLowerCase(Locale.ROOT);
         if (normalized.contains("red")) {
             return 0xFFFF5555;
@@ -670,7 +775,16 @@ public final class LegionsFeatures {
             return true;
         }
         Team team = player.getScoreboardTeam();
-        return team != null && team.getName().toLowerCase(Locale.ROOT).contains("spectator");
+        return team != null && isSpectatorTeamName(team.getName());
+    }
+
+    static boolean isSpectatorTeamName(String name) {
+        return name != null && spectatorTeamNameCache.computeIfAbsent(name,
+                value -> value.toLowerCase(Locale.ROOT).contains("spectator"));
+    }
+
+    static String normalizedPlayerName(String name) {
+        return normalizedPlayerNameCache.computeIfAbsent(name, value -> value.toLowerCase(Locale.ROOT));
     }
 
     public static String realUsername(PlayerEntity player) {
@@ -689,8 +803,5 @@ public final class LegionsFeatures {
         private boolean isUnknown() {
             return numericRating < 0;
         }
-    }
-
-    private record VisibleOpponent(PlayerEntity player, double distanceSquared) {
     }
 }

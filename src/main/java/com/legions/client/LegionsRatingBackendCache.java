@@ -37,6 +37,10 @@ public final class LegionsRatingBackendCache {
         return key.isEmpty() ? null : cache.get(key);
     }
 
+    static Double getCachedNormalized(String normalizedPlayerName) {
+        return cache.get(normalizedPlayerName);
+    }
+
     public static void preloadAll() {
         if (LOAD_STARTED.compareAndSet(false, true)) {
             EXECUTOR.execute(LegionsRatingBackendCache::fetchRatings);

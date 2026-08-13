@@ -59,8 +59,9 @@ public class LegionsClient implements ClientModInitializer {
             }
 
             LegionsPingController.receiveChatPing(message, sender);
-            if (MinecraftClient.getInstance().inGameHud != null) {
-                MinecraftClient.getInstance().inGameHud.getChatHud().addMessage(LegionsPingController.cleanReceivedPingText(message));
+            MinecraftClient client = MinecraftClient.getInstance();
+            if (client.inGameHud != null) {
+                client.inGameHud.getChatHud().addMessage(LegionsPingController.cleanReceivedPingText(message));
             }
             return false;
         });

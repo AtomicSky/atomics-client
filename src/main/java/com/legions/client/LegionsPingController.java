@@ -3,6 +3,7 @@ package com.legions.client;
 import com.legions.client.config.LegionsConfig;
 import com.legions.client.config.LegionsConfig.PingRow;
 import com.mojang.authlib.GameProfile;
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.ShapeContext;
 import net.minecraft.client.MinecraftClient;
@@ -22,6 +23,7 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.shape.VoxelShape;
+import net.minecraft.util.shape.VoxelShapes;
 import net.minecraft.world.RaycastContext;
 import net.minecraft.world.debug.gizmo.GizmoDrawing;
 import org.lwjgl.glfw.GLFW;
@@ -66,16 +68,37 @@ public final class LegionsPingController {
     private static final double BLOCK_MARKER_OCCLUSION_TOLERANCE_SQUARED = 1.0;
     private static final double PLAYER_MARKER_OCCLUSION_TOLERANCE_SQUARED = 0.04;
     private static final Pattern MACHINE_PAYLOAD_PATTERN = Pattern.compile("\\[LC:([PB]):([^\\]]+)]", Pattern.CASE_INSENSITIVE);
+    private static final Pattern WHITESPACE_PATTERN = Pattern.compile("\\s+");
 
     private static final Map<BlockPos, PingMark> markedBlocks = new HashMap<>();
     private static final Map<String, PingMark> markedPlayers = new HashMap<>();
     private static final Map<PingKey, Boolean> keyDownStates = new HashMap<>();
+    private static final Set<PingKey> configuredKeyScratch = new HashSet<>();
     private static final ArrayList<FightMark> fightMarkers = new ArrayList<>();
     private static final ArrayList<PlayerFightNode> fightPlayerScratch = new ArrayList<>();
+    private static final ArrayList<PlayerFightNode> fightPlayerPool = new ArrayList<>();
     private static final ArrayList<FightCandidate> fightCandidateScratch = new ArrayList<>();
-    private static final ArrayList<Integer> fightClusterScratch = new ArrayList<>();
-    private static final ArrayList<ActiveMarker> activeMarkerScratch = new ArrayList<>();
+    private static final ArrayList<FightCandidate> fightCandidatePool = new ArrayList<>();
+    private static final ArrayList<int[]> fightClusterSignatures = new ArrayList<>();
+    private static final Set<String> fightTeamScratch = new HashSet<>();
     private static final ArrayList<ArrowPlacement> arrowPlacementScratch = new ArrayList<>();
+    private static final ScreenProjection screenProjectionScratch = new ScreenProjection();
+    private static final MarkerProjectionContext markerProjectionContextScratch = new MarkerProjectionContext();
+    private static final PingKey[] keyboardPingKeys = new PingKey[349];
+    private static final PingKey[] mousePingKeys = new PingKey[8];
+    private static final double[] triangleIntersectionScratch = new double[3];
+    private static final LongOpenHashSet fightSurfaceVisitedScratch = new LongOpenHashSet();
+    private static final FightSurfaceBoxConsumer fightSurfaceBoxConsumer = new FightSurfaceBoxConsumer();
+    private static final BlockOutlineBoxConsumer blockOutlineBoxConsumer = new BlockOutlineBoxConsumer();
+    private static final BlockPos.Mutable fightBlockPosScratch = new BlockPos.Mutable();
+    private static int[] fightClusterScratch = new int[0];
+    private static int arrowPlacementCount;
+    private static int markedPlayersVersion;
+    private static int fightClusterSignatureCount;
+    private static int cachedMarkedPlayerVersion = -1;
+    private static PlayerEntity cachedMarkedPlayer;
+    private static PingMark cachedMarkedPlayerMark;
+    private static boolean cachedMarkedPlayerPingsEnabled;
     private static PendingPress pendingPress;
     private static long lastFightDetectionAt;
     private static UUID lastAttackedPlayerUuid;
@@ -113,7 +136,7 @@ public final class LegionsPingController {
     public static void tick(MinecraftClient client) {
         if (client.world == null) {
             markedBlocks.clear();
-            markedPlayers.clear();
+            clearMarkedPlayers();
             fightMarkers.clear();
             clearInputState();
             clearRecentTargets();
@@ -137,7 +160,9 @@ public final class LegionsPingController {
 
         long ttl = pingTtlMillis();
         markedBlocks.entrySet().removeIf(entry -> now - entry.getValue().markedAt() > ttl);
-        markedPlayers.entrySet().removeIf(entry -> now - entry.getValue().markedAt() > ttl);
+        if (markedPlayers.entrySet().removeIf(entry -> now - entry.getValue().markedAt() > ttl)) {
+            markedPlayersVersion++;
+        }
         fightMarkers.removeIf(mark -> fightMarkerOpacity(mark, now) <= 0);
     }
 
@@ -187,18 +212,40 @@ public final class LegionsPingController {
     }
 
     public static boolean isMarkedPlayer(PlayerEntity player) {
-        if (player == null || !teamPingEnabled(MinecraftClient.getInstance())) {
-            return false;
-        }
-        return markedPlayers.containsKey(LegionsFeatures.realUsername(player).toLowerCase(Locale.ROOT));
+        return enabledMarkedPlayer(player) != null;
     }
 
     public static int markedPlayerColor(PlayerEntity player) {
         if (player == null) {
             return DEFAULT_PING_COLOR;
         }
-        PingMark mark = markedPlayers.get(LegionsFeatures.realUsername(player).toLowerCase(Locale.ROOT));
+        PingMark mark = markedPlayers.get(LegionsFeatures.normalizedPlayerName(LegionsFeatures.realUsername(player)));
         return mark == null ? DEFAULT_PING_COLOR : mark.color();
+    }
+
+    public static int enabledMarkedPlayerColor(PlayerEntity player) {
+        PingMark mark = enabledMarkedPlayer(player);
+        return mark == null ? 0 : mark.color();
+    }
+
+    private static PingMark enabledMarkedPlayer(PlayerEntity player) {
+        if (player == null) {
+            return null;
+        }
+        boolean pingsEnabled = teamPingEnabled(MinecraftClient.getInstance());
+        if (player == cachedMarkedPlayer
+                && markedPlayersVersion == cachedMarkedPlayerVersion
+                && pingsEnabled == cachedMarkedPlayerPingsEnabled) {
+            return cachedMarkedPlayerMark;
+        }
+
+        cachedMarkedPlayer = player;
+        cachedMarkedPlayerVersion = markedPlayersVersion;
+        cachedMarkedPlayerPingsEnabled = pingsEnabled;
+        cachedMarkedPlayerMark = pingsEnabled
+                ? markedPlayers.get(LegionsFeatures.normalizedPlayerName(LegionsFeatures.realUsername(player)))
+                : null;
+        return cachedMarkedPlayerMark;
     }
 
     public static void renderBlockHighlights() {
@@ -218,11 +265,13 @@ public final class LegionsPingController {
             }
         }
 
-        int fightColor = parseColor(LegionsClient.CONFIG.teamFightMarkerColor);
-        for (FightMark mark : fightMarkers) {
-            int opacity = fightMarkerOpacity(mark, now);
-            if (opacity > 0) {
-                renderFightMarker(client, mark, fightColor, opacity, now);
+        if (!fightMarkers.isEmpty()) {
+            int fightColor = parseColor(LegionsClient.CONFIG.teamFightMarkerColor);
+            for (FightMark mark : fightMarkers) {
+                int opacity = fightMarkerOpacity(mark, now);
+                if (opacity > 0) {
+                    renderFightMarker(client, mark, fightColor, opacity, now);
+                }
             }
         }
     }
@@ -237,115 +286,129 @@ public final class LegionsPingController {
             return;
         }
 
-        List<ActiveMarker> markers = activeMarkers(client, System.currentTimeMillis());
-        if (!markers.isEmpty()) {
-            renderOffscreenArrows(context, client, markers);
+        Entity camera = client.getCameraEntity() == null ? client.player : client.getCameraEntity();
+        if (camera == null) {
+            return;
         }
-        activeMarkerScratch.clear();
+        Vec3d cameraPos = camera.getCameraPosVec(1.0f);
+        renderOffscreenArrows(context, client, System.currentTimeMillis(), camera, cameraPos);
     }
 
-    private static List<ActiveMarker> activeMarkers(MinecraftClient client, long now) {
-        activeMarkerScratch.clear();
-        long pingTtl = pingTtlMillis();
-        if (teamPingEnabled(client)) {
-            for (Map.Entry<BlockPos, PingMark> entry : markedBlocks.entrySet()) {
-                if (now - entry.getValue().markedAt() <= pingTtl) {
-                    PingMark mark = entry.getValue();
-                    Vec3d pos = Vec3d.ofCenter(entry.getKey());
-                    if (isBlockMarkerVisibleToCamera(client, pos)) {
-                        activeMarkerScratch.add(new ActiveMarker(pos, mark.color(), mark.icon(), mark.label(), 100));
-                    }
-                }
-            }
-            for (Map.Entry<String, PingMark> entry : markedPlayers.entrySet()) {
-                if (now - entry.getValue().markedAt() > pingTtl) {
-                    continue;
-                }
-                PlayerEntity player = findPlayer(client, entry.getKey());
-                if (player != null) {
-                    if (client.player != null && player.getUuid().equals(client.player.getUuid())) {
-                        continue;
-                    }
-                    PingMark mark = entry.getValue();
-                    if (isPlayerVisibleToCamera(client, player)) {
-                        activeMarkerScratch.add(new ActiveMarker(player.getBoundingBox().getCenter(), mark.color(), mark.icon(), mark.label(), 100));
-                    }
-                }
-            }
+    private static void renderOffscreenArrows(DrawContext context, MinecraftClient client, long now,
+                                              Entity camera, Vec3d cameraPos) {
+        boolean pingsAvailable = teamPingEnabled(client) && (!markedBlocks.isEmpty() || !markedPlayers.isEmpty());
+        if (!pingsAvailable && fightMarkers.isEmpty()) {
+            return;
         }
 
-        int fightColor = parseColor(LegionsClient.CONFIG.teamFightMarkerColor);
-        for (FightMark mark : fightMarkers) {
-            int opacity = fightMarkerOpacity(mark, now);
-            if (opacity > 0) {
-                Vec3d pos = fightMarkerPosition(client, mark, now);
-                if (isBlockMarkerVisibleToCamera(client, pos)) {
-                    activeMarkerScratch.add(new ActiveMarker(pos, fightColor, PingRow.ICON_FIRE, "Team Fight", opacity));
-                }
-            }
-        }
-        return activeMarkerScratch;
-    }
-
-    private static void renderOffscreenArrows(DrawContext context, MinecraftClient client, List<ActiveMarker> markers) {
         int screenWidth = context.getScaledWindowWidth();
         int screenHeight = context.getScaledWindowHeight();
         if (screenWidth <= 0 || screenHeight <= 0) {
             return;
         }
 
-        arrowPlacementScratch.clear();
-        for (ActiveMarker marker : markers) {
-            ScreenProjection projection = projectMarkerToScreenEdge(client, marker.pos(), screenWidth, screenHeight);
-            if (projection == null || projection.visible()) {
-                continue;
-            }
+        float scale = arrowScale();
+        MarkerProjectionContext projectionContext = markerProjectionContext(client, camera, cameraPos,
+                screenWidth, screenHeight, scale);
+        arrowPlacementCount = 0;
 
-            ArrowPlacement placement = stackedArrowPlacement(projection, arrowPlacementScratch, screenWidth, screenHeight);
-            arrowPlacementScratch.add(placement);
-            drawArrow(context, client, marker, placement);
+        long pingTtl = pingTtlMillis();
+        if (pingsAvailable) {
+            for (Map.Entry<BlockPos, PingMark> entry : markedBlocks.entrySet()) {
+                PingMark mark = entry.getValue();
+                if (now - mark.markedAt() <= pingTtl) {
+                    Vec3d pos = Vec3d.ofCenter(entry.getKey());
+                    if (hasClearPathToPoint(client, cameraPos, pos,
+                            BLOCK_MARKER_OCCLUSION_TOLERANCE_SQUARED, camera)) {
+                        drawMarkerArrow(context, client, projectionContext, cameraPos, scale,
+                                pos, mark.color(), mark.icon(), 100);
+                    }
+                }
+            }
+            for (Map.Entry<String, PingMark> entry : markedPlayers.entrySet()) {
+                PingMark mark = entry.getValue();
+                if (now - mark.markedAt() > pingTtl) {
+                    continue;
+                }
+                PlayerEntity player = findPlayer(client, entry.getKey());
+                if (player == null || player.getUuid().equals(client.player.getUuid())
+                        || !hasPlayerLineOfSight(client, cameraPos, player, camera)) {
+                    continue;
+                }
+                drawMarkerArrow(context, client, projectionContext, cameraPos, scale,
+                        player.getBoundingBox().getCenter(), mark.color(), mark.icon(), 100);
+            }
         }
-        arrowPlacementScratch.clear();
+
+        if (!fightMarkers.isEmpty()) {
+            int fightColor = parseColor(LegionsClient.CONFIG.teamFightMarkerColor);
+            for (FightMark mark : fightMarkers) {
+                int opacity = fightMarkerOpacity(mark, now);
+                if (opacity > 0) {
+                    Vec3d pos = fightMarkerPosition(client, mark, now);
+                    if (hasClearPathToPoint(client, cameraPos, pos,
+                            BLOCK_MARKER_OCCLUSION_TOLERANCE_SQUARED, camera)) {
+                        drawMarkerArrow(context, client, projectionContext, cameraPos, scale,
+                                pos, fightColor, PingRow.ICON_FIRE, opacity);
+                    }
+                }
+            }
+        }
     }
 
-    private static ScreenProjection projectMarkerToScreenEdge(MinecraftClient client, Vec3d pos, int screenWidth, int screenHeight) {
-        Entity camera = client.getCameraEntity() == null ? client.player : client.getCameraEntity();
-        if (camera == null) {
-            return null;
+    private static void drawMarkerArrow(DrawContext context, MinecraftClient client,
+                                        MarkerProjectionContext projectionContext, Vec3d cameraPos, float scale,
+                                        Vec3d pos, int color, int icon, int markerOpacity) {
+        ScreenProjection projection = projectMarkerToScreenEdge(projectionContext, pos);
+        if (projection.visible()) {
+            return;
         }
 
-        Vec3d cameraPos = camera.getCameraPosVec(1.0f);
-        Vec3d offset = pos.subtract(cameraPos);
-        if (offset.lengthSquared() < 0.0001) {
-            return new ScreenProjection(true, screenWidth / 2.0, screenHeight / 2.0, 0.0, -1.0);
-        }
+        ArrowPlacement placement = stackedArrowPlacement(projection, arrowPlacementScratch, arrowPlacementCount,
+                projectionContext, scale);
+        arrowPlacementCount++;
+        drawArrow(context, client, pos, color, icon, markerOpacity, placement, cameraPos, scale);
+    }
 
+    private static MarkerProjectionContext markerProjectionContext(MinecraftClient client, Entity camera,
+                                                                   Vec3d cameraPos, int screenWidth,
+                                                                   int screenHeight, float scale) {
         Vec3d look = camera.getRotationVec(1.0f).normalize();
         double yawRadians = Math.toRadians(camera.getYaw(1.0f));
         Vec3d right = new Vec3d(-Math.cos(yawRadians), 0.0, -Math.sin(yawRadians)).normalize();
         Vec3d up = right.crossProduct(look).normalize();
-
-        double horizontal = offset.dotProduct(right);
-        double vertical = offset.dotProduct(up);
-        double forward = offset.dotProduct(look);
-        double aspect = screenHeight <= 0 ? 1.0 : screenWidth / (double) screenHeight;
+        double aspect = screenWidth / (double) screenHeight;
         double fov = client.options == null ? 70.0 : client.options.getFov().getValue();
         double verticalTan = Math.tan(Math.toRadians(clampDouble(fov, 30.0, 120.0) * 0.5));
-        double horizontalTan = verticalTan * aspect;
+        return markerProjectionContextScratch.set(cameraPos, look, right, up, verticalTan * aspect, verticalTan,
+                screenWidth, screenHeight, Math.round(ARROW_SCREEN_MARGIN * scale));
+    }
+
+    private static ScreenProjection projectMarkerToScreenEdge(MarkerProjectionContext context, Vec3d pos) {
+        int screenWidth = context.screenWidth();
+        int screenHeight = context.screenHeight();
+        Vec3d offset = pos.subtract(context.cameraPos());
+        if (offset.lengthSquared() < 0.0001) {
+            return screenProjectionScratch.set(true, screenWidth / 2.0, screenHeight / 2.0, 0.0, -1.0);
+        }
+
+        double horizontal = offset.dotProduct(context.right());
+        double vertical = offset.dotProduct(context.up());
+        double forward = offset.dotProduct(context.look());
         double screenX;
         double screenY;
         if (forward > 0.01) {
-            screenX = horizontal / (forward * horizontalTan);
-            screenY = -vertical / (forward * verticalTan);
+            screenX = horizontal / (forward * context.horizontalTan());
+            screenY = -vertical / (forward * context.verticalTan());
         } else {
             double divisor = Math.max(1.0, Math.abs(forward));
-            screenX = horizontal / (divisor * horizontalTan);
-            screenY = -vertical / (divisor * verticalTan);
+            screenX = horizontal / (divisor * context.horizontalTan());
+            screenY = -vertical / (divisor * context.verticalTan());
         }
 
         boolean visible = forward > 0.01 && Math.abs(screenX) <= 1.0 && Math.abs(screenY) <= 1.0;
         if (visible) {
-            return new ScreenProjection(true, screenWidth / 2.0 + screenX * screenWidth / 2.0,
+            return screenProjectionScratch.set(true, screenWidth / 2.0 + screenX * screenWidth / 2.0,
                     screenHeight / 2.0 + screenY * screenHeight / 2.0, screenX, screenY);
         }
 
@@ -355,7 +418,7 @@ public final class LegionsPingController {
         double scale = 1.0 / Math.max(Math.abs(screenX), Math.abs(screenY));
         double edgeX = screenX * scale;
         double edgeY = screenY * scale;
-        int margin = Math.round(ARROW_SCREEN_MARGIN * arrowScale());
+        int margin = context.margin();
         double x = screenWidth / 2.0 + edgeX * Math.max(0.0, screenWidth / 2.0 - margin);
         double y = screenHeight / 2.0 + edgeY * Math.max(0.0, screenHeight / 2.0 - margin);
         double dirX = x - screenWidth / 2.0;
@@ -368,16 +431,18 @@ public final class LegionsPingController {
             dirX /= length;
             dirY /= length;
         }
-        return new ScreenProjection(false, x, y, dirX, dirY);
+        return screenProjectionScratch.set(false, x, y, dirX, dirY);
     }
 
     private static ArrowPlacement stackedArrowPlacement(ScreenProjection projection, List<ArrowPlacement> placements,
-                                                       int screenWidth, int screenHeight) {
+                                                        int placementCount, MarkerProjectionContext context,
+                                                        float arrowScale) {
         double x = projection.x();
         double y = projection.y();
         int overlap = 0;
-        double stackDistanceSquared = Math.pow(ARROW_STACK_DISTANCE * arrowScale(), 2.0);
-        for (ArrowPlacement placement : placements) {
+        double stackDistanceSquared = Math.pow(ARROW_STACK_DISTANCE * arrowScale, 2.0);
+        for (int i = 0; i < placementCount; i++) {
+            ArrowPlacement placement = placements.get(i);
             double dx = placement.x() - x;
             double dy = placement.y() - y;
             if (dx * dx + dy * dy < stackDistanceSquared) {
@@ -387,22 +452,28 @@ public final class LegionsPingController {
 
         if (overlap > 0) {
             double side = overlap % 2 == 0 ? -1.0 : 1.0;
-            double offset = side * (ARROW_STACK_OFFSET * arrowScale()) * ((overlap + 1) / 2.0);
+            double offset = side * (ARROW_STACK_OFFSET * arrowScale) * ((overlap + 1) / 2.0);
             x += -projection.dirY() * offset;
             y += projection.dirX() * offset;
         }
 
-        int margin = Math.round(ARROW_SCREEN_MARGIN * arrowScale());
-        x = clampDouble(x, margin, Math.max(margin, screenWidth - margin));
-        y = clampDouble(y, margin, Math.max(margin, screenHeight - margin));
-        return new ArrowPlacement(x, y, projection.dirX(), projection.dirY());
+        int margin = context.margin();
+        x = clampDouble(x, margin, Math.max(margin, context.screenWidth() - margin));
+        y = clampDouble(y, margin, Math.max(margin, context.screenHeight() - margin));
+        if (placementCount < placements.size()) {
+            return placements.get(placementCount).set(x, y, projection.dirX(), projection.dirY());
+        }
+        ArrowPlacement placement = new ArrowPlacement().set(x, y, projection.dirX(), projection.dirY());
+        placements.add(placement);
+        return placement;
     }
 
-    private static void drawArrow(DrawContext context, MinecraftClient client, ActiveMarker marker, ArrowPlacement placement) {
-        float scale = arrowScale();
-        int opacity = arrowOpacity(client, marker);
-        int color = applyOpacity(marker.color(), opacity);
-        int fadeColor = applyOpacity(marker.color(), Math.max(10, opacity / 2));
+    private static void drawArrow(DrawContext context, MinecraftClient client, Vec3d markerPos,
+                                  int markerColor, int markerIcon, int markerOpacity,
+                                  ArrowPlacement placement, Vec3d cameraPos, float scale) {
+        int opacity = arrowOpacity(client, cameraPos, markerPos, markerOpacity);
+        int color = applyOpacity(markerColor, opacity);
+        int fadeColor = applyOpacity(markerColor, Math.max(10, opacity / 2));
         int shadowColor = applyOpacity(0xFF000000, Math.max(18, opacity / 2));
         double headLength = Math.max(10.0, 14.0 * scale);
         double headWidth = Math.max(8.0, 12.0 * scale);
@@ -430,7 +501,7 @@ public final class LegionsPingController {
             context.fill(tailX - tail / 2, tailY - tail / 2, tailX + tail / 2 + 1, tailY + tail / 2 + 1, fadeColor);
         }
 
-        drawArrowIcon(context, client.textRenderer, iconSymbol(marker.icon()),
+        drawArrowIcon(context, client.textRenderer, iconSymbol(markerIcon),
                 (int) Math.round(x - placement.dirX() * headLength * 2.25),
                 (int) Math.round(y - placement.dirY() * headLength * 2.25),
                 color,
@@ -453,18 +524,17 @@ public final class LegionsPingController {
         context.getMatrices().popMatrix();
     }
 
-    private static int arrowOpacity(MinecraftClient client, ActiveMarker marker) {
+    private static int arrowOpacity(MinecraftClient client, Vec3d cameraPos, Vec3d markerPos, int markerOpacity) {
         int minOpacity = Math.max(10, Math.min(100, LegionsClient.CONFIG.offscreenPingArrowMinOpacity));
         int maxOpacity = Math.max(minOpacity, Math.min(100, LegionsClient.CONFIG.offscreenPingArrowMaxOpacity));
         int opacity = maxOpacity;
         if (LegionsClient.CONFIG.offscreenPingArrowDistanceFadeEnabled) {
-            Entity camera = client.getCameraEntity() == null ? client.player : client.getCameraEntity();
-            double distance = camera == null ? 0.0 : camera.getCameraPosVec(1.0f).distanceTo(marker.pos());
+            double distance = cameraPos.distanceTo(markerPos);
             double fadeDistance = Math.max(96.0, client.options == null ? 160.0 : client.options.getViewDistance().getValue() * 16.0);
             double progress = clampDouble(distance / fadeDistance, 0.0, 1.0);
             opacity = (int) Math.round(maxOpacity - (maxOpacity - minOpacity) * progress);
         }
-        return Math.max(0, Math.min(100, opacity * marker.opacity() / 100));
+        return Math.max(0, Math.min(100, opacity * markerOpacity / 100));
     }
 
     private static void drawFilledTriangle(DrawContext context,
@@ -474,7 +544,7 @@ public final class LegionsPingController {
                                            int color) {
         int minY = (int) Math.floor(Math.min(y1, Math.min(y2, y3)));
         int maxY = (int) Math.ceil(Math.max(y1, Math.max(y2, y3)));
-        double[] intersections = new double[3];
+        double[] intersections = triangleIntersectionScratch;
         for (int y = minY; y <= maxY; y++) {
             double scanY = y + 0.5;
             int count = 0;
@@ -540,8 +610,7 @@ public final class LegionsPingController {
     private static void updateTeamFightMarkers(MinecraftClient client, long now) {
         if (!canUseTeamFightDetector(client)) {
             fightMarkers.clear();
-            fightPlayerScratch.clear();
-            fightCandidateScratch.clear();
+            recycleFightScratch();
             lastFightDetectionAt = 0L;
             return;
         }
@@ -565,12 +634,12 @@ public final class LegionsPingController {
     }
 
     private static void collectFightCandidates(MinecraftClient client) {
-        fightPlayerScratch.clear();
-        fightCandidateScratch.clear();
+        recycleFightScratch();
         Entity camera = client.getCameraEntity() == null ? client.player : client.getCameraEntity();
+        Vec3d cameraPos = camera.getCameraPosVec(1.0f);
 
         for (PlayerEntity player : client.world.getPlayers()) {
-            PlayerFightNode node = fightNode(client, player, camera);
+            PlayerFightNode node = fightNode(client, player, camera, cameraPos);
             if (node == null) {
                 continue;
             }
@@ -582,18 +651,21 @@ public final class LegionsPingController {
             return;
         }
 
+        ensureFightClusterCapacity(count);
+        fightClusterSignatureCount = 0;
         double radiusSquared = (double) FIGHT_DETECTION_RADIUS * FIGHT_DETECTION_RADIUS;
         for (int i = 0; i < count; i++) {
-            fightClusterScratch.clear();
+            int clusterSize = 0;
             Vec3d focus = fightPlayerScratch.get(i).pos();
             for (int otherIndex = 0; otherIndex < count; otherIndex++) {
                 if (focus.squaredDistanceTo(fightPlayerScratch.get(otherIndex).pos()) <= radiusSquared) {
-                    fightClusterScratch.add(otherIndex);
+                    fightClusterScratch[clusterSize++] = otherIndex;
                 }
             }
-            maybeAddFightCandidate(client, fightClusterScratch);
+            if (clusterSize >= FIGHT_MIN_PLAYERS && rememberUniqueFightCluster(fightClusterScratch, clusterSize)) {
+                maybeAddFightCandidate(client, fightClusterScratch, clusterSize, cameraPos);
+            }
         }
-        fightClusterScratch.clear();
 
         fightCandidateScratch.sort((first, second) -> {
             int players = Integer.compare(second.players(), first.players());
@@ -612,14 +684,59 @@ public final class LegionsPingController {
         });
     }
 
-    private static PlayerFightNode fightNode(MinecraftClient client, PlayerEntity player, Entity camera) {
+    private static void recycleFightScratch() {
+        fightPlayerPool.addAll(fightPlayerScratch);
+        fightPlayerScratch.clear();
+        fightCandidatePool.addAll(fightCandidateScratch);
+        fightCandidateScratch.clear();
+    }
+
+    private static void ensureFightClusterCapacity(int capacity) {
+        if (fightClusterScratch.length < capacity) {
+            fightClusterScratch = new int[capacity];
+        }
+    }
+
+    private static boolean rememberUniqueFightCluster(int[] cluster, int clusterSize) {
+        for (int signatureIndex = 0; signatureIndex < fightClusterSignatureCount; signatureIndex++) {
+            int[] signature = fightClusterSignatures.get(signatureIndex);
+            if (signature.length != clusterSize) {
+                continue;
+            }
+            int clusterIndex = 0;
+            while (clusterIndex < clusterSize && signature[clusterIndex] == cluster[clusterIndex]) {
+                clusterIndex++;
+            }
+            if (clusterIndex == clusterSize) {
+                return false;
+            }
+        }
+
+        int[] signature;
+        if (fightClusterSignatureCount < fightClusterSignatures.size()
+                && fightClusterSignatures.get(fightClusterSignatureCount).length == clusterSize) {
+            signature = fightClusterSignatures.get(fightClusterSignatureCount);
+        } else {
+            signature = new int[clusterSize];
+            if (fightClusterSignatureCount < fightClusterSignatures.size()) {
+                fightClusterSignatures.set(fightClusterSignatureCount, signature);
+            } else {
+                fightClusterSignatures.add(signature);
+            }
+        }
+        System.arraycopy(cluster, 0, signature, 0, clusterSize);
+        fightClusterSignatureCount++;
+        return true;
+    }
+
+    private static PlayerFightNode fightNode(MinecraftClient client, PlayerEntity player, Entity camera, Vec3d cameraPos) {
         if (player == null
                 || !player.isAlive()
                 || player.isSpectator()
                 || LegionsFeatures.isSpectatorTeam(player)) {
             return null;
         }
-        if (camera == null || !hasPlayerLineOfSight(client, camera.getCameraPosVec(1.0f), player)) {
+        if (!hasPlayerLineOfSight(client, cameraPos, player, camera)) {
             return null;
         }
 
@@ -629,23 +746,25 @@ public final class LegionsPingController {
         }
 
         Vec3d pos = player.getBoundingBox().getCenter();
-        return new PlayerFightNode(team.getName(), pos);
+        PlayerFightNode node = fightPlayerPool.isEmpty() ? new PlayerFightNode() : fightPlayerPool.removeLast();
+        return node.set(team.getName(), pos);
     }
 
-    private static void maybeAddFightCandidate(MinecraftClient client, List<Integer> cluster) {
-        if (cluster.size() < FIGHT_MIN_PLAYERS) {
+    private static void maybeAddFightCandidate(MinecraftClient client, int[] cluster, int clusterSize,
+                                               Vec3d cameraPos) {
+        if (clusterSize < FIGHT_MIN_PLAYERS) {
             return;
         }
 
-        HashSet<String> teams = new HashSet<>();
+        fightTeamScratch.clear();
         double x = 0.0;
         double y = 0.0;
         double z = 0.0;
         double minY = Double.POSITIVE_INFINITY;
         double maxY = Double.NEGATIVE_INFINITY;
-        for (int index : cluster) {
-            PlayerFightNode node = fightPlayerScratch.get(index);
-            teams.add(node.team());
+        for (int clusterIndex = 0; clusterIndex < clusterSize; clusterIndex++) {
+            PlayerFightNode node = fightPlayerScratch.get(cluster[clusterIndex]);
+            fightTeamScratch.add(node.team());
             x += node.pos().x;
             y += node.pos().y;
             z += node.pos().z;
@@ -653,28 +772,32 @@ public final class LegionsPingController {
             maxY = Math.max(maxY, node.pos().y);
         }
 
-        if (teams.size() < FIGHT_MIN_TEAMS) {
+        if (fightTeamScratch.size() < FIGHT_MIN_TEAMS) {
             return;
         }
 
-        double averageY = y / cluster.size();
-        Vec3d rawCenter = new Vec3d(x / cluster.size(), averageY, z / cluster.size());
+        double averageY = y / clusterSize;
+        Vec3d rawCenter = new Vec3d(x / clusterSize, averageY, z / clusterSize);
         Vec3d center = groundedFightPosition(client,
                 rawCenter,
                 minY,
                 maxY,
-                cluster);
+                cluster,
+                clusterSize);
         if (center == null) {
             return;
         }
         double spreadSquared = 0.0;
-        for (int index : cluster) {
-            spreadSquared += fightPlayerScratch.get(index).pos().squaredDistanceTo(rawCenter);
+        for (int clusterIndex = 0; clusterIndex < clusterSize; clusterIndex++) {
+            spreadSquared += fightPlayerScratch.get(cluster[clusterIndex]).pos().squaredDistanceTo(rawCenter);
         }
-        spreadSquared /= cluster.size();
-        Entity camera = client.getCameraEntity() == null ? client.player : client.getCameraEntity();
-        double distanceSquared = camera == null ? 0.0 : camera.getCameraPosVec(1.0f).squaredDistanceTo(center);
-        fightCandidateScratch.add(new FightCandidate(center, averageY, cluster.size(), teams.size(), spreadSquared, distanceSquared));
+        spreadSquared /= clusterSize;
+        double distanceSquared = cameraPos.squaredDistanceTo(center);
+        FightCandidate candidate = fightCandidatePool.isEmpty()
+                ? new FightCandidate()
+                : fightCandidatePool.removeLast();
+        fightCandidateScratch.add(candidate.set(center, averageY, clusterSize, fightTeamScratch.size(),
+                spreadSquared, distanceSquared));
     }
 
     private static void refreshFightMarkers(MinecraftClient client, long now) {
@@ -743,13 +866,14 @@ public final class LegionsPingController {
     }
 
     private static Vec3d groundedFightPosition(MinecraftClient client, Vec3d pos, double minY, double maxY,
-                                               List<Integer> cluster) {
+                                               int[] cluster, int clusterSize) {
         Vec3d centerSurface = groundedFightPosition(client, pos, minY - FIGHT_MARKER_SURFACE_SEARCH_RADIUS, maxY + 0.5);
         if (centerSurface != null) {
             return centerSurface;
         }
 
-        Vec3d nearbySurface = nearestNearbyFightSurface(client, pos, minY - FIGHT_MARKER_SURFACE_SEARCH_RADIUS, maxY + 0.5, cluster);
+        Vec3d nearbySurface = nearestNearbyFightSurface(client, pos, minY - FIGHT_MARKER_SURFACE_SEARCH_RADIUS,
+                maxY + 0.5, cluster, clusterSize);
         if (nearbySurface != null) {
             return nearbySurface;
         }
@@ -780,7 +904,7 @@ public final class LegionsPingController {
     }
 
     private static Vec3d nearestNearbyFightSurface(MinecraftClient client, Vec3d center, double minSurfaceY,
-                                                   double maxSurfaceY, List<Integer> cluster) {
+                                                   double maxSurfaceY, int[] cluster, int clusterSize) {
         if (client.world == null) {
             return null;
         }
@@ -790,27 +914,31 @@ public final class LegionsPingController {
         int radius = FIGHT_MARKER_SURFACE_SEARCH_RADIUS;
         int bottomY = client.world.getBottomY();
         int topY = client.world.getTopYInclusive();
-        BlockPos.Mutable blockPos = new BlockPos.Mutable();
+        int minY = Math.max(bottomY, (int) Math.floor(minSurfaceY));
+        int maxY = Math.min(topY, (int) Math.floor(maxSurfaceY));
+        int radiusSquared = radius * radius;
+        fightSurfaceVisitedScratch.clear();
 
-        for (int index : cluster) {
-            Vec3d playerPos = fightPlayerScratch.get(index).pos();
+        for (int clusterIndex = 0; clusterIndex < clusterSize; clusterIndex++) {
+            Vec3d playerPos = fightPlayerScratch.get(cluster[clusterIndex]).pos();
             int minX = (int) Math.floor(playerPos.x - radius);
             int maxX = (int) Math.floor(playerPos.x + radius);
-            int minY = Math.max(bottomY, (int) Math.floor(minSurfaceY));
-            int maxY = Math.min(topY, (int) Math.floor(maxSurfaceY));
             int minZ = (int) Math.floor(playerPos.z - radius);
             int maxZ = (int) Math.floor(playerPos.z + radius);
 
             for (int y = maxY; y >= minY; y--) {
                 for (int x = minX; x <= maxX; x++) {
                     for (int z = minZ; z <= maxZ; z++) {
-                        if (blockHorizontalDistanceSquared(playerPos, x, z) > radius * radius) {
+                        if (blockHorizontalDistanceSquared(playerPos, x, z) > radiusSquared) {
+                            continue;
+                        }
+                        if (!fightSurfaceVisitedScratch.add(BlockPos.asLong(x, y, z))) {
                             continue;
                         }
 
-                        blockPos.set(x, y, z);
-                        BlockState state = client.world.getBlockState(blockPos);
-                        Vec3d surface = fightSurfacePosition(client, blockPos, state, center);
+                        fightBlockPosScratch.set(x, y, z);
+                        BlockState state = client.world.getBlockState(fightBlockPosScratch);
+                        Vec3d surface = fightSurfacePosition(client, fightBlockPosScratch, state, center);
                         if (surface == null
                                 || surface.y < minSurfaceY - 1.0e-4
                                 || surface.y > maxSurfaceY + 1.0e-4) {
@@ -844,31 +972,14 @@ public final class LegionsPingController {
             return null;
         }
 
-        double localTargetX = target.x - pos.getX();
-        double localTargetZ = target.z - pos.getZ();
-        double[] best = {0.5, Double.NEGATIVE_INFINITY, 0.5, Double.POSITIVE_INFINITY};
-        shape.forEachBox((minX, minY, minZ, maxX, maxY, maxZ) -> {
-            if (maxY <= 0.0) {
-                return;
-            }
-
-            double localX = clampDouble(localTargetX, minX, maxX);
-            double localZ = clampDouble(localTargetZ, minZ, maxZ);
-            double distanceSquared = square(localTargetX - localX) + square(localTargetZ - localZ);
-            if (distanceSquared < best[3]
-                    || Math.abs(distanceSquared - best[3]) <= 1.0e-4 && maxY > best[1]) {
-                best[0] = localX;
-                best[1] = maxY;
-                best[2] = localZ;
-                best[3] = distanceSquared;
-            }
-        });
-        if (!Double.isFinite(best[1])) {
+        fightSurfaceBoxConsumer.reset(target.x - pos.getX(), target.z - pos.getZ());
+        shape.forEachBox(fightSurfaceBoxConsumer);
+        if (!Double.isFinite(fightSurfaceBoxConsumer.bestY)) {
             return null;
         }
-        return new Vec3d(pos.getX() + best[0],
-                pos.getY() + best[1] + FIGHT_MARKER_SURFACE_OFFSET,
-                pos.getZ() + best[2]);
+        return new Vec3d(pos.getX() + fightSurfaceBoxConsumer.bestX,
+                pos.getY() + fightSurfaceBoxConsumer.bestY + FIGHT_MARKER_SURFACE_OFFSET,
+                pos.getZ() + fightSurfaceBoxConsumer.bestZ);
     }
 
     private static double blockHorizontalDistanceSquared(Vec3d pos, int blockX, int blockZ) {
@@ -896,10 +1007,10 @@ public final class LegionsPingController {
     }
 
     private static void pollConfiguredKeys(MinecraftClient client, List<PingRow> rows, long now) {
-        Set<PingKey> configuredKeys = new HashSet<>();
+        configuredKeyScratch.clear();
         for (PingRow row : rows) {
-            PingKey key = new PingKey(row.keyType, row.keyCode);
-            configuredKeys.add(key);
+            PingKey key = cachedPingKey(row.keyType, row.keyCode);
+            configuredKeyScratch.add(key);
             boolean down = isKeyDown(client, key);
             boolean wasDown = keyDownStates.getOrDefault(key, false);
             if (down && !wasDown) {
@@ -907,7 +1018,24 @@ public final class LegionsPingController {
             }
             keyDownStates.put(key, down);
         }
-        keyDownStates.keySet().removeIf(key -> !configuredKeys.contains(key));
+        keyDownStates.keySet().removeIf(key -> !configuredKeyScratch.contains(key));
+        configuredKeyScratch.clear();
+    }
+
+    private static PingKey cachedPingKey(int keyType, int keyCode) {
+        if (keyType != PingRow.KEY_TYPE_KEYBOARD && keyType != PingRow.KEY_TYPE_MOUSE) {
+            return new PingKey(keyType, keyCode);
+        }
+        PingKey[] keys = keyType == PingRow.KEY_TYPE_MOUSE ? mousePingKeys : keyboardPingKeys;
+        if (keyCode < 0 || keyCode >= keys.length) {
+            return new PingKey(keyType, keyCode);
+        }
+        PingKey key = keys[keyCode];
+        if (key == null) {
+            key = new PingKey(keyType, keyCode);
+            keys[keyCode] = key;
+        }
+        return key;
     }
 
     private static void recordPress(MinecraftClient client, List<PingRow> rows, PingKey key, long now) {
@@ -1070,7 +1198,7 @@ public final class LegionsPingController {
 
     private static String cleanMarkerLabel(String label, String fallback) {
         String cleaned = label == null ? "" : label.trim().replace('[', ' ').replace(']', ' ').replace(':', ' ');
-        cleaned = cleaned.replaceAll("\\s+", " ").trim();
+        cleaned = WHITESPACE_PATTERN.matcher(cleaned).replaceAll(" ").trim();
         if (cleaned.isBlank()) {
             cleaned = fallback == null || fallback.isBlank() ? "Ping" : fallback;
         }
@@ -1206,7 +1334,6 @@ public final class LegionsPingController {
             }
             ranges.add(new Range(start, end));
         }
-        ranges.sort((first, second) -> Integer.compare(first.start, second.start));
         return mergeRanges(ranges);
     }
 
@@ -1215,19 +1342,20 @@ public final class LegionsPingController {
             return ranges;
         }
 
-        List<Range> merged = new ArrayList<>();
         Range current = ranges.getFirst();
+        int writeIndex = 0;
         for (int i = 1; i < ranges.size(); i++) {
             Range next = ranges.get(i);
             if (next.start <= current.end) {
                 current = new Range(current.start, Math.max(current.end, next.end));
             } else {
-                merged.add(current);
+                ranges.set(writeIndex++, current);
                 current = next;
             }
         }
-        merged.add(current);
-        return merged;
+        ranges.set(writeIndex++, current);
+        ranges.subList(writeIndex, ranges.size()).clear();
+        return ranges;
     }
 
     private static void renderBlockPingOutline(MinecraftClient client, BlockPos pos, int color) {
@@ -1272,18 +1400,16 @@ public final class LegionsPingController {
             return;
         }
 
-        shape.forEachBox((minX, minY, minZ, maxX, maxY, maxZ) -> {
-            Box box = new Box(minX, minY, minZ, maxX, maxY, maxZ).offset(pos);
-            renderBox(box, color);
-        });
+        blockOutlineBoxConsumer.reset(pos, blockPingDrawStyle(color));
+        shape.forEachBox(blockOutlineBoxConsumer);
     }
 
     private static void renderBox(BlockPos pos, int color) {
         GizmoDrawing.box(pos, BLOCK_PING_EXPAND, blockPingDrawStyle(color));
     }
 
-    private static void renderBox(Box box, int color) {
-        GizmoDrawing.box(box.expand(BLOCK_PING_EXPAND), blockPingDrawStyle(color));
+    private static void renderBox(Box box, DrawStyle style) {
+        GizmoDrawing.box(box.expand(BLOCK_PING_EXPAND), style);
     }
 
     private static DrawStyle blockPingDrawStyle(int color) {
@@ -1310,6 +1436,7 @@ public final class LegionsPingController {
     private static void markPlayer(String name, int color, int icon, String label) {
         if (name != null && !name.isBlank()) {
             markedPlayers.put(name.toLowerCase(Locale.ROOT), new PingMark(System.currentTimeMillis(), opaque(color), normalizeIcon(icon), cleanMarkerLabel(label, defaultIconLabel(icon))));
+            markedPlayersVersion++;
         }
     }
 
@@ -1360,7 +1487,14 @@ public final class LegionsPingController {
 
     private static void clearPingMarks() {
         markedBlocks.clear();
-        markedPlayers.clear();
+        clearMarkedPlayers();
+    }
+
+    private static void clearMarkedPlayers() {
+        if (!markedPlayers.isEmpty()) {
+            markedPlayers.clear();
+            markedPlayersVersion++;
+        }
     }
 
     private static long pingTtlMillis() {
@@ -1572,24 +1706,31 @@ public final class LegionsPingController {
         return camera != null && hasClearPathToPoint(client, camera.getCameraPosVec(1.0f), pos, BLOCK_MARKER_OCCLUSION_TOLERANCE_SQUARED);
     }
 
-    private static boolean isPlayerVisibleToCamera(MinecraftClient client, PlayerEntity player) {
+    private static boolean hasPlayerLineOfSight(MinecraftClient client, Vec3d start, PlayerEntity player) {
         Entity camera = client.getCameraEntity() == null ? client.player : client.getCameraEntity();
-        return camera != null && hasPlayerLineOfSight(client, camera.getCameraPosVec(1.0f), player);
+        return hasPlayerLineOfSight(client, start, player, camera);
     }
 
-    private static boolean hasPlayerLineOfSight(MinecraftClient client, Vec3d start, PlayerEntity player) {
+    private static boolean hasPlayerLineOfSight(MinecraftClient client, Vec3d start, PlayerEntity player,
+                                                Entity camera) {
         if (player == null) {
             return false;
         }
-        return hasClearPathToPoint(client, start, player.getEyePos(), PLAYER_MARKER_OCCLUSION_TOLERANCE_SQUARED)
-                || hasClearPathToPoint(client, start, player.getBoundingBox().getCenter(), PLAYER_MARKER_OCCLUSION_TOLERANCE_SQUARED);
+        return hasClearPathToPoint(client, start, player.getEyePos(), PLAYER_MARKER_OCCLUSION_TOLERANCE_SQUARED, camera)
+                || hasClearPathToPoint(client, start, player.getBoundingBox().getCenter(),
+                PLAYER_MARKER_OCCLUSION_TOLERANCE_SQUARED, camera);
     }
 
     private static boolean hasClearPathToPoint(MinecraftClient client, Vec3d start, Vec3d end, double targetToleranceSquared) {
+        Entity camera = client.getCameraEntity() == null ? client.player : client.getCameraEntity();
+        return hasClearPathToPoint(client, start, end, targetToleranceSquared, camera);
+    }
+
+    private static boolean hasClearPathToPoint(MinecraftClient client, Vec3d start, Vec3d end,
+                                               double targetToleranceSquared, Entity camera) {
         if (client == null || client.world == null || start == null || end == null) {
             return false;
         }
-        Entity camera = client.getCameraEntity() == null ? client.player : client.getCameraEntity();
         HitResult hit = client.world.raycast(new RaycastContext(
                 start,
                 end,
@@ -1722,18 +1863,86 @@ public final class LegionsPingController {
         if (value == null) {
             return DEFAULT_PING_COLOR;
         }
-        String cleaned = value.trim().toLowerCase(Locale.ROOT);
+        String cleaned = value.trim();
         if (cleaned.startsWith("#")) {
             cleaned = cleaned.substring(1);
         }
-        if (!cleaned.matches("[0-9a-f]{6}")) {
+        if (!isSixDigitHex(cleaned)) {
             return DEFAULT_PING_COLOR;
         }
         return 0xFF000000 | Integer.parseInt(cleaned, 16);
     }
 
     private static String hexColor(int color) {
-        return String.format(Locale.ROOT, "%06x", color & 0x00FFFFFF);
+        String hex = Integer.toHexString(color & 0x00FFFFFF);
+        return "000000".substring(hex.length()) + hex;
+    }
+
+    private static boolean isSixDigitHex(String value) {
+        if (value.length() != 6) {
+            return false;
+        }
+        for (int i = 0; i < value.length(); i++) {
+            char character = value.charAt(i);
+            if (!(character >= '0' && character <= '9')
+                    && !(character >= 'a' && character <= 'f')
+                    && !(character >= 'A' && character <= 'F')) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static final class FightSurfaceBoxConsumer implements VoxelShapes.BoxConsumer {
+        private double targetX;
+        private double targetZ;
+        private double bestX;
+        private double bestY;
+        private double bestZ;
+        private double bestDistanceSquared;
+
+        private void reset(double targetX, double targetZ) {
+            this.targetX = targetX;
+            this.targetZ = targetZ;
+            bestX = 0.5;
+            bestY = Double.NEGATIVE_INFINITY;
+            bestZ = 0.5;
+            bestDistanceSquared = Double.POSITIVE_INFINITY;
+        }
+
+        @Override
+        public void consume(double minX, double minY, double minZ, double maxX, double maxY, double maxZ) {
+            if (maxY <= 0.0) {
+                return;
+            }
+
+            double localX = clampDouble(targetX, minX, maxX);
+            double localZ = clampDouble(targetZ, minZ, maxZ);
+            double distanceSquared = square(targetX - localX) + square(targetZ - localZ);
+            if (distanceSquared < bestDistanceSquared
+                    || Math.abs(distanceSquared - bestDistanceSquared) <= 1.0e-4 && maxY > bestY) {
+                bestX = localX;
+                bestY = maxY;
+                bestZ = localZ;
+                bestDistanceSquared = distanceSquared;
+            }
+        }
+    }
+
+    private static final class BlockOutlineBoxConsumer implements VoxelShapes.BoxConsumer {
+        private BlockPos pos;
+        private DrawStyle style;
+
+        private void reset(BlockPos pos, DrawStyle style) {
+            this.pos = pos;
+            this.style = style;
+        }
+
+        @Override
+        public void consume(double minX, double minY, double minZ, double maxX, double maxY, double maxZ) {
+            renderBox(new Box(minX + pos.getX(), minY + pos.getY(), minZ + pos.getZ(),
+                    maxX + pos.getX(), maxY + pos.getY(), maxZ + pos.getZ()), style);
+        }
     }
 
     private static int opaque(int color) {
@@ -1743,20 +1952,125 @@ public final class LegionsPingController {
     private record PingKey(int keyType, int keyCode) {
     }
 
-    private record ActiveMarker(Vec3d pos, int color, int icon, String label, int opacity) {
+    private static final class ScreenProjection {
+        private boolean visible;
+        private double x;
+        private double y;
+        private double dirX;
+        private double dirY;
+
+        private ScreenProjection set(boolean visible, double x, double y, double dirX, double dirY) {
+            this.visible = visible;
+            this.x = x;
+            this.y = y;
+            this.dirX = dirX;
+            this.dirY = dirY;
+            return this;
+        }
+
+        private boolean visible() { return visible; }
+        private double x() { return x; }
+        private double y() { return y; }
+        private double dirX() { return dirX; }
+        private double dirY() { return dirY; }
     }
 
-    private record ScreenProjection(boolean visible, double x, double y, double dirX, double dirY) {
+    private static final class MarkerProjectionContext {
+        private Vec3d cameraPos;
+        private Vec3d look;
+        private Vec3d right;
+        private Vec3d up;
+        private double horizontalTan;
+        private double verticalTan;
+        private int screenWidth;
+        private int screenHeight;
+        private int margin;
+
+        private MarkerProjectionContext set(Vec3d cameraPos, Vec3d look, Vec3d right, Vec3d up,
+                                            double horizontalTan, double verticalTan,
+                                            int screenWidth, int screenHeight, int margin) {
+            this.cameraPos = cameraPos;
+            this.look = look;
+            this.right = right;
+            this.up = up;
+            this.horizontalTan = horizontalTan;
+            this.verticalTan = verticalTan;
+            this.screenWidth = screenWidth;
+            this.screenHeight = screenHeight;
+            this.margin = margin;
+            return this;
+        }
+
+        private Vec3d cameraPos() { return cameraPos; }
+        private Vec3d look() { return look; }
+        private Vec3d right() { return right; }
+        private Vec3d up() { return up; }
+        private double horizontalTan() { return horizontalTan; }
+        private double verticalTan() { return verticalTan; }
+        private int screenWidth() { return screenWidth; }
+        private int screenHeight() { return screenHeight; }
+        private int margin() { return margin; }
     }
 
-    private record ArrowPlacement(double x, double y, double dirX, double dirY) {
+    private static final class ArrowPlacement {
+        private double x;
+        private double y;
+        private double dirX;
+        private double dirY;
+
+        private ArrowPlacement set(double x, double y, double dirX, double dirY) {
+            this.x = x;
+            this.y = y;
+            this.dirX = dirX;
+            this.dirY = dirY;
+            return this;
+        }
+
+        private double x() { return x; }
+        private double y() { return y; }
+        private double dirX() { return dirX; }
+        private double dirY() { return dirY; }
     }
 
-    private record PlayerFightNode(String team, Vec3d pos) {
+    private static final class PlayerFightNode {
+        private String team;
+        private Vec3d pos;
+
+        private PlayerFightNode set(String team, Vec3d pos) {
+            this.team = team;
+            this.pos = pos;
+            return this;
+        }
+
+        private String team() { return team; }
+        private Vec3d pos() { return pos; }
     }
 
-    private record FightCandidate(Vec3d center, double averageY, int players, int teams,
-                                  double spreadSquared, double distanceSquared) {
+    private static final class FightCandidate {
+        private Vec3d center;
+        private double averageY;
+        private int players;
+        private int teams;
+        private double spreadSquared;
+        private double distanceSquared;
+
+        private FightCandidate set(Vec3d center, double averageY, int players, int teams,
+                                   double spreadSquared, double distanceSquared) {
+            this.center = center;
+            this.averageY = averageY;
+            this.players = players;
+            this.teams = teams;
+            this.spreadSquared = spreadSquared;
+            this.distanceSquared = distanceSquared;
+            return this;
+        }
+
+        private Vec3d center() { return center; }
+        private double averageY() { return averageY; }
+        private int players() { return players; }
+        private int teams() { return teams; }
+        private double spreadSquared() { return spreadSquared; }
+        private double distanceSquared() { return distanceSquared; }
     }
 
     private record FightMark(Vec3d fromPos, Vec3d targetPos, double averageY,
