@@ -18,14 +18,15 @@
     "LayerRenderStateMixin",
     "LivingEntityRendererMixin",
     "MouseMixin",
-    "OutlineVertexConsumerCompatMixin",
+    "MinecraftClientMixin",
     "PerspectiveMixin",
     "PlayerEntityRenderStateMixin",
     "PlayerEntityRendererMixin",
     "RenderCommandQueueMixin",
     "ShieldModelRendererMixin",
     "TntEntityRendererMixin",
-    "TitleScreenMixin"
+    "TitleScreenMixin",
+    "VillagerEntityRendererMixin"
   ],
   "injectors": {
     "defaultRequire": 0

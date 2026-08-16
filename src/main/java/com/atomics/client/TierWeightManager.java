@@ -73,6 +73,10 @@ public final class TierWeightManager {
             return null;
         }
 
+        return getTierNameSuffix(player);
+    }
+
+    private static Text getTierNameSuffix(PlayerEntity player) {
         TierProfile profile = getOrRequest(player.getName().getString());
         if (profile == null || !profile.hasData()) {
             return null;

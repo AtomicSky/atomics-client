@@ -27,7 +27,8 @@ public final class FreelookManager {
                 && client.world != null
                 && client.currentScreen == null
                 && AtomicsClient.isFreelookEnabled()
-                && !DualSpectateCamera.isActive();
+                && !DualSpectateCamera.isActive()
+                && !SpectatorAutoFreelookCamera.isActive();
         boolean keyPressed = AtomicsClient.isFreelookKeyPressed();
         boolean toggleMode = AtomicsClient.isFreelookToggleMode();
         if (!toggleMode) {
@@ -43,7 +44,7 @@ public final class FreelookManager {
         boolean shouldBeActive = canFreelook && (toggleMode ? toggled : keyPressed);
 
         if (!shouldBeActive) {
-            stop(client, !DualSpectateCamera.isActive());
+            stop(client, !DualSpectateCamera.isActive() && !SpectatorAutoFreelookCamera.isActive());
             return;
         }
 

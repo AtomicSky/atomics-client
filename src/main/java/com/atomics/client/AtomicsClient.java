@@ -27,6 +27,7 @@ import net.minecraft.resource.ResourceManager;
 import net.minecraft.resource.ResourceType;
 import net.minecraft.util.hit.EntityHitResult;
 import net.minecraft.util.Identifier;
+import net.minecraft.util.math.ColorHelper;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
 import org.lwjgl.glfw.GLFW;
@@ -43,18 +44,21 @@ import java.util.Set;
 public class AtomicsClient implements ClientModInitializer {
     public static final String MOD_ID = "atomics_client";
     private static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
+    private static final boolean VULKAN_MOD_LOADED = FabricLoader.getInstance().isModLoaded("vulkanmod");
 
     public static TpsConfig CONFIG;
     private static KeyBinding.Category keyCategory;
     private static KeyBinding openStudioKey;
     private static KeyBinding zoomKey;
     private static KeyBinding freelookKey;
-    private static KeyBinding toggleAutoGgKey;
+    private static KeyBinding resetTotemCounterKey;
     private static KeyBinding toggleDualSpectateKey;
     private static KeyBinding toggleFullBrightKey;
     private static KeyBinding toggleTimeChangerKey;
     private static KeyBinding toggleProjectileTrailKey;
     private static KeyBinding toggleStreamerModeKey;
+    private static KeyBinding toggleAutoTraderKey;
+    private static KeyBinding markVillagerLevelerKey;
     private static KeyBinding cycleFriendFoeKey;
     private static KeyBinding resetTotemPopCounterKey;
     private static final List<KeyBinding> macroKeys = new ArrayList<>();
@@ -100,12 +104,14 @@ public class AtomicsClient implements ClientModInitializer {
                     keyCategory
             ));
 
-            toggleAutoGgKey = registerUnboundKey("key.atomics_client.toggle_auto_gg");
+            resetTotemCounterKey = registerUnboundKey("key.atomics_client.reset_totem_counter");
             toggleDualSpectateKey = registerUnboundKey("key.atomics_client.toggle_dual_spectate");
             toggleFullBrightKey = registerUnboundKey("key.atomics_client.toggle_full_bright");
             toggleTimeChangerKey = registerUnboundKey("key.atomics_client.toggle_time_changer");
             toggleProjectileTrailKey = registerUnboundKey("key.atomics_client.toggle_projectile_trail");
             toggleStreamerModeKey = registerUnboundKey("key.atomics_client.toggle_streamer_mode");
+            toggleAutoTraderKey = registerUnboundKey("key.atomics_client.toggle_auto_trader");
+            markVillagerLevelerKey = registerUnboundKey("key.atomics_client.mark_villager_leveler");
             cycleFriendFoeKey = registerUnboundKey("key.atomics_client.cycle_friend_foe");
             resetTotemPopCounterKey = registerUnboundKey("key.atomics_client.reset_totem_pop_counter");
 
@@ -131,9 +137,6 @@ public class AtomicsClient implements ClientModInitializer {
                 client.setScreen(new AtomicsClientScreen(client.currentScreen));
             }
 
-            while (toggleAutoGgKey != null && toggleAutoGgKey.wasPressed()) {
-                toggleAutoGg(client);
-            }
             while (toggleDualSpectateKey != null && toggleDualSpectateKey.wasPressed()) {
                 toggleDualSpectate(client);
             }
@@ -149,11 +152,21 @@ public class AtomicsClient implements ClientModInitializer {
             while (toggleStreamerModeKey != null && toggleStreamerModeKey.wasPressed()) {
                 toggleStreamerMode(client);
             }
+            while (toggleAutoTraderKey != null && toggleAutoTraderKey.wasPressed()) {
+                toggleAutoTrader(client);
+            }
+            while (markVillagerLevelerKey != null && markVillagerLevelerKey.wasPressed()) {
+                VillagerProfessionLeveler.markLookedAtVillager(client);
+            }
             while (cycleFriendFoeKey != null && cycleFriendFoeKey.wasPressed()) {
                 cycleLookedAtPlayerFriendFoe(client);
             }
             while (resetTotemPopCounterKey != null && resetTotemPopCounterKey.wasPressed()) {
                 resetTotemPopCounters(client);
+            }
+            while (resetTotemCounterKey != null && resetTotemCounterKey.wasPressed()) {
+                resetTotemCounter(client);
+            }
             }
             for (int i = 0; i < macroKeys.size(); i++) {
                 KeyBinding macroKey = macroKeys.get(i);
@@ -164,8 +177,13 @@ public class AtomicsClient implements ClientModInitializer {
             TotemPopEffects.tick(client);
             PvpNametagStatsManager.tick(client);
             DualSpectateCamera.tick(client);
+            SpectatorAutoFreelookCamera.tick(client);
             FreelookManager.tick(client);
             ClientFeatureManager.tick(client);
+            InventorySorter.tick(client);
+            if (!VillagerProfessionLeveler.tick(client)) {
+                AutoVillagerTrader.tick(client);
+            }
         });
 
         HudRenderCallback.EVENT.register((context, tickCounter) -> ClientFeatureManager.renderHud(context));
@@ -214,6 +232,13 @@ public class AtomicsClient implements ClientModInitializer {
                 && CONFIG.visual.freelookToggleMode;
     }
 
+    public static boolean isSpectatorAutoFreelookEnabled() {
+        return CONFIG != null
+                && CONFIG.enabled
+                && CONFIG.visual != null
+                && CONFIG.visual.spectatorCombatOrbitEnabled;
+    }
+
     public static KeyBinding getOpenStudioKeyBinding() {
         return openStudioKey;
     }
@@ -227,8 +252,8 @@ public class AtomicsClient implements ClientModInitializer {
         return freelookKey;
     }
 
-    public static KeyBinding getToggleAutoGgKeyBinding() {
-        return toggleAutoGgKey;
+    public static KeyBinding getResetTotemCounterKeyBinding() {
+        return resetTotemCounterKey;
     }
 
     public static KeyBinding getToggleDualSpectateKeyBinding() {
@@ -249,6 +274,14 @@ public class AtomicsClient implements ClientModInitializer {
 
     public static KeyBinding getToggleStreamerModeKeyBinding() {
         return toggleStreamerModeKey;
+    }
+
+    public static KeyBinding getToggleAutoTraderKeyBinding() {
+        return toggleAutoTraderKey;
+    }
+
+    public static KeyBinding getMarkVillagerLevelerKeyBinding() {
+        return markVillagerLevelerKey;
     }
 
     public static KeyBinding getCycleFriendFoeKeyBinding() {
@@ -286,12 +319,6 @@ public class AtomicsClient implements ClientModInitializer {
         return keyBinding.getBoundKeyLocalizedText().getString();
     }
 
-    private static void toggleAutoGg(MinecraftClient client) {
-        if (CONFIG == null) return;
-        CONFIG.pvp.autoGgEnabled = !CONFIG.pvp.autoGgEnabled;
-        sendToggleMessage(client, "Auto GG", CONFIG.pvp.autoGgEnabled);
-    }
-
     private static void toggleDualSpectate(MinecraftClient client) {
         if (CONFIG == null) return;
         CONFIG.pvp.dualSpectateEnabled = !CONFIG.pvp.dualSpectateEnabled;
@@ -322,9 +349,24 @@ public class AtomicsClient implements ClientModInitializer {
         sendToggleMessage(client, "Streamer Mode", CONFIG.visual.streamerModeEnabled);
     }
 
+    private static void toggleAutoTrader(MinecraftClient client) {
+        if (CONFIG == null) {
+            CONFIG = new TpsConfig();
+        }
+        CONFIG.normalize();
+        CONFIG.utility.autoVillagerTraderEnabled = !CONFIG.utility.autoVillagerTraderEnabled;
+        sendToggleMessage(client, "Auto Trader", CONFIG.utility.autoVillagerTraderEnabled);
+    }
+
     private static void resetTotemPopCounters(MinecraftClient client) {
         PvpNametagStatsManager.resetTotemPopCounters();
         sendActionMessage(client, "Totem pop counters reset");
+    }
+
+    private static void resetTotemCounter(MinecraftClient client) {
+        PvpNametagStatsManager.resetTotemPopCounts(client);
+        sendActionMessage(client, "Totem pop counter reset");
+    }
     }
 
     private static void sendToggleMessage(MinecraftClient client, String label, boolean enabled) {
@@ -421,7 +463,7 @@ public class AtomicsClient implements ClientModInitializer {
         }
     }
 
-    private static void saveConfigQuietly() {
+    public static void saveConfigQuietly() {
         if (CONFIG == null) return;
         try {
             CONFIG.save(FabricLoader.getInstance().getConfigDir().resolve("atomics_client.json"));
@@ -610,8 +652,12 @@ public class AtomicsClient implements ClientModInitializer {
     }
 
     public static int getPlayerFriendFoeOverlayColor(PlayerEntity player) {
+        if (player == null) {
+            return -1;
+        }
+
         syncFriendFoeCache();
-        if (player == null || !cachedFriendFoeOverlayEnabled) {
+        if (!cachedFriendFoeOverlayEnabled) {
             return -1;
         }
 
@@ -631,9 +677,20 @@ public class AtomicsClient implements ClientModInitializer {
     }
 
     public static int getPlayerFriendFoeOverlayStyle(PlayerEntity player) {
-        return getPlayerFriendFoeOverlayColor(player) == -1
-                ? PlayerOverlayColorContext.STYLE_FULL
-                : cachedFriendFoeOverlayStyle;
+        int color = getPlayerFriendFoeOverlayColor(player);
+        return getPlayerFriendFoeOverlayStyle(player, color);
+    }
+
+    public static int getPlayerFriendFoeOverlayStyle(PlayerEntity player, int color) {
+        if (color == -1) {
+            return PlayerOverlayColorContext.STYLE_FULL;
+        }
+        return cachedFriendFoeOverlayStyle;
+    }
+
+    public static int getRendererOutlineColor(int color) {
+        int opaqueColor = ColorHelper.fullAlpha(color);
+        return VULKAN_MOD_LOADED ? ColorHelper.toAbgr(opaqueColor) : opaqueColor;
     }
 
     public static boolean usesFriendFoeOutline(int style) {
@@ -643,9 +700,7 @@ public class AtomicsClient implements ClientModInitializer {
 
     public static boolean shouldBlockFriendAttack(PlayerEntity target) {
         syncFriendFoeCache();
-        return target != null
-                && cachedFriendFoeOverlayEnabled
-                && isFriend(target);
+        return target != null && isFriend(target);
     }
 
     public static void notifyFriendAttackBlocked(PlayerEntity target) {
@@ -663,6 +718,9 @@ public class AtomicsClient implements ClientModInitializer {
     }
 
     private static boolean isFriend(PlayerEntity player) {
+        if (!cachedFriendFoeOverlayEnabled) {
+            return false;
+        }
         String name = getPlayerProfileName(player);
         String normalizedName = normalizeName(name);
         return !normalizedName.isEmpty() && cachedFriendNames.contains(normalizedName);
@@ -697,8 +755,9 @@ public class AtomicsClient implements ClientModInitializer {
     private static void syncFriendFoeCache() {
         TpsConfig cfg = CONFIG;
         TpsConfig.PvpSettings pvp = cfg == null ? null : cfg.pvp;
-        boolean enabled = cfg != null && cfg.enabled && pvp != null && pvp.friendFoeOverlayEnabled;
-        int fingerprint = friendFoeFingerprint(pvp, enabled);
+        boolean available = cfg != null && cfg.enabled && pvp != null;
+        boolean enabled = available && pvp.friendFoeOverlayEnabled;
+        int fingerprint = friendFoeFingerprint(pvp, available, enabled);
         if (friendFoeCacheInitialized && fingerprint == friendFoeCacheFingerprint) {
             return;
         }
@@ -711,19 +770,22 @@ public class AtomicsClient implements ClientModInitializer {
         cachedFoeNames.clear();
         cachedFriendOverlayColor = -1;
         cachedFoeOverlayColor = -1;
-        if (!enabled) {
+        if (!available) {
             return;
         }
 
-        addNormalizedNames(pvp.friendNames, cachedFriendNames);
-        addNormalizedNames(pvp.foeNames, cachedFoeNames);
         cachedFriendFoeOverlayStyle = friendFoeStyleId(pvp.friendFoeOverlayStyle);
         cachedFriendOverlayColor = colorWithAlpha(pvp.friendOverlayR, pvp.friendOverlayG, pvp.friendOverlayB, pvp.friendOverlayAlpha);
         cachedFoeOverlayColor = colorWithAlpha(pvp.foeOverlayR, pvp.foeOverlayG, pvp.foeOverlayB, pvp.foeOverlayAlpha);
+        if (enabled) {
+            addNormalizedNames(pvp.friendNames, cachedFriendNames);
+            addNormalizedNames(pvp.foeNames, cachedFoeNames);
+        }
     }
 
-    private static int friendFoeFingerprint(TpsConfig.PvpSettings pvp, boolean enabled) {
-        int result = Boolean.hashCode(enabled);
+    private static int friendFoeFingerprint(TpsConfig.PvpSettings pvp, boolean available, boolean enabled) {
+        int result = Boolean.hashCode(available);
+        result = 31 * result + Boolean.hashCode(enabled);
         if (pvp == null) {
             return result;
         }

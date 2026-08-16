@@ -3,6 +3,7 @@ package com.atomics.client.gui;
 import com.atomics.client.TotemPopEffects;
 import com.atomics.client.AtomicsClient;
 import com.atomics.client.DualSpectateCamera;
+import com.atomics.client.AutoVillagerTradeCatalog;
 import com.atomics.client.config.TpsConfig;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.MinecraftClient;
@@ -33,24 +34,20 @@ import java.util.function.DoubleConsumer;
 import java.util.function.DoubleFunction;
 
 public class AtomicsClientScreen extends Screen {
-    private static final int TOP_BAR_HEIGHT = 112;
-    private static final int FOOTER_HEIGHT = 34;
-    private static final int OUTER_MARGIN = 16;
-    private static final int COLUMN_GAP = 18;
+    private static final int TOP_BAR_HEIGHT = 96;
+    private static final int FOOTER_HEIGHT = 32;
+    private static final int OUTER_MARGIN = 18;
+    private static final int COLUMN_GAP = 16;
     private static final int ROW_HEIGHT = 28;
     private static final int SECTION_HEIGHT = 24;
     private static final int RESET_WIDTH = 24;
     private static final int BUTTON_HEIGHT = 22;
     private static final int PREVIEW_MIN_WIDTH = 300;
-    private static final int BG = 0xE0110D08;
-    private static final int TOP_BAR = 0xCC24160D;
-    private static final int FOOTER_BAR = 0xCC24160D;
-    private static final int PANEL = 0xAA1B120D;
-    private static final int PANEL_BORDER = 0x606B4A31;
-    private static final int ACCENT = 0xFFFFA13D;
-    private static final int ACCENT_SOFT = 0x55FF7A21;
-    private static final int TEXT_MAIN = 0xFFFFF2E4;
-    private static final int TEXT_MUTED = 0xFFCDB59C;
+    private static final int PANEL_BORDER = AtomicsGuiStyle.PANEL_BORDER;
+    private static final int ACCENT = AtomicsGuiStyle.ACCENT;
+    private static final int ACCENT_SOFT = AtomicsGuiStyle.ACCENT_SOFT;
+    private static final int TEXT_MAIN = AtomicsGuiStyle.TEXT;
+    private static final int TEXT_MUTED = AtomicsGuiStyle.TEXT_MUTED;
 
     private final Screen parent;
     private final List<DrawLabel> labels = new ArrayList<>();
@@ -85,11 +82,15 @@ public class AtomicsClientScreen extends Screen {
     private boolean totemPopNametagEnabled;
     private boolean opponentStatsNametagEnabled;
     private boolean pingNametagEnabled;
-    private boolean autoGgEnabled;
     private boolean dualSpectateEnabled;
     private boolean dualSpectateAutoFill;
+    private boolean dualSpectateLockPlayerOne;
+    private boolean dualSpectateLockPlayerTwo;
     private boolean dualSpectateForceThirdPerson;
+    private boolean dualSpectateOverheadEnabled;
     private boolean friendFoeOverlayEnabled;
+    private boolean teamCountOverlayEnabled;
+    private boolean teamCountOverlayServerFilterEnabled;
     private boolean reachDisplayEnabled;
     private boolean opponentInfoEnabled;
     private boolean fullBrightEnabled;
@@ -105,9 +106,12 @@ public class AtomicsClientScreen extends Screen {
     private boolean zoomEnabled;
     private boolean freelookEnabled;
     private boolean freelookToggleMode;
+    private boolean spectatorCombatOrbitEnabled;
     private boolean chatMacrosEnabled;
-    private String autoGgWinMessage;
-    private String autoGgLoseMessage;
+    private boolean autoVillagerTraderEnabled;
+    private boolean autoVillagerTraderCheckChests;
+    private boolean autoVillagerTraderAutoCloseMerchant;
+    private boolean villagerLevelerAutoDropItems;
     private String settingsSearch = "";
     private final List<String> macroMessages = new ArrayList<>();
     private final List<String> nametagItemOrder = new ArrayList<>();
@@ -116,11 +120,17 @@ public class AtomicsClientScreen extends Screen {
     private String friendFoeOverlayStyle;
     private String dualSpectatePlayerOne;
     private String dualSpectatePlayerTwo;
+    private String teamCountOverlayAllowedServers;
+    private String autoVillagerTraderProfession;
+    private String autoVillagerTraderTrade;
+    private String autoVillagerTraderEnchantment;
     private int timeOfDay;
     private int tntTimerRange;
     private int armorDurabilityWarningPercent;
     private int armorHudX;
     private int armorHudY;
+    private int teamCountOverlayX;
+    private int teamCountOverlayY;
     private boolean armorHudVertical;
     private int armorHudSpacing;
     private boolean armorHudHotbarBorder;
@@ -141,6 +151,8 @@ public class AtomicsClientScreen extends Screen {
     private float dualSpectatePadding;
     private float dualSpectateMinDistance;
     private float dualSpectateMaxDistance;
+    private float dualSpectateOverheadGroupDistance;
+    private float dualSpectateMaxYDifference;
     private float friendOverlayAlpha;
     private float foeOverlayAlpha;
     private float shieldWarningOverlayAlpha;
@@ -161,10 +173,12 @@ public class AtomicsClientScreen extends Screen {
     private float fireOverlayHeight;
     private double projectileTrailSpread;
     private double projectileTrailSpeed;
+    private double autoVillagerTraderRange;
 
     private boolean initializing;
     private boolean settingsSearchFocused;
     private boolean searchRefreshQueued;
+    private String openDropdownKey;
     private KeyBinding listeningKeyBinding;
     private String listeningKeyLabel;
     private final List<String> collapsedSections = new ArrayList<>();
@@ -268,7 +282,7 @@ public class AtomicsClientScreen extends Screen {
         int tabH = 26;
         int total = tabW * tabs.length + gap * (tabs.length - 1);
         int x = this.width / 2 - total / 2;
-        int y = 42;
+        int y = 38;
         for (int i = 0; i < tabs.length; i++) {
             addTabButton(tabs[i], x + (tabW + gap) * i, y, tabW, tabH);
         }
@@ -285,7 +299,7 @@ public class AtomicsClientScreen extends Screen {
     private void addSettingsSearchField() {
         int width = Math.min(320, Math.max(180, this.width / 3));
         int x = this.width / 2 - width / 2;
-        int y = 76;
+        int y = 68;
         TextFieldWidget field = new TextFieldWidget(this.textRenderer, x, y, width, BUTTON_HEIGHT, Text.literal("Search settings"));
         settingsSearchField = field;
         field.setText(settingsSearch == null ? "" : settingsSearch);
@@ -455,6 +469,36 @@ public class AtomicsClientScreen extends Screen {
             y += 10;
         }
 
+        if (shouldShowFeature("misc.inventory_sorter", "Inventory Sorter", "kit sort", "server inventory", "sort inventory")) {
+            y = addFeatureSection(y, "misc.inventory_sorter", "Inventory Sorter");
+            if (!isFeatureCollapsed("misc.inventory_sorter")) {
+                addWideButton(leftX, y, controlWidth, "Edit Kit Sorts (" + getInventorySortKitCount() + ")", b -> this.client.setScreen(new InventorySortScreen(this))); y += ROW_HEIGHT;
+            }
+            y += 10;
+        }
+
+        if (shouldShowFeature("misc.auto_villager_trader", "Auto Villager Trader", "villager", "trade", "chest", "survival", "leveler", "drop")) {
+            y = addFeatureSection(y, "misc.auto_villager_trader", "Auto Villager Trader");
+            if (!isFeatureCollapsed("misc.auto_villager_trader")) {
+                addToggle(leftX, y, controlWidth, "Enable Auto Trader", autoVillagerTraderEnabled, TpsConfig.DEFAULT_AUTO_VILLAGER_TRADER_ENABLED, () -> autoVillagerTraderEnabled, value -> autoVillagerTraderEnabled = value, true); y += ROW_HEIGHT;
+                if (autoVillagerTraderEnabled) {
+                    normalizeAutoVillagerTraderSelection();
+                    y = addDropdown(leftX, y, controlWidth, "auto_trader.profession", "Villager Type", AutoVillagerTradeCatalog.professions(), autoVillagerTraderProfession, TpsConfig.DEFAULT_AUTO_VILLAGER_TRADER_PROFESSION, value -> {
+                        autoVillagerTraderProfession = value;
+                        autoVillagerTraderTrade = AutoVillagerTradeCatalog.profession(value).trades().get(0).id();
+                    });
+                    y = addDropdown(leftX, y, controlWidth, "auto_trader.trade", "Trade Type", AutoVillagerTradeCatalog.profession(autoVillagerTraderProfession).trades(), autoVillagerTraderTrade, AutoVillagerTradeCatalog.profession(autoVillagerTraderProfession).trades().get(0).id(), value -> autoVillagerTraderTrade = value);
+                    if (AutoVillagerTradeCatalog.requiresEnchantment(autoVillagerTraderProfession, autoVillagerTraderTrade)) {
+                        addTextField(leftX, y, controlWidth, "Enchantment", autoVillagerTraderEnchantment, TpsConfig.DEFAULT_AUTO_VILLAGER_TRADER_ENCHANTMENT, value -> autoVillagerTraderEnchantment = value); y += ROW_HEIGHT;
+                    }
+                    addToggle(leftX, y, controlWidth, "Check Reachable Chests", autoVillagerTraderCheckChests, TpsConfig.DEFAULT_AUTO_VILLAGER_TRADER_CHECK_CHESTS, () -> autoVillagerTraderCheckChests, value -> autoVillagerTraderCheckChests = value, true); y += ROW_HEIGHT;
+                    addToggle(leftX, y, controlWidth, "Auto Exit Villager UI", autoVillagerTraderAutoCloseMerchant, TpsConfig.DEFAULT_AUTO_VILLAGER_TRADER_AUTO_CLOSE_MERCHANT, () -> autoVillagerTraderAutoCloseMerchant, value -> autoVillagerTraderAutoCloseMerchant = value, true); y += ROW_HEIGHT;
+                }
+                addToggle(leftX, y, controlWidth, "Auto Drop Leveler Items", villagerLevelerAutoDropItems, TpsConfig.DEFAULT_VILLAGER_LEVELER_AUTO_DROP_ITEMS, () -> villagerLevelerAutoDropItems, value -> villagerLevelerAutoDropItems = value, true); y += ROW_HEIGHT;
+            }
+            y += 10;
+        }
+
         if (selectedTab != Tab.SEARCH && !normalizeSearch(settingsSearch).isEmpty() && y == startY) {
             labels.add(new DrawLabel("No settings matched the search.", leftX + 8, y + 8, 0xCCCCCC));
             y += 34;
@@ -514,7 +558,7 @@ public class AtomicsClientScreen extends Screen {
             y += 10;
         }
 
-        if (shouldShowFeature("tools.freelook", "Freelook", "third person", "camera", "look around")) {
+        if (shouldShowFeature("tools.freelook", "Freelook", "third person", "camera", "look around", "spectator", "auto freelook")) {
             y = addFeatureSection(y, "tools.freelook", "Freelook");
             if (!isFeatureCollapsed("tools.freelook")) {
                 addToggle(leftX, y, controlWidth, "Enable Freelook", freelookEnabled, TpsConfig.DEFAULT_FREELOOK_ENABLED, () -> freelookEnabled, value -> freelookEnabled = value, true); y += ROW_HEIGHT;
@@ -525,6 +569,7 @@ public class AtomicsClientScreen extends Screen {
                         clearAndInit();
                     }); y += ROW_HEIGHT;
                 }
+                addToggle(leftX, y, controlWidth, "Spectator Auto Freelook", spectatorCombatOrbitEnabled, TpsConfig.DEFAULT_SPECTATOR_COMBAT_ORBIT_ENABLED, () -> spectatorCombatOrbitEnabled, value -> spectatorCombatOrbitEnabled = value, false); y += ROW_HEIGHT;
             }
             y += 10;
         }
@@ -563,19 +608,21 @@ public class AtomicsClientScreen extends Screen {
                 addKeybindButton(leftX, y, controlWidth, "Zoom", AtomicsClient.getZoomKeyBinding()); y += ROW_HEIGHT;
                 addKeybindButton(leftX, y, controlWidth, "Freelook", AtomicsClient.getFreelookKeyBinding()); y += ROW_HEIGHT;
                 addKeybindButton(leftX, y, controlWidth, "Reset Totem Pop Counter", AtomicsClient.getResetTotemPopCounterKeyBinding()); y += ROW_HEIGHT;
+                addKeybindButton(leftX, y, controlWidth, "Reset Totem Counter", AtomicsClient.getResetTotemCounterKeyBinding()); y += ROW_HEIGHT;
             }
             y += 10;
         }
 
-        if (shouldShowFeature("keybinds.module_toggles", "Module Toggles", "auto gg", "duel spectate", "full bright", "time changer", "projectile trail", "streamer mode", "friend", "foe")) {
+        if (shouldShowFeature("keybinds.module_toggles", "Module Toggles", "dual spectate", "duel spectate", "full bright", "time changer", "projectile trail", "streamer mode", "auto trader", "villager", "leveler", "friend", "foe")) {
             y = addFeatureSection(y, "keybinds.module_toggles", "Module Toggles");
             if (!isFeatureCollapsed("keybinds.module_toggles")) {
-                addKeybindButton(leftX, y, controlWidth, "Auto GG", AtomicsClient.getToggleAutoGgKeyBinding()); y += ROW_HEIGHT;
                 addKeybindButton(leftX, y, controlWidth, "Dual Spectate Camera", AtomicsClient.getToggleDualSpectateKeyBinding()); y += ROW_HEIGHT;
                 addKeybindButton(leftX, y, controlWidth, "Full Bright", AtomicsClient.getToggleFullBrightKeyBinding()); y += ROW_HEIGHT;
                 addKeybindButton(leftX, y, controlWidth, "Time Changer", AtomicsClient.getToggleTimeChangerKeyBinding()); y += ROW_HEIGHT;
                 addKeybindButton(leftX, y, controlWidth, "Projectile Trail", AtomicsClient.getToggleProjectileTrailKeyBinding()); y += ROW_HEIGHT;
                 addKeybindButton(leftX, y, controlWidth, "Streamer Mode", AtomicsClient.getToggleStreamerModeKeyBinding()); y += ROW_HEIGHT;
+                addKeybindButton(leftX, y, controlWidth, "Auto Trader", AtomicsClient.getToggleAutoTraderKeyBinding()); y += ROW_HEIGHT;
+                addKeybindButton(leftX, y, controlWidth, "Mark Villager Leveler", AtomicsClient.getMarkVillagerLevelerKeyBinding()); y += ROW_HEIGHT;
                 addKeybindButton(leftX, y, controlWidth, "Cycle Friend/Foe Target", AtomicsClient.getCycleFriendFoeKeyBinding()); y += ROW_HEIGHT;
             }
             y += 10;
@@ -655,6 +702,23 @@ public class AtomicsClientScreen extends Screen {
             y += 10;
         }
 
+        if (shouldShowFeature("pvp.team_count_overlay", "Team Count Overlay", "scoreboard", "teams left", "team counts", "players left", "server", "ip")) {
+            y = addFeatureSection(y, "pvp.team_count_overlay", "Team Count Overlay");
+            if (!isFeatureCollapsed("pvp.team_count_overlay")) {
+                addToggle(leftX, y, controlWidth, "Show Team Count Overlay", teamCountOverlayEnabled, TpsConfig.DEFAULT_TEAM_COUNT_OVERLAY_ENABLED, () -> teamCountOverlayEnabled, value -> teamCountOverlayEnabled = value, true); y += ROW_HEIGHT;
+                if (teamCountOverlayEnabled) {
+                    addWideButton(leftX, y, controlWidth, "Move Overlay", b -> this.client.setScreen(new TeamCountOverlayLayoutScreen(this, teamCountOverlayX, teamCountOverlayY))); y += ROW_HEIGHT;
+                    addToggle(leftX, y, controlWidth, "Only On Listed Servers", teamCountOverlayServerFilterEnabled, TpsConfig.DEFAULT_TEAM_COUNT_OVERLAY_SERVER_FILTER_ENABLED, () -> teamCountOverlayServerFilterEnabled, value -> teamCountOverlayServerFilterEnabled = value, true); y += ROW_HEIGHT;
+                    if (teamCountOverlayServerFilterEnabled) {
+                        addTextField(leftX, y, controlWidth, "Server IPs", teamCountOverlayAllowedServers, "ip1, ip2", value -> teamCountOverlayAllowedServers = value); y += ROW_HEIGHT;
+                    }
+                    labels.add(new DrawLabel("Counts tab-list players by scoreboard team.", leftX + 8, y + 4, 0xAAAAAA));
+                    y += 22;
+                }
+            }
+            y += 10;
+        }
+
         if (shouldShowFeature("tools.tnt_timer", "TNT Timer", "fuse", "explosion")) {
             y = addFeatureSection(y, "tools.tnt_timer", "TNT Timer");
             if (!isFeatureCollapsed("tools.tnt_timer")) {
@@ -680,34 +744,25 @@ public class AtomicsClientScreen extends Screen {
             y += 10;
         }
 
-        if (shouldShowFeature("pvp.match_end", "Match End", "auto gg", "win message", "lose message")) {
-            y = addFeatureSection(y, "pvp.match_end", "Match End");
-            if (!isFeatureCollapsed("pvp.match_end")) {
-                addToggle(leftX, y, controlWidth, "Auto GG", autoGgEnabled, false, () -> autoGgEnabled, value -> autoGgEnabled = value, true); y += ROW_HEIGHT;
-                if (autoGgEnabled) {
-                    addTextField(leftX, y, controlWidth, "Win Message", autoGgWinMessage, "gg", value -> autoGgWinMessage = value); y += ROW_HEIGHT;
-                    addTextField(leftX, y, controlWidth, "Lose Message", autoGgLoseMessage, "gg", value -> autoGgLoseMessage = value); y += ROW_HEIGHT;
-                    labels.add(new DrawLabel("Sends once after detected CatPVP, Minemen, or MCPVP match results.", leftX + 8, y + 4, 0xAAAAAA));
-                    y += 22;
-                }
-            }
-            y += 10;
-        }
-
-        if (shouldShowFeature("pvp.dual_spectate", "Dual Spectate Camera", "fight camera", "autofill", "third person")) {
+        if (shouldShowFeature("pvp.dual_spectate", "Dual Spectate Camera", "fight camera", "autofill", "lock", "locked", "third person", "overhead", "top down", "group distance", "y-level", "vertical")) {
             y = addFeatureSection(y, "pvp.dual_spectate", "Dual Spectate Camera");
             if (!isFeatureCollapsed("pvp.dual_spectate")) {
                 addToggle(leftX, y, controlWidth, "Enable Dual Spectate Camera", dualSpectateEnabled, false, () -> dualSpectateEnabled, value -> dualSpectateEnabled = value, true); y += ROW_HEIGHT;
                 if (dualSpectateEnabled) {
                     addToggle(leftX, y, controlWidth, "Auto Fill Nearest Pair", dualSpectateAutoFill, false, () -> dualSpectateAutoFill, value -> dualSpectateAutoFill = value, true); y += ROW_HEIGHT;
-                    addTextField(leftX, y, controlWidth, "Player One", dualSpectatePlayerOne, "Username", value -> dualSpectatePlayerOne = value); y += ROW_HEIGHT;
-                    addTextField(leftX, y, controlWidth, "Player Two", dualSpectatePlayerTwo, "Username", value -> dualSpectatePlayerTwo = value); y += ROW_HEIGHT;
+                    addDualSpectatePlayerField(leftX, y, controlWidth, "Player One", dualSpectatePlayerOne, value -> dualSpectatePlayerOne = value, () -> dualSpectateLockPlayerOne, value -> dualSpectateLockPlayerOne = value); y += ROW_HEIGHT;
+                    addDualSpectatePlayerField(leftX, y, controlWidth, "Player Two", dualSpectatePlayerTwo, value -> dualSpectatePlayerTwo = value, () -> dualSpectateLockPlayerTwo, value -> dualSpectateLockPlayerTwo = value); y += ROW_HEIGHT;
                     addWideButton(leftX, y, controlWidth, "Autofill Nearest Pair", b -> autofillDualSpectatePlayers()); y += ROW_HEIGHT;
                     addToggle(leftX, y, controlWidth, "Force Third Person", dualSpectateForceThirdPerson, true, () -> dualSpectateForceThirdPerson, value -> dualSpectateForceThirdPerson = value, false); y += ROW_HEIGHT;
+                    addToggle(leftX, y, controlWidth, "Overhead View", dualSpectateOverheadEnabled, TpsConfig.DEFAULT_DUAL_SPECTATE_OVERHEAD_ENABLED, () -> dualSpectateOverheadEnabled, value -> dualSpectateOverheadEnabled = value, true); y += ROW_HEIGHT;
+                    if (dualSpectateOverheadEnabled) {
+                        addDoubleSlider(leftX, y, controlWidth, "Overhead Group Distance", dualSpectateOverheadGroupDistance, 4.0, 80.0, 1.0, TpsConfig.DEFAULT_DUAL_SPECTATE_OVERHEAD_GROUP_DISTANCE, value -> dualSpectateOverheadGroupDistance = (float) value, value -> formatDecimal(value, 0)); y += ROW_HEIGHT;
+                    }
                     addDoubleSlider(leftX, y, controlWidth, "Frame Padding", dualSpectatePadding, 1.0, 2.5, 0.05, 1.35, value -> dualSpectatePadding = (float) value, value -> formatDecimal(value, 2) + "x"); y += ROW_HEIGHT;
                     addDoubleSlider(leftX, y, controlWidth, "Min Distance", dualSpectateMinDistance, 2.0, 30.0, 0.5, 6.0, value -> dualSpectateMinDistance = (float) value, value -> formatDecimal(value, 1)); y += ROW_HEIGHT;
                     addDoubleSlider(leftX, y, controlWidth, "Max Distance", dualSpectateMaxDistance, 10.0, 160.0, 1.0, 80.0, value -> dualSpectateMaxDistance = (float) value, value -> formatDecimal(value, 0)); y += ROW_HEIGHT;
-                    labels.add(new DrawLabel("Frames both players from a smooth side-on fight camera.", leftX + 8, y + 4, 0xAAAAAA));
+                    addDoubleSlider(leftX, y, controlWidth, "Max Y Difference", dualSpectateMaxYDifference, 2.0, 48.0, 1.0, TpsConfig.DEFAULT_DUAL_SPECTATE_MAX_Y_DIFFERENCE, value -> dualSpectateMaxYDifference = (float) value, value -> formatDecimal(value, 0)); y += ROW_HEIGHT;
+                    labels.add(new DrawLabel(dualSpectateOverheadEnabled ? "Frames nearby active players from above." : "Frames both players from a smooth side-on fight camera.", leftX + 8, y + 4, 0xAAAAAA));
                     y += 22;
                 }
             }
@@ -862,14 +917,15 @@ public class AtomicsClientScreen extends Screen {
 
         String[] pair = DualSpectateCamera.findNearestPair(client);
         if (pair == null) {
-            status = Text.literal("Autofill needs at least two nearby players").formatted(Formatting.RED);
+            status = Text.literal(dualSpectateLockPlayerOne || dualSpectateLockPlayerTwo
+                    ? "Autofill needs the locked player and a valid partner"
+                    : "Autofill needs at least two nearby players").formatted(Formatting.RED);
             return;
         }
 
-        dualSpectatePlayerOne = pair[0];
-        dualSpectatePlayerTwo = pair[1];
+        applyDualSpectatePair(pair);
         changed();
-        status = Text.literal("Autofilled " + dualSpectatePlayerOne + " and " + dualSpectatePlayerTwo).formatted(Formatting.GREEN);
+        status = Text.literal("Autofilled " + dualSpectatePairLabel()).formatted(Formatting.GREEN);
         clearAndInit();
     }
 
@@ -883,15 +939,17 @@ public class AtomicsClientScreen extends Screen {
             return;
         }
 
-        if (pair[0].equals(dualSpectatePlayerOne) && pair[1].equals(dualSpectatePlayerTwo)) {
+        String nextPlayerOne = dualSpectateLockPlayerOne ? nonNull(dualSpectatePlayerOne) : pair[0];
+        String nextPlayerTwo = dualSpectateLockPlayerTwo ? nonNull(dualSpectatePlayerTwo) : pair[1];
+        if (nextPlayerOne.equals(nonNull(dualSpectatePlayerOne)) && nextPlayerTwo.equals(nonNull(dualSpectatePlayerTwo))) {
             applyToConfig();
             return;
         }
 
-        dualSpectatePlayerOne = pair[0];
-        dualSpectatePlayerTwo = pair[1];
+        dualSpectatePlayerOne = nextPlayerOne;
+        dualSpectatePlayerTwo = nextPlayerTwo;
         applyToConfig();
-        status = Text.literal("Auto-filled " + dualSpectatePlayerOne + " and " + dualSpectatePlayerTwo).formatted(Formatting.AQUA);
+        status = Text.literal("Auto-filled " + dualSpectatePairLabel()).formatted(Formatting.AQUA);
         if (selectedTab == Tab.PVP) {
             clearAndInit();
         }
@@ -1074,7 +1132,7 @@ public class AtomicsClientScreen extends Screen {
     }
 
     private TextFieldWidget addTextField(int x, int y, int controlWidth, String label, String initialValue, String defaultValue, Consumer<String> setter) {
-        labels.add(new DrawLabel(label, x + 4, y - 11, 0xF0F0F0));
+        labels.add(new DrawLabel(label, x + 4, y - 11, TEXT_MUTED));
         if (!isWidgetVisible(y)) return null;
         TextFieldWidget field = new TextFieldWidget(this.textRenderer, x, y, controlWidth, BUTTON_HEIGHT, Text.literal(label));
         field.setText(initialValue == null ? "" : initialValue);
@@ -1083,6 +1141,149 @@ public class AtomicsClientScreen extends Screen {
         addDrawableChild(field);
         addDrawableChild(ButtonWidget.builder(Text.literal("↻"), b -> { setter.accept(defaultValue); field.setText(defaultValue); changed(); }).dimensions(x + controlWidth + 6, y, RESET_WIDTH, BUTTON_HEIGHT).build());
         return field;
+    }
+
+    private TextFieldWidget addDualSpectatePlayerField(int x, int y, int controlWidth, String label, String initialValue,
+                                                       Consumer<String> setter, BooleanSupplier lockGetter,
+                                                       ToggleSetter lockSetter) {
+        labels.add(new DrawLabel(label, x + 4, y - 11, TEXT_MUTED));
+        if (!isWidgetVisible(y)) return null;
+
+        int gap = 6;
+        int lockWidth = Math.min(74, Math.max(58, controlWidth / 4));
+        int fieldWidth = Math.max(80, controlWidth - lockWidth - gap);
+        TextFieldWidget field = new TextFieldWidget(this.textRenderer, x, y, fieldWidth, BUTTON_HEIGHT, Text.literal(label));
+        field.setText(initialValue == null ? "" : initialValue);
+        field.setPlaceholder(Text.literal("Username").formatted(Formatting.DARK_GRAY));
+        field.setChangedListener(value -> { setter.accept(value); changed(); });
+        addDrawableChild(field);
+
+        ButtonWidget lockButton = ButtonWidget.builder(dualSpectateLockText(lockGetter.getAsBoolean()), b -> {
+            boolean locked = !lockGetter.getAsBoolean();
+            lockSetter.set(locked);
+            b.setMessage(dualSpectateLockText(locked));
+            changed();
+        }).dimensions(x + fieldWidth + gap, y, lockWidth, BUTTON_HEIGHT).build();
+        addDrawableChild(lockButton);
+
+        addDrawableChild(ButtonWidget.builder(Text.literal("\u21BB"), b -> {
+            setter.accept("");
+            field.setText("");
+            changed();
+        }).dimensions(x + controlWidth + 6, y, RESET_WIDTH, BUTTON_HEIGHT).build());
+        return field;
+    }
+
+    private void applyDualSpectatePair(String[] pair) {
+        if (pair == null || pair.length < 2) {
+            return;
+        }
+        if (!dualSpectateLockPlayerOne) {
+            dualSpectatePlayerOne = pair[0];
+        }
+        if (!dualSpectateLockPlayerTwo) {
+            dualSpectatePlayerTwo = pair[1];
+        }
+    }
+
+    private String dualSpectatePairLabel() {
+        return nonNull(dualSpectatePlayerOne) + " and " + nonNull(dualSpectatePlayerTwo);
+    }
+
+    private static Text dualSpectateLockText(boolean locked) {
+        return Text.literal(locked ? "Locked" : "Lock");
+    }
+
+    private static String nonNull(String value) {
+        return value == null ? "" : value;
+    }
+
+    private int addDropdown(int x, int y, int controlWidth, String key, String label, List<? extends AutoVillagerTradeCatalog.Choice> options, String currentValue, String defaultValue, Consumer<String> setter) {
+        if (options == null || options.isEmpty()) {
+            return y;
+        }
+
+        AutoVillagerTradeCatalog.Choice selected = findChoice(options, currentValue);
+        if (selected == null) {
+            selected = options.get(0);
+            setter.accept(selected.id());
+        }
+
+        boolean open = key.equals(openDropdownKey);
+        if (isWidgetVisible(y)) {
+            AutoVillagerTradeCatalog.Choice selectedForButton = selected;
+            addDrawableChild(new DropdownButtonWidget(x, y, controlWidth, BUTTON_HEIGHT, label, selectedForButton.label(), open, () -> {
+                openDropdownKey = open ? null : key;
+                clearAndInit();
+            }));
+
+            String resetValue = choiceIdOrFirst(options, defaultValue);
+            ButtonWidget reset = ButtonWidget.builder(Text.literal("↻"), b -> {
+                setter.accept(resetValue);
+                openDropdownKey = null;
+                normalizeAutoVillagerTraderSelection();
+                changed();
+                clearAndInit();
+            }).dimensions(x + controlWidth + 6, y, RESET_WIDTH, BUTTON_HEIGHT).build();
+            reset.active = !selected.id().equals(resetValue);
+            addDrawableChild(reset);
+        }
+
+        y += ROW_HEIGHT;
+        if (open) {
+            for (AutoVillagerTradeCatalog.Choice option : options) {
+                int optionY = y;
+                if (isWidgetVisible(optionY)) {
+                    ButtonWidget button = ButtonWidget.builder(Text.literal(option.label()), b -> {
+                        setter.accept(option.id());
+                        openDropdownKey = null;
+                        normalizeAutoVillagerTraderSelection();
+                        changed();
+                        clearAndInit();
+                    }).dimensions(x + 8, optionY, controlWidth - 8, BUTTON_HEIGHT).build();
+                    button.active = !option.id().equals(selectedForId(selected));
+                    addDrawableChild(button);
+                }
+                y += ROW_HEIGHT;
+            }
+        }
+
+        return y;
+    }
+
+    private static AutoVillagerTradeCatalog.Choice findChoice(List<? extends AutoVillagerTradeCatalog.Choice> options, String id) {
+        if (id == null) {
+            return null;
+        }
+        String normalizedId = id.trim();
+        for (AutoVillagerTradeCatalog.Choice option : options) {
+            if (option.id().equals(normalizedId)) {
+                return option;
+            }
+        }
+        return null;
+    }
+
+    private static String choiceIdOrFirst(List<? extends AutoVillagerTradeCatalog.Choice> options, String id) {
+        AutoVillagerTradeCatalog.Choice choice = findChoice(options, id);
+        return choice == null ? options.get(0).id() : choice.id();
+    }
+
+    private static String selectedForId(AutoVillagerTradeCatalog.Choice choice) {
+        return choice == null ? "" : choice.id();
+    }
+
+    private void normalizeAutoVillagerTraderSelection() {
+        autoVillagerTraderProfession = AutoVillagerTradeCatalog.normalizeProfessionId(autoVillagerTraderProfession);
+        autoVillagerTraderTrade = AutoVillagerTradeCatalog.normalizeTradeId(autoVillagerTraderProfession, autoVillagerTraderTrade);
+        if (autoVillagerTraderEnchantment == null) {
+            autoVillagerTraderEnchantment = "";
+        } else {
+            autoVillagerTraderEnchantment = autoVillagerTraderEnchantment.trim();
+            if (autoVillagerTraderEnchantment.length() > 64) {
+                autoVillagerTraderEnchantment = autoVillagerTraderEnchantment.substring(0, 64);
+            }
+        }
     }
 
     private ValueSlider addIntSlider(int x, int y, int controlWidth, String label, int initialValue, int min, int max, int step, int defaultValue, IntSetter setter) {
@@ -1165,19 +1366,26 @@ public class AtomicsClientScreen extends Screen {
         nametagItemOrder.addAll(normalizeNametagItemOrder(cfg.pvp.nametagItemOrder));
         nametagItemsBeforeName.clear();
         nametagItemsBeforeName.addAll(normalizeNametagItemsBeforeName(cfg.pvp.nametagItemsBeforeName));
-        autoGgEnabled = cfg.pvp.autoGgEnabled;
-        autoGgWinMessage = cfg.pvp.autoGgWinMessage;
-        autoGgLoseMessage = cfg.pvp.autoGgLoseMessage;
         dualSpectateEnabled = cfg.pvp.dualSpectateEnabled;
         dualSpectateAutoFill = cfg.pvp.dualSpectateAutoFill;
         dualSpectatePlayerOne = cfg.pvp.dualSpectatePlayerOne;
         dualSpectatePlayerTwo = cfg.pvp.dualSpectatePlayerTwo;
+        dualSpectateLockPlayerOne = cfg.pvp.dualSpectateLockPlayerOne;
+        dualSpectateLockPlayerTwo = cfg.pvp.dualSpectateLockPlayerTwo;
         dualSpectateForceThirdPerson = cfg.pvp.dualSpectateForceThirdPerson;
         dualSpectatePadding = cfg.pvp.dualSpectatePadding;
         dualSpectateMinDistance = cfg.pvp.dualSpectateMinDistance;
         dualSpectateMaxDistance = cfg.pvp.dualSpectateMaxDistance;
+        dualSpectateOverheadEnabled = cfg.pvp.dualSpectateOverheadEnabled;
+        dualSpectateOverheadGroupDistance = cfg.pvp.dualSpectateOverheadGroupDistance;
+        dualSpectateMaxYDifference = cfg.pvp.dualSpectateMaxYDifference;
         friendFoeOverlayEnabled = cfg.pvp.friendFoeOverlayEnabled;
         friendFoeOverlayStyle = TpsConfig.normalizeFriendFoeStyle(cfg.pvp.friendFoeOverlayStyle);
+        teamCountOverlayEnabled = cfg.pvp.teamCountOverlayEnabled;
+        teamCountOverlayServerFilterEnabled = cfg.pvp.teamCountOverlayServerFilterEnabled;
+        teamCountOverlayAllowedServers = cfg.pvp.teamCountOverlayAllowedServers;
+        teamCountOverlayX = cfg.pvp.teamCountOverlayX;
+        teamCountOverlayY = cfg.pvp.teamCountOverlayY;
         friendOverlayR = cfg.pvp.friendOverlayR;
         friendOverlayG = cfg.pvp.friendOverlayG;
         friendOverlayB = cfg.pvp.friendOverlayB;
@@ -1216,6 +1424,16 @@ public class AtomicsClientScreen extends Screen {
         zoomMultiplier = cfg.visual.zoomMultiplier;
         freelookEnabled = cfg.visual.freelookEnabled;
         freelookToggleMode = cfg.visual.freelookToggleMode;
+        spectatorCombatOrbitEnabled = cfg.visual.spectatorCombatOrbitEnabled;
+        autoVillagerTraderEnabled = cfg.utility.autoVillagerTraderEnabled;
+        autoVillagerTraderProfession = cfg.utility.autoVillagerTraderProfession;
+        autoVillagerTraderTrade = cfg.utility.autoVillagerTraderTrade;
+        autoVillagerTraderEnchantment = cfg.utility.autoVillagerTraderEnchantment;
+        autoVillagerTraderCheckChests = cfg.utility.autoVillagerTraderCheckChests;
+        autoVillagerTraderAutoCloseMerchant = cfg.utility.autoVillagerTraderAutoCloseMerchant;
+        autoVillagerTraderRange = TpsConfig.DEFAULT_AUTO_VILLAGER_TRADER_RANGE;
+        villagerLevelerAutoDropItems = cfg.utility.villagerLevelerAutoDropItems;
+        normalizeAutoVillagerTraderSelection();
         chatMacrosEnabled = cfg.macros.enabled;
         macroMessages.clear();
         for (String message : cfg.macros.messages) {
@@ -1234,6 +1452,12 @@ public class AtomicsClientScreen extends Screen {
         armorHudY = Math.max(-1, Math.min(10000, y));
         armorHudVertical = vertical;
         armorHudSpacing = Math.max(20, Math.min(64, spacing));
+        changed();
+    }
+
+    void applyTeamCountOverlayLayout(int x, int y) {
+        teamCountOverlayX = Math.max(-1, Math.min(10000, x));
+        teamCountOverlayY = Math.max(-1, Math.min(10000, y));
         changed();
     }
 
@@ -1340,19 +1564,26 @@ public class AtomicsClientScreen extends Screen {
         nametagItemOrder.addAll(TpsConfig.defaultNametagItemOrder());
         nametagItemsBeforeName.clear();
         nametagItemsBeforeName.add(TpsConfig.NAMETAG_ITEM_OPPONENT_STATS);
-        autoGgEnabled = false;
-        autoGgWinMessage = "gg";
-        autoGgLoseMessage = "gg";
         dualSpectateEnabled = false;
         dualSpectateAutoFill = false;
         dualSpectatePlayerOne = "";
         dualSpectatePlayerTwo = "";
+        dualSpectateLockPlayerOne = false;
+        dualSpectateLockPlayerTwo = false;
         dualSpectateForceThirdPerson = true;
         dualSpectatePadding = 1.35f;
         dualSpectateMinDistance = 6.0f;
         dualSpectateMaxDistance = 80.0f;
+        dualSpectateOverheadEnabled = TpsConfig.DEFAULT_DUAL_SPECTATE_OVERHEAD_ENABLED;
+        dualSpectateOverheadGroupDistance = TpsConfig.DEFAULT_DUAL_SPECTATE_OVERHEAD_GROUP_DISTANCE;
+        dualSpectateMaxYDifference = TpsConfig.DEFAULT_DUAL_SPECTATE_MAX_Y_DIFFERENCE;
         friendFoeOverlayEnabled = TpsConfig.DEFAULT_FRIEND_FOE_OVERLAY_ENABLED;
         friendFoeOverlayStyle = TpsConfig.DEFAULT_FRIEND_FOE_OVERLAY_STYLE;
+        teamCountOverlayEnabled = TpsConfig.DEFAULT_TEAM_COUNT_OVERLAY_ENABLED;
+        teamCountOverlayServerFilterEnabled = TpsConfig.DEFAULT_TEAM_COUNT_OVERLAY_SERVER_FILTER_ENABLED;
+        teamCountOverlayAllowedServers = "";
+        teamCountOverlayX = TpsConfig.DEFAULT_TEAM_COUNT_OVERLAY_X;
+        teamCountOverlayY = TpsConfig.DEFAULT_TEAM_COUNT_OVERLAY_Y;
         friendOverlayR = TpsConfig.DEFAULT_FRIEND_OVERLAY_R;
         friendOverlayG = TpsConfig.DEFAULT_FRIEND_OVERLAY_G;
         friendOverlayB = TpsConfig.DEFAULT_FRIEND_OVERLAY_B;
@@ -1391,6 +1622,16 @@ public class AtomicsClientScreen extends Screen {
         zoomMultiplier = TpsConfig.DEFAULT_ZOOM_MULTIPLIER;
         freelookEnabled = TpsConfig.DEFAULT_FREELOOK_ENABLED;
         freelookToggleMode = TpsConfig.DEFAULT_FREELOOK_TOGGLE_MODE;
+        spectatorCombatOrbitEnabled = TpsConfig.DEFAULT_SPECTATOR_COMBAT_ORBIT_ENABLED;
+        autoVillagerTraderEnabled = TpsConfig.DEFAULT_AUTO_VILLAGER_TRADER_ENABLED;
+        autoVillagerTraderProfession = TpsConfig.DEFAULT_AUTO_VILLAGER_TRADER_PROFESSION;
+        autoVillagerTraderTrade = TpsConfig.DEFAULT_AUTO_VILLAGER_TRADER_TRADE;
+        autoVillagerTraderEnchantment = TpsConfig.DEFAULT_AUTO_VILLAGER_TRADER_ENCHANTMENT;
+        autoVillagerTraderCheckChests = TpsConfig.DEFAULT_AUTO_VILLAGER_TRADER_CHECK_CHESTS;
+        autoVillagerTraderAutoCloseMerchant = TpsConfig.DEFAULT_AUTO_VILLAGER_TRADER_AUTO_CLOSE_MERCHANT;
+        autoVillagerTraderRange = TpsConfig.DEFAULT_AUTO_VILLAGER_TRADER_RANGE;
+        villagerLevelerAutoDropItems = TpsConfig.DEFAULT_VILLAGER_LEVELER_AUTO_DROP_ITEMS;
+        openDropdownKey = null;
         chatMacrosEnabled = false;
         macroMessages.clear();
         for (int i = 0; i < TpsConfig.MIN_MACRO_SLOTS; i++) {
@@ -1404,6 +1645,9 @@ public class AtomicsClientScreen extends Screen {
             AtomicsClient.CONFIG.sounds.sounds = new ArrayList<>(List.of(TpsConfig.defaultSoundPlay()));
             AtomicsClient.CONFIG.pvp.friendNames = new ArrayList<>();
             AtomicsClient.CONFIG.pvp.foeNames = new ArrayList<>();
+            AtomicsClient.CONFIG.inventorySorter = new TpsConfig.InventorySorterSettings();
+            AtomicsClient.CONFIG.utility.villagerLevelerTargetUuid = TpsConfig.DEFAULT_VILLAGER_LEVELER_TARGET_UUID;
+            AtomicsClient.CONFIG.utility.villagerLevelerAutoDropItems = TpsConfig.DEFAULT_VILLAGER_LEVELER_AUTO_DROP_ITEMS;
         }
         changed();
         clearAndInit();
@@ -1464,30 +1708,27 @@ public class AtomicsClientScreen extends Screen {
         cfg.pvp.pingNametagEnabled = pingNametagEnabled;
         cfg.pvp.nametagItemOrder = normalizeNametagItemOrder(nametagItemOrder);
         cfg.pvp.nametagItemsBeforeName = normalizeNametagItemsBeforeName(nametagItemsBeforeName);
-        cfg.pvp.autoGgEnabled = autoGgEnabled;
-        cfg.pvp.autoGgWinMessage = autoGgWinMessage == null || autoGgWinMessage.trim().isEmpty() ? "gg" : autoGgWinMessage.trim();
-        cfg.pvp.autoGgLoseMessage = autoGgLoseMessage == null || autoGgLoseMessage.trim().isEmpty() ? "gg" : autoGgLoseMessage.trim();
-        cfg.pvp.autoGgMessage = cfg.pvp.autoGgWinMessage;
-        if (cfg.pvp.autoGgMessage.length() > 64) {
-            cfg.pvp.autoGgMessage = cfg.pvp.autoGgMessage.substring(0, 64);
-        }
-        if (cfg.pvp.autoGgWinMessage.length() > 64) {
-            cfg.pvp.autoGgWinMessage = cfg.pvp.autoGgWinMessage.substring(0, 64);
-        }
-        if (cfg.pvp.autoGgLoseMessage.length() > 64) {
-            cfg.pvp.autoGgLoseMessage = cfg.pvp.autoGgLoseMessage.substring(0, 64);
-        }
         cfg.pvp.spoofedHealthMode = TpsConfig.PVP_HEALTH_MODE_PREFER_SRV;
         cfg.pvp.dualSpectateEnabled = dualSpectateEnabled;
         cfg.pvp.dualSpectateAutoFill = dualSpectateAutoFill;
         cfg.pvp.dualSpectatePlayerOne = dualSpectatePlayerOne == null ? "" : dualSpectatePlayerOne.trim();
         cfg.pvp.dualSpectatePlayerTwo = dualSpectatePlayerTwo == null ? "" : dualSpectatePlayerTwo.trim();
+        cfg.pvp.dualSpectateLockPlayerOne = dualSpectateLockPlayerOne;
+        cfg.pvp.dualSpectateLockPlayerTwo = dualSpectateLockPlayerTwo;
         cfg.pvp.dualSpectateForceThirdPerson = dualSpectateForceThirdPerson;
         cfg.pvp.dualSpectatePadding = Math.max(1.0f, Math.min(2.5f, dualSpectatePadding));
         cfg.pvp.dualSpectateMinDistance = Math.max(2.0f, Math.min(30.0f, dualSpectateMinDistance));
         cfg.pvp.dualSpectateMaxDistance = Math.max(10.0f, Math.min(160.0f, dualSpectateMaxDistance));
+        cfg.pvp.dualSpectateOverheadEnabled = dualSpectateOverheadEnabled;
+        cfg.pvp.dualSpectateOverheadGroupDistance = Math.max(4.0f, Math.min(80.0f, dualSpectateOverheadGroupDistance));
+        cfg.pvp.dualSpectateMaxYDifference = Math.max(2.0f, Math.min(48.0f, dualSpectateMaxYDifference));
         cfg.pvp.friendFoeOverlayEnabled = friendFoeOverlayEnabled;
         cfg.pvp.friendFoeOverlayStyle = TpsConfig.normalizeFriendFoeStyle(friendFoeOverlayStyle);
+        cfg.pvp.teamCountOverlayEnabled = teamCountOverlayEnabled;
+        cfg.pvp.teamCountOverlayServerFilterEnabled = teamCountOverlayServerFilterEnabled;
+        cfg.pvp.teamCountOverlayAllowedServers = teamCountOverlayAllowedServers == null ? "" : teamCountOverlayAllowedServers.trim();
+        cfg.pvp.teamCountOverlayX = Math.max(-1, Math.min(10000, teamCountOverlayX));
+        cfg.pvp.teamCountOverlayY = Math.max(-1, Math.min(10000, teamCountOverlayY));
         cfg.pvp.friendOverlayR = Math.max(0, Math.min(255, friendOverlayR));
         cfg.pvp.friendOverlayG = Math.max(0, Math.min(255, friendOverlayG));
         cfg.pvp.friendOverlayB = Math.max(0, Math.min(255, friendOverlayB));
@@ -1533,6 +1774,16 @@ public class AtomicsClientScreen extends Screen {
         cfg.visual.zoomMultiplier = Math.max(TpsConfig.MIN_ZOOM_MULTIPLIER, Math.min(TpsConfig.MAX_ZOOM_MULTIPLIER, zoomMultiplier));
         cfg.visual.freelookEnabled = freelookEnabled;
         cfg.visual.freelookToggleMode = freelookToggleMode;
+        cfg.visual.spectatorCombatOrbitEnabled = spectatorCombatOrbitEnabled;
+        normalizeAutoVillagerTraderSelection();
+        cfg.utility.autoVillagerTraderEnabled = autoVillagerTraderEnabled;
+        cfg.utility.autoVillagerTraderProfession = autoVillagerTraderProfession == null ? "" : autoVillagerTraderProfession.trim();
+        cfg.utility.autoVillagerTraderTrade = autoVillagerTraderTrade == null ? "" : autoVillagerTraderTrade.trim();
+        cfg.utility.autoVillagerTraderEnchantment = autoVillagerTraderEnchantment == null ? "" : autoVillagerTraderEnchantment.trim();
+        cfg.utility.autoVillagerTraderCheckChests = autoVillagerTraderCheckChests;
+        cfg.utility.autoVillagerTraderAutoCloseMerchant = autoVillagerTraderAutoCloseMerchant;
+        cfg.utility.autoVillagerTraderRange = TpsConfig.DEFAULT_AUTO_VILLAGER_TRADER_RANGE;
+        cfg.utility.villagerLevelerAutoDropItems = villagerLevelerAutoDropItems;
         cfg.macros.enabled = chatMacrosEnabled;
         int macroCount = Math.max(TpsConfig.MIN_MACRO_SLOTS, Math.min(TpsConfig.MAX_MACRO_SLOTS, macroMessages.size()));
         String[] normalizedMacros = new String[macroCount];
@@ -1673,19 +1924,17 @@ public class AtomicsClientScreen extends Screen {
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        context.fill(0, 0, this.width, this.height, BG);
-        context.fill(0, 0, this.width, TOP_BAR_HEIGHT, TOP_BAR);
-        context.fill(0, TOP_BAR_HEIGHT, this.width, TOP_BAR_HEIGHT + 1, PANEL_BORDER);
-        context.fill(0, this.height - FOOTER_HEIGHT, this.width, this.height, FOOTER_BAR);
+        AtomicsGuiStyle.drawBackground(context, this.width, this.height);
+        AtomicsGuiStyle.drawBars(context, this.width, this.height, TOP_BAR_HEIGHT, FOOTER_HEIGHT);
 
         drawPanel(context, leftX - 8, contentTop - 8, leftWidth + 16, contentBottom - contentTop + 8);
         if (selectedTab.hasPreview) {
             drawPanel(context, previewX - 8, contentTop - 8, previewWidth + 16, contentBottom - contentTop + 8);
-            context.fill(previewX - 9, contentTop - 8, previewX - 8, contentBottom, ACCENT_SOFT);
+            context.fill(previewX - 9, contentTop - 8, previewX - 8, contentBottom, PANEL_BORDER);
         }
 
-        context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("Atomics Client"), this.width / 2, 14, TEXT_MAIN);
-        context.drawCenteredTextWithShadow(this.textRenderer, Text.literal(selectedTab.label + " Settings"), this.width / 2, 28, TEXT_MUTED);
+        AtomicsGuiStyle.drawTitle(context, this.textRenderer, Text.literal("Atomics Client"), this.width);
+        AtomicsGuiStyle.drawSubtitle(context, this.textRenderer, Text.literal(selectedTab.label + " Settings"), this.width);
 
         super.render(context, mouseX, mouseY, delta);
 
@@ -1708,23 +1957,19 @@ public class AtomicsClientScreen extends Screen {
     }
 
     private void drawPanel(DrawContext context, int x, int y, int width, int height) {
-        context.fill(x, y, x + width, y + height, PANEL);
-        context.fill(x, y, x + width, y + 1, PANEL_BORDER);
-        context.fill(x, y + height - 1, x + width, y + height, PANEL_BORDER);
-        context.fill(x, y, x + 1, y + height, PANEL_BORDER);
-        context.fill(x + width - 1, y, x + width, y + height, PANEL_BORDER);
+        AtomicsGuiStyle.drawPanel(context, x, y, width, height);
     }
 
     private void renderStatus(DrawContext context) {
         String text = status == null ? "" : status.getString();
         if (text.isBlank()) {
-            context.drawTextWithShadow(this.textRenderer, Text.literal("Changes are live. Save to keep them after restart."), OUTER_MARGIN, this.height - 14, TEXT_MUTED);
+            context.drawTextWithShadow(this.textRenderer, Text.literal("Changes are live. Save to keep them after restart."), OUTER_MARGIN, this.height - 13, TEXT_MUTED);
             return;
         }
         int width = this.textRenderer.getWidth(status) + 16;
         int x = OUTER_MARGIN;
-        int y = this.height - 24;
-        context.fill(x, y, x + width, y + 18, 0xAA10151E);
+        int y = this.height - 23;
+        context.fill(x, y, x + width, y + 17, AtomicsGuiStyle.ROW);
         context.fill(x, y, x + 3, y + 18, ACCENT);
         context.drawTextWithShadow(this.textRenderer, status, x + 8, y + 5, TEXT_MAIN);
     }
@@ -1734,12 +1979,12 @@ public class AtomicsClientScreen extends Screen {
         int y = contentTop;
         int w = previewWidth;
         ItemStack previewStack = AtomicsClient.getPreviewTotemStack();
-        context.drawTextWithShadow(this.textRenderer, Text.literal(selectedTab.label + " Preview"), x, y - 2, textColor(0xFFFFFF));
+        context.drawTextWithShadow(this.textRenderer, Text.literal(selectedTab.label + " Preview"), x, y - 2, TEXT_MAIN);
         int boxTop = y + 22;
         int boxBottom = contentBottom - 12;
-        context.fill(x, boxTop, x + w, boxBottom, 0xAA202020);
-        context.drawStrokedRectangle(x, boxTop, w, boxBottom - boxTop, 0x90FFFFFF);
-        context.drawCenteredTextWithShadow(this.textRenderer, Text.literal(selectedTab.label + " Preview"), x + w / 2, boxTop + 14, textColor(0xFFFFFF));
+        context.fill(x, boxTop, x + w, boxBottom, AtomicsGuiStyle.ROW);
+        context.drawStrokedRectangle(x, boxTop, w, boxBottom - boxTop, PANEL_BORDER);
+        context.drawCenteredTextWithShadow(this.textRenderer, Text.literal(selectedTab.label + " Preview"), x + w / 2, boxTop + 14, TEXT_MAIN);
 
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.player != null && selectedTab == Tab.TOTEM) {
@@ -1757,7 +2002,7 @@ public class AtomicsClientScreen extends Screen {
             renderTotemSizePreview(context, previewStack, "Held Totem", itemX, startY + gap, handScaleEnabled ? handScale : 1.0f);
             renderTotemSizePreview(context, previewStack, "Dropped Totem", itemX, startY + gap * 2, droppedScaleEnabled ? droppedScale : 1.0f);
         } else {
-            context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("Preview will appear here"), x + w / 2, boxTop + (boxBottom - boxTop) / 2, textColor(0xAAAAAA));
+            context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("Preview will appear here"), x + w / 2, boxTop + (boxBottom - boxTop) / 2, TEXT_MUTED);
         }
     }
     private int renderTextPanel(DrawContext context, String title, String[] lines, int x, int y, int width) {
@@ -1770,10 +2015,10 @@ public class AtomicsClientScreen extends Screen {
         }
         int visibleTop = Math.max(y, contentTop);
         int visibleBottom = Math.min(y + height, bottom);
-        context.fill(x, visibleTop, x + width, visibleBottom, 0xAA202020);
-        drawClippedPanelBorder(context, x, y, width, height, visibleTop, visibleBottom, 0x70FFFFFF);
+        context.fill(x, visibleTop, x + width, visibleBottom, AtomicsGuiStyle.ROW);
+        drawClippedPanelBorder(context, x, y, width, height, visibleTop, visibleBottom, PANEL_BORDER);
         if (y + padding >= contentTop && y + padding <= bottom) {
-            context.drawTextWithShadow(this.textRenderer, Text.literal(title), x + padding, y + padding, textColor(0xFFFFFF));
+            context.drawTextWithShadow(this.textRenderer, Text.literal(title), x + padding, y + padding, TEXT_MAIN);
         }
         for (int i = 0; i < lines.length; i++) {
             int textY = y + padding + 16 + i * lineHeight;
@@ -1799,7 +2044,7 @@ public class AtomicsClientScreen extends Screen {
 
     private void renderTotemSizePreview(DrawContext context, ItemStack stack, String label, int centerX, int centerY, float scale) {
         String display = label + "  " + formatDecimal(scale, 2) + "x";
-        context.drawCenteredTextWithShadow(this.textRenderer, Text.literal(display), centerX, centerY - 22, textColor(0xFFFFFF));
+        context.drawCenteredTextWithShadow(this.textRenderer, Text.literal(display), centerX, centerY - 22, TEXT_MAIN);
         renderScaledItem(context, stack, centerX, centerY, scale);
     }
 
@@ -1808,11 +2053,11 @@ public class AtomicsClientScreen extends Screen {
         int barX = leftX + leftWidth + 4;
         int trackTop = contentTop;
         int trackBottom = contentBottom - 4;
-        context.fill(barX, trackTop, barX + 4, trackBottom, 0x60000000);
+        context.fill(barX, trackTop, barX + 4, trackBottom, 0x66000000);
         int trackH = trackBottom - trackTop;
         int thumbH = Math.max(24, trackH * trackH / (trackH + maxScroll));
         int thumbY = trackTop + (trackH - thumbH) * scrollOffset / maxScroll;
-        context.fill(barX, thumbY, barX + 4, thumbY + thumbH, 0xCCFFFFFF);
+        context.fill(barX, thumbY, barX + 4, thumbY + thumbH, ACCENT);
     }
 
     private void renderScaledItem(DrawContext context, ItemStack stack, int centerX, int centerY, float scale) {
@@ -1885,6 +2130,11 @@ public class AtomicsClientScreen extends Screen {
         int friends = cfg.pvp.friendNames == null ? 0 : cfg.pvp.friendNames.size();
         int foes = cfg.pvp.foeNames == null ? 0 : cfg.pvp.foeNames.size();
         return friends + foes;
+    }
+
+    private int getInventorySortKitCount() {
+        TpsConfig cfg = AtomicsClient.CONFIG;
+        return cfg == null || cfg.inventorySorter == null || cfg.inventorySorter.kits == null ? 0 : cfg.inventorySorter.kits.size();
     }
 
     private List<String> enabledNametagItems() {
@@ -2075,15 +2325,15 @@ public class AtomicsClientScreen extends Screen {
         protected void renderWidget(DrawContext context, int mouseX, int mouseY, float delta) {
             int x = getX();
             int y = getY();
-            int bg = selected ? 0xFF3A2415 : isHovered() ? 0xDD2C1D13 : 0xAA1D130D;
-            int border = selected ? ACCENT : isHovered() ? 0xAA9A6A42 : PANEL_BORDER;
+            int bg = selected ? AtomicsGuiStyle.PANEL_SELECTED : isHovered() ? AtomicsGuiStyle.ROW_HOVER : AtomicsGuiStyle.ROW;
+            int border = selected ? ACCENT : isHovered() ? AtomicsGuiStyle.PANEL_BORDER_HOVER : PANEL_BORDER;
             context.fill(x, y, x + width, y + height, bg);
             context.fill(x, y, x + width, y + 1, border);
             context.fill(x, y + height - 1, x + width, y + height, border);
             context.fill(x, y, x + 1, y + height, border);
             context.fill(x + width - 1, y, x + width, y + height, border);
             if (selected) {
-                context.fill(x + 5, y + height - 4, x + width - 5, y + height - 2, ACCENT);
+                context.fill(x + 4, y + height - 3, x + width - 4, y + height - 1, ACCENT);
             }
             context.drawCenteredTextWithShadow(textRenderer, Text.literal(label), x + width / 2, y + 8, selected ? TEXT_MAIN : TEXT_MUTED);
         }
@@ -2115,20 +2365,17 @@ public class AtomicsClientScreen extends Screen {
         protected void renderWidget(DrawContext context, int mouseX, int mouseY, float delta) {
             int x = getX();
             int y = getY();
-            int bg = collapsed ? 0xAA121821 : 0xCC1B2430;
-            if (isHovered()) {
-                bg = collapsed ? 0xCC1A2230 : 0xE0222D3B;
-            }
+            int bg = isHovered() ? AtomicsGuiStyle.ROW_HOVER : AtomicsGuiStyle.ROW;
             context.fill(x, y, x + width, y + height, bg);
             context.fill(x, y, x + width, y + 1, PANEL_BORDER);
             context.fill(x, y + height - 1, x + width, y + height, PANEL_BORDER);
-            context.fill(x, y, x + 3, y + height, collapsed ? 0xFF75808F : ACCENT);
+            context.fill(x, y, x + 3, y + height, collapsed ? AtomicsGuiStyle.TEXT_DIM : ACCENT);
 
-            String marker = collapsed ? "+" : "-";
-            context.fill(x + 10, y + 6, x + 20, y + 16, collapsed ? 0x553F4654 : ACCENT_SOFT);
+            String marker = collapsed ? ">" : "v";
             context.drawCenteredTextWithShadow(textRenderer, Text.literal(marker), x + 15, y + 7, collapsed ? TEXT_MUTED : TEXT_MAIN);
             context.drawTextWithShadow(textRenderer, Text.literal(title), x + 28, y + 7, TEXT_MAIN);
-            context.drawTextWithShadow(textRenderer, Text.literal(collapsed ? "collapsed" : "expanded"), x + width - textRenderer.getWidth(collapsed ? "collapsed" : "expanded") - 10, y + 7, TEXT_MUTED);
+            String state = collapsed ? "show" : "hide";
+            context.drawTextWithShadow(textRenderer, Text.literal(state), x + width - textRenderer.getWidth(state) - 10, y + 7, TEXT_MUTED);
         }
 
         @Override
@@ -2160,7 +2407,7 @@ public class AtomicsClientScreen extends Screen {
         protected void renderWidget(DrawContext context, int mouseX, int mouseY, float delta) {
             int x = getX();
             int y = getY();
-            int bg = isHovered() ? 0xDD202A36 : 0xCC18202B;
+            int bg = isHovered() ? AtomicsGuiStyle.ROW_HOVER : AtomicsGuiStyle.ROW;
             context.fill(x, y, x + width, y + height, bg);
             context.fill(x, y, x + width, y + 1, open ? ACCENT : PANEL_BORDER);
             context.fill(x, y + height - 1, x + width, y + height, open ? ACCENT : PANEL_BORDER);
@@ -2168,7 +2415,10 @@ public class AtomicsClientScreen extends Screen {
             context.fill(x + width - 1, y, x + width, y + height, PANEL_BORDER);
 
             String marker = open ? "^" : "v";
-            String right = value + "  " + marker;
+            String suffix = "  " + marker;
+            int valueWidth = Math.max(24, width - textRenderer.getWidth(label) - textRenderer.getWidth(suffix) - 28);
+            String trimmedValue = textRenderer.trimToWidth(value, valueWidth);
+            String right = trimmedValue + suffix;
             context.drawTextWithShadow(textRenderer, Text.literal(label), x + 8, y + 7, TEXT_MAIN);
             context.drawTextWithShadow(textRenderer, Text.literal(right), x + width - textRenderer.getWidth(right) - 8, y + 7, open ? ACCENT : TEXT_MUTED);
         }

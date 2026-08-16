@@ -1,6 +1,7 @@
 package com.atomics.client.mixin;
 
 import com.atomics.client.DualSpectateCamera;
+import com.atomics.client.SpectatorAutoFreelookCamera;
 import net.minecraft.client.option.Perspective;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -11,7 +12,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public class PerspectiveMixin {
     @Inject(method = "isFirstPerson", at = @At("HEAD"), cancellable = true)
     private void atomics_client$dualSpectateIsNotFirstPerson(CallbackInfoReturnable<Boolean> cir) {
-        if (DualSpectateCamera.isActive()) {
+        if (DualSpectateCamera.isActive() || SpectatorAutoFreelookCamera.isActive()) {
             cir.setReturnValue(false);
         }
     }

@@ -49,6 +49,9 @@ public class TpsConfig {
     public static final boolean DEFAULT_EMPTY_BUCKET_OVERLAY_ENABLED = false;
     public static final boolean DEFAULT_REACH_DISPLAY_ENABLED = false;
     public static final boolean DEFAULT_OPPONENT_INFO_ENABLED = false;
+    public static final boolean DEFAULT_DUAL_SPECTATE_OVERHEAD_ENABLED = false;
+    public static final float DEFAULT_DUAL_SPECTATE_OVERHEAD_GROUP_DISTANCE = 24.0f;
+    public static final float DEFAULT_DUAL_SPECTATE_MAX_Y_DIFFERENCE = 12.0f;
     public static final boolean DEFAULT_FRIEND_FOE_OVERLAY_ENABLED = false;
     public static final int DEFAULT_FRIEND_OVERLAY_R = 60;
     public static final int DEFAULT_FRIEND_OVERLAY_G = 255;
@@ -58,6 +61,10 @@ public class TpsConfig {
     public static final int DEFAULT_FOE_OVERLAY_G = 60;
     public static final int DEFAULT_FOE_OVERLAY_B = 60;
     public static final float DEFAULT_FOE_OVERLAY_ALPHA = 0.35f;
+    public static final boolean DEFAULT_TEAM_COUNT_OVERLAY_ENABLED = false;
+    public static final boolean DEFAULT_TEAM_COUNT_OVERLAY_SERVER_FILTER_ENABLED = false;
+    public static final int DEFAULT_TEAM_COUNT_OVERLAY_X = -1;
+    public static final int DEFAULT_TEAM_COUNT_OVERLAY_Y = -1;
     public static final String FRIEND_FOE_STYLE_FULL = "full";
     public static final String FRIEND_FOE_STYLE_OUTLINE = "outline";
     public static final String FRIEND_FOE_STYLE_OUTLINE_FULL = "outline_full";
@@ -108,8 +115,20 @@ public class TpsConfig {
     public static final float DEFAULT_ZOOM_MULTIPLIER = 4.0f;
     public static final boolean DEFAULT_FREELOOK_ENABLED = true;
     public static final boolean DEFAULT_FREELOOK_TOGGLE_MODE = false;
+    public static final boolean DEFAULT_SPECTATOR_COMBAT_ORBIT_ENABLED = true;
     public static final int MIN_MACRO_SLOTS = 4;
     public static final int MAX_MACRO_SLOTS = 12;
+    public static final boolean DEFAULT_AUTO_VILLAGER_TRADER_ENABLED = false;
+    public static final String DEFAULT_AUTO_VILLAGER_TRADER_PROFESSION = "minecraft:librarian";
+    public static final String DEFAULT_AUTO_VILLAGER_TRADER_TRADE = "enchanted_book";
+    public static final String DEFAULT_AUTO_VILLAGER_TRADER_ENCHANTMENT = "";
+    public static final boolean DEFAULT_AUTO_VILLAGER_TRADER_CHECK_CHESTS = false;
+    public static final boolean DEFAULT_AUTO_VILLAGER_TRADER_AUTO_CLOSE_MERCHANT = false;
+    public static final double DEFAULT_AUTO_VILLAGER_TRADER_RANGE = 4.5;
+    public static final String DEFAULT_VILLAGER_LEVELER_TARGET_UUID = "";
+    public static final boolean DEFAULT_VILLAGER_LEVELER_AUTO_DROP_ITEMS = false;
+    public static final double MIN_AUTO_VILLAGER_TRADER_RANGE = 2.0;
+    public static final double MAX_AUTO_VILLAGER_TRADER_RANGE = 6.0;
     public static final float DEFAULT_SHIELD_DOWN_X = 0.0f;
     public static final float DEFAULT_SHIELD_DOWN_Y = 0.0f;
     public static final float DEFAULT_SHIELD_DOWN_Z = 0.0f;
@@ -145,6 +164,7 @@ public class TpsConfig {
     public CombatSettings combat = new CombatSettings();
     public VisualSettings visual = new VisualSettings();
     public MacroSettings macros = new MacroSettings();
+    public InventorySorterSettings inventorySorter = new InventorySorterSettings();
     public UiSettings ui = new UiSettings();
 
     public static TpsConfig load() {
@@ -184,6 +204,7 @@ public class TpsConfig {
         if (combat == null) combat = new CombatSettings();
         if (visual == null) visual = new VisualSettings();
         if (macros == null) macros = new MacroSettings();
+        if (inventorySorter == null) inventorySorter = new InventorySorterSettings();
         if (ui == null) ui = new UiSettings();
         visual.timeOfDay = clampInt(visual.timeOfDay, 0, 24000);
         visual.tntTimerRange = clampInt(visual.tntTimerRange, 8, 128);
@@ -224,6 +245,12 @@ public class TpsConfig {
             ui.collapsedSections.removeIf(id -> id == null || id.isBlank());
             ui.collapsedSections = new ArrayList<>(new LinkedHashSet<>(ui.collapsedSections));
         }
+        utility.autoVillagerTraderProfession = normalizeBoundedText(utility.autoVillagerTraderProfession, 64);
+        utility.autoVillagerTraderTrade = normalizeBoundedText(utility.autoVillagerTraderTrade, 128);
+        utility.autoVillagerTraderEnchantment = normalizeBoundedText(utility.autoVillagerTraderEnchantment, 64);
+        utility.autoVillagerTraderRange = DEFAULT_AUTO_VILLAGER_TRADER_RANGE;
+        utility.villagerLevelerTargetUuid = normalizeBoundedText(utility.villagerLevelerTargetUuid, 64);
+        normalizeInventorySorter();
         pvp.spoofedHealthMode = PVP_HEALTH_MODE_PREFER_SRV;
         if (pvp.dualSpectatePlayerOne == null) pvp.dualSpectatePlayerOne = "";
         if (pvp.dualSpectatePlayerTwo == null) pvp.dualSpectatePlayerTwo = "";
@@ -240,21 +267,20 @@ public class TpsConfig {
         pvp.foeOverlayG = clampInt(pvp.foeOverlayG, 0, 255);
         pvp.foeOverlayB = clampInt(pvp.foeOverlayB, 0, 255);
         pvp.foeOverlayAlpha = clampFloat(pvp.foeOverlayAlpha, 0.0f, 1.0f);
-        if (pvp.autoGgMessage == null || pvp.autoGgMessage.isBlank()) pvp.autoGgMessage = "gg";
-        if (pvp.autoGgWinMessage == null || pvp.autoGgWinMessage.isBlank()) pvp.autoGgWinMessage = pvp.autoGgMessage;
-        if (pvp.autoGgLoseMessage == null || pvp.autoGgLoseMessage.isBlank()) pvp.autoGgLoseMessage = pvp.autoGgMessage;
-        if (pvp.autoGgMessage.length() > 64) pvp.autoGgMessage = pvp.autoGgMessage.substring(0, 64);
-        if (pvp.autoGgWinMessage.length() > 64) pvp.autoGgWinMessage = pvp.autoGgWinMessage.substring(0, 64);
-        if (pvp.autoGgLoseMessage.length() > 64) pvp.autoGgLoseMessage = pvp.autoGgLoseMessage.substring(0, 64);
         pvp.nametagItemOrder = normalizeNametagItems(pvp.nametagItemOrder, false);
         pvp.nametagItemsBeforeName = normalizeNametagItems(pvp.nametagItemsBeforeName, true);
         pvp.opponentStatsNametagFormat = normalizeOpponentStatsNametagFormat(pvp.opponentStatsNametagFormat);
         pvp.dualSpectatePadding = Math.max(1.0f, Math.min(2.5f, pvp.dualSpectatePadding));
         pvp.dualSpectateMinDistance = Math.max(2.0f, Math.min(30.0f, pvp.dualSpectateMinDistance));
         pvp.dualSpectateMaxDistance = Math.max(10.0f, Math.min(160.0f, pvp.dualSpectateMaxDistance));
+        pvp.dualSpectateOverheadGroupDistance = clampFloat(pvp.dualSpectateOverheadGroupDistance, 4.0f, 80.0f);
+        pvp.dualSpectateMaxYDifference = clampFloat(pvp.dualSpectateMaxYDifference, 2.0f, 48.0f);
         if (pvp.dualSpectateMaxDistance < pvp.dualSpectateMinDistance) {
             pvp.dualSpectateMaxDistance = pvp.dualSpectateMinDistance;
         }
+        pvp.teamCountOverlayX = clampInt(pvp.teamCountOverlayX, -1, 10000);
+        pvp.teamCountOverlayY = clampInt(pvp.teamCountOverlayY, -1, 10000);
+        pvp.teamCountOverlayAllowedServers = normalizeServerList(pvp.teamCountOverlayAllowedServers);
         if (particles.disabledParticleIds == null) {
             particles.disabledParticleIds = new ArrayList<>();
         } else {
@@ -314,6 +340,64 @@ public class TpsConfig {
         misc.emptyBucketOverlayB = clampInt(misc.emptyBucketOverlayB, 0, 255);
         misc.emptyBucketOverlayAlpha = clampFloat(misc.emptyBucketOverlayAlpha, 0.0f, 1.0f);
         return this;
+    }
+
+    private void normalizeInventorySorter() {
+        if (inventorySorter.kits == null) {
+            inventorySorter.kits = new ArrayList<>();
+            return;
+        }
+
+        LinkedHashSet<String> seenIds = new LinkedHashSet<>();
+        for (int i = 0; i < inventorySorter.kits.size(); i++) {
+            InventorySortKit kit = inventorySorter.kits.get(i);
+            if (kit == null) {
+                kit = new InventorySortKit();
+                inventorySorter.kits.set(i, kit);
+            }
+
+            kit.id = normalizeKitId(kit.id, seenIds);
+            kit.name = normalizeKitName(kit.name, i + 1);
+            kit.serverAddress = kit.serverAddress == null ? "" : kit.serverAddress.trim();
+            kit.beforeSlots = normalizeInventorySortSlots(kit.beforeSlots);
+            kit.afterSlots = normalizeInventorySortSlots(kit.afterSlots);
+        }
+    }
+
+    private static String normalizeKitId(String id, LinkedHashSet<String> seenIds) {
+        String normalized = id == null ? "" : id.trim();
+        if (normalized.isEmpty() || seenIds.contains(normalized)) {
+            normalized = "kit-" + System.currentTimeMillis() + "-" + seenIds.size();
+            while (seenIds.contains(normalized)) {
+                normalized = normalized + "x";
+            }
+        }
+        seenIds.add(normalized);
+        return normalized;
+    }
+
+    private static String normalizeKitName(String name, int fallbackIndex) {
+        String normalized = name == null ? "" : name.trim();
+        if (normalized.isEmpty()) {
+            normalized = "Kit " + fallbackIndex;
+        }
+        return normalized.length() > 48 ? normalized.substring(0, 48) : normalized;
+    }
+
+    private static List<String> normalizeInventorySortSlots(List<String> slots) {
+        ArrayList<String> normalized = new ArrayList<>(InventorySortKit.SLOT_COUNT);
+        if (slots != null) {
+            for (String slot : slots) {
+                normalized.add(slot == null ? "" : slot);
+                if (normalized.size() >= InventorySortKit.SLOT_COUNT) {
+                    break;
+                }
+            }
+        }
+        while (normalized.size() < InventorySortKit.SLOT_COUNT) {
+            normalized.add("");
+        }
+        return normalized;
     }
 
     public static String normalizeFriendFoeStyle(String value) {
@@ -376,6 +460,14 @@ public class TpsConfig {
         return Math.max(min, Math.min(max, value));
     }
 
+    private static String normalizeBoundedText(String value, int maxLength) {
+        if (value == null) {
+            return "";
+        }
+        String normalized = value.trim();
+        return normalized.length() > maxLength ? normalized.substring(0, maxLength) : normalized;
+    }
+
     private static void normalizeNameList(List<String> names) {
         if (names == null) {
             return;
@@ -387,6 +479,21 @@ public class TpsConfig {
             names.set(i, name.length() > 16 ? name.substring(0, 16) : name);
         }
         names.removeIf(name -> !seen.add(name.toLowerCase(java.util.Locale.ROOT)));
+    }
+
+    private static String normalizeServerList(String value) {
+        if (value == null || value.isBlank()) {
+            return "";
+        }
+
+        LinkedHashSet<String> servers = new LinkedHashSet<>();
+        for (String server : value.split("[,;\\s]+")) {
+            String normalized = server == null ? "" : server.trim();
+            if (!normalized.isEmpty()) {
+                servers.add(normalized.length() > 128 ? normalized.substring(0, 128) : normalized);
+            }
+        }
+        return String.join(", ", servers);
     }
 
     public static class ParticleSettings {
@@ -465,6 +572,15 @@ public class TpsConfig {
         public boolean printDebugToChat = false;
         public boolean replaceVanillaParticles = true;
         public boolean replaceVanillaSounds = true;
+        public boolean autoVillagerTraderEnabled = DEFAULT_AUTO_VILLAGER_TRADER_ENABLED;
+        public String autoVillagerTraderProfession = DEFAULT_AUTO_VILLAGER_TRADER_PROFESSION;
+        public String autoVillagerTraderTrade = DEFAULT_AUTO_VILLAGER_TRADER_TRADE;
+        public String autoVillagerTraderEnchantment = DEFAULT_AUTO_VILLAGER_TRADER_ENCHANTMENT;
+        public boolean autoVillagerTraderCheckChests = DEFAULT_AUTO_VILLAGER_TRADER_CHECK_CHESTS;
+        public boolean autoVillagerTraderAutoCloseMerchant = DEFAULT_AUTO_VILLAGER_TRADER_AUTO_CLOSE_MERCHANT;
+        public double autoVillagerTraderRange = DEFAULT_AUTO_VILLAGER_TRADER_RANGE;
+        public String villagerLevelerTargetUuid = DEFAULT_VILLAGER_LEVELER_TARGET_UUID;
+        public boolean villagerLevelerAutoDropItems = DEFAULT_VILLAGER_LEVELER_AUTO_DROP_ITEMS;
     }
 
     public static class MiscSettings {
@@ -533,11 +649,36 @@ public class TpsConfig {
         public float zoomMultiplier = DEFAULT_ZOOM_MULTIPLIER;
         public boolean freelookEnabled = DEFAULT_FREELOOK_ENABLED;
         public boolean freelookToggleMode = DEFAULT_FREELOOK_TOGGLE_MODE;
+        public boolean spectatorCombatOrbitEnabled = DEFAULT_SPECTATOR_COMBAT_ORBIT_ENABLED;
     }
 
     public static class MacroSettings {
         public boolean enabled = false;
         public String[] messages = new String[]{"", "", "", ""};
+    }
+
+    public static class InventorySorterSettings {
+        public boolean enabled = false;
+        public List<InventorySortKit> kits = new ArrayList<>();
+    }
+
+    public static class InventorySortKit {
+        public static final int SLOT_COUNT = 41;
+
+        public String id = "kit-" + System.currentTimeMillis();
+        public String name = "Kit";
+        public String serverAddress = "";
+        public boolean enabled = true;
+        public List<String> beforeSlots = emptySlots();
+        public List<String> afterSlots = emptySlots();
+
+        public static List<String> emptySlots() {
+            ArrayList<String> slots = new ArrayList<>(SLOT_COUNT);
+            for (int i = 0; i < SLOT_COUNT; i++) {
+                slots.add("");
+            }
+            return slots;
+        }
     }
 
     public static class UiSettings {
@@ -555,10 +696,6 @@ public class TpsConfig {
         public boolean pingNametagEnabled = DEFAULT_PING_NAMETAG_ENABLED;
         public List<String> nametagItemOrder = defaultNametagItemOrder();
         public List<String> nametagItemsBeforeName = new ArrayList<>(List.of(NAMETAG_ITEM_OPPONENT_STATS));
-        public boolean autoGgEnabled = false;
-        public String autoGgMessage = "gg";
-        public String autoGgWinMessage = "gg";
-        public String autoGgLoseMessage = "gg";
         public String spoofedHealthMode = PVP_HEALTH_MODE_PREFER_SRV;
         public boolean tierWeightEnabled = true;
         public float tierWeightScale = 0.18f;
@@ -566,12 +703,22 @@ public class TpsConfig {
         public boolean dualSpectateAutoFill = false;
         public String dualSpectatePlayerOne = "";
         public String dualSpectatePlayerTwo = "";
+        public boolean dualSpectateLockPlayerOne = false;
+        public boolean dualSpectateLockPlayerTwo = false;
         public boolean dualSpectateForceThirdPerson = true;
         public float dualSpectatePadding = 1.35f;
         public float dualSpectateMinDistance = 6.0f;
         public float dualSpectateMaxDistance = 80.0f;
+        public boolean dualSpectateOverheadEnabled = DEFAULT_DUAL_SPECTATE_OVERHEAD_ENABLED;
+        public float dualSpectateOverheadGroupDistance = DEFAULT_DUAL_SPECTATE_OVERHEAD_GROUP_DISTANCE;
+        public float dualSpectateMaxYDifference = DEFAULT_DUAL_SPECTATE_MAX_Y_DIFFERENCE;
         public boolean friendFoeOverlayEnabled = DEFAULT_FRIEND_FOE_OVERLAY_ENABLED;
         public String friendFoeOverlayStyle = DEFAULT_FRIEND_FOE_OVERLAY_STYLE;
+        public boolean teamCountOverlayEnabled = DEFAULT_TEAM_COUNT_OVERLAY_ENABLED;
+        public boolean teamCountOverlayServerFilterEnabled = DEFAULT_TEAM_COUNT_OVERLAY_SERVER_FILTER_ENABLED;
+        public String teamCountOverlayAllowedServers = "";
+        public int teamCountOverlayX = DEFAULT_TEAM_COUNT_OVERLAY_X;
+        public int teamCountOverlayY = DEFAULT_TEAM_COUNT_OVERLAY_Y;
         public List<String> friendNames = new ArrayList<>();
         public List<String> foeNames = new ArrayList<>();
         public int friendOverlayR = DEFAULT_FRIEND_OVERLAY_R;

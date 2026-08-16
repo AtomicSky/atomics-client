@@ -82,7 +82,7 @@ class ArmorHudLayoutScreen extends Screen {
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        context.fill(0, 0, this.width, this.height, 0xDD080706);
+        AtomicsGuiStyle.drawBackground(context, this.width, this.height);
         super.render(context, mouseX, mouseY, delta);
         renderVanillaHudReference(context);
         renderHudPreview(context);
@@ -132,7 +132,7 @@ class ArmorHudLayoutScreen extends Screen {
         int top = hudY - 4;
         int right = hudX + hudWidth() + 4;
         int bottom = hudY + hudHeight() + 4;
-        int border = dragging ? 0xFFFFA13D : 0x99FFA13D;
+        int border = dragging ? AtomicsGuiStyle.ACCENT : AtomicsGuiStyle.ACCENT_SOFT;
         context.fill(left, top, right, bottom, dragging ? 0x80222222 : 0x55222222);
         context.fill(left, top, right, top + 1, border);
         context.fill(left, bottom - 1, right, bottom, border);
