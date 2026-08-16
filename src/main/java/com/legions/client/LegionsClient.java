@@ -16,8 +16,6 @@ import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.concurrent.CompletableFuture;
-
 public class LegionsClient implements ClientModInitializer {
     public static final String MOD_ID = "legions_utils";
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
@@ -46,6 +44,8 @@ public class LegionsClient implements ClientModInitializer {
             while (openConfigKey != null && openConfigKey.wasPressed()) {
                 client.setScreen(new LegionsClientScreen(client.currentScreen));
             }
+            LegionsAdaptivePerformance.tick(client);
+            LegionsWorldBorder.tick(client);
             LegionsPingController.tick(client);
             LegionsSpectateLock.tick(client);
         });
@@ -105,39 +105,23 @@ public class LegionsClient implements ClientModInitializer {
                 && (CONFIG.ratingNametagsIgnoreServerList || LegionsFeatures.isLegionsServer(client));
     }
 
-    public static boolean warningParticlesEnabled() {
-        return CONFIG != null && CONFIG.enabled && CONFIG.warningParticlesEnabled;
-    }
-
     public static void setEnabled(boolean enabled) {
         if (CONFIG == null || CONFIG.enabled == enabled) {
             return;
         }
-        boolean wasWarningParticlesEnabled = warningParticlesEnabled();
         CONFIG.enabled = enabled;
-        if (wasWarningParticlesEnabled != warningParticlesEnabled()) {
-            reloadResourcesForWarningParticles();
+        if (!enabled) {
+            LegionsWorldBorder.reset();
+            LegionsAdaptivePerformance.reset();
         }
     }
 
-    public static void setWarningParticlesEnabled(boolean enabled) {
-        if (CONFIG == null || CONFIG.warningParticlesEnabled == enabled) {
+    public static void setCustomWorldBorderEnabled(boolean enabled) {
+        if (CONFIG == null || CONFIG.customWorldBorderEnabled == enabled) {
             return;
         }
-        CONFIG.warningParticlesEnabled = enabled;
-        reloadResourcesForWarningParticles();
-    }
-
-    private static void reloadResourcesForWarningParticles() {
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client == null) {
-            return;
-        }
-        CompletableFuture<Void> reload = client.reloadResources();
-        reload.exceptionally(throwable -> {
-            LOGGER.warn("Failed to reload resources after changing warning particles", throwable);
-            return null;
-        });
+        CONFIG.customWorldBorderEnabled = enabled;
+        LegionsWorldBorder.reset();
     }
 
     public static boolean isAtomicsClientLoaded() {

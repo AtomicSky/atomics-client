@@ -30,7 +30,10 @@ public class LegionsConfig {
     public boolean enemyHighlightsEnabled = false;
     public boolean dynamicHighlightOpacityEnabled = true;
     public boolean spectatorGlowEnabled = true;
-    public boolean warningParticlesEnabled = true;
+    public boolean customWorldBorderEnabled = true;
+    public String customWorldBorderColor = "#ff5555";
+    public int customWorldBorderOpacity = 70;
+    public boolean customWorldBorderParticlesVisible = true;
     public boolean teamPingEnabled = true;
     public boolean blockPingDistanceLabelEnabled = true;
     public boolean offscreenPingArrowsEnabled = true;
@@ -55,6 +58,7 @@ public class LegionsConfig {
     public boolean teamRatingTotalsEnabled = true;
     public boolean opponentLimitEnabled = true;
     public boolean playerRenderOptimizationEnabled = true;
+    public boolean adaptivePerformanceEnabled = false;
     public int opponentLimit = 5;
     public int playerRenderDistance = 64;
     public int pingDurationSeconds = 10;
@@ -116,6 +120,8 @@ public class LegionsConfig {
         offscreenPingArrowScale = clamp(offscreenPingArrowScale, 50, 200);
         offscreenPingArrowMinOpacity = clamp(offscreenPingArrowMinOpacity, 10, 100);
         offscreenPingArrowMaxOpacity = clamp(offscreenPingArrowMaxOpacity, offscreenPingArrowMinOpacity, 100);
+        customWorldBorderColor = normalizeColor(customWorldBorderColor);
+        customWorldBorderOpacity = clamp(customWorldBorderOpacity, 5, 100);
         teamFightDetectionRadius = clamp(teamFightDetectionRadius, 8, 96);
         teamFightMinPlayers = clamp(teamFightMinPlayers, 2, 20);
         teamFightMinTeams = clamp(teamFightMinTeams, 2, 8);
@@ -141,7 +147,10 @@ public class LegionsConfig {
         copy.enemyHighlightsEnabled = enemyHighlightsEnabled;
         copy.dynamicHighlightOpacityEnabled = dynamicHighlightOpacityEnabled;
         copy.spectatorGlowEnabled = spectatorGlowEnabled;
-        copy.warningParticlesEnabled = warningParticlesEnabled;
+        copy.customWorldBorderEnabled = customWorldBorderEnabled;
+        copy.customWorldBorderColor = customWorldBorderColor;
+        copy.customWorldBorderOpacity = customWorldBorderOpacity;
+        copy.customWorldBorderParticlesVisible = customWorldBorderParticlesVisible;
         copy.teamPingEnabled = teamPingEnabled;
         copy.blockPingDistanceLabelEnabled = blockPingDistanceLabelEnabled;
         copy.offscreenPingArrowsEnabled = offscreenPingArrowsEnabled;
@@ -166,6 +175,7 @@ public class LegionsConfig {
         copy.teamRatingTotalsEnabled = teamRatingTotalsEnabled;
         copy.opponentLimitEnabled = opponentLimitEnabled;
         copy.playerRenderOptimizationEnabled = playerRenderOptimizationEnabled;
+        copy.adaptivePerformanceEnabled = adaptivePerformanceEnabled;
         copy.opponentLimit = opponentLimit;
         copy.playerRenderDistance = playerRenderDistance;
         copy.pingDurationSeconds = pingDurationSeconds;
@@ -188,7 +198,10 @@ public class LegionsConfig {
                 && enemyHighlightsEnabled == other.enemyHighlightsEnabled
                 && dynamicHighlightOpacityEnabled == other.dynamicHighlightOpacityEnabled
                 && spectatorGlowEnabled == other.spectatorGlowEnabled
-                && warningParticlesEnabled == other.warningParticlesEnabled
+                && customWorldBorderEnabled == other.customWorldBorderEnabled
+                && customWorldBorderColor.equals(other.customWorldBorderColor)
+                && customWorldBorderOpacity == other.customWorldBorderOpacity
+                && customWorldBorderParticlesVisible == other.customWorldBorderParticlesVisible
                 && teamPingEnabled == other.teamPingEnabled
                 && blockPingDistanceLabelEnabled == other.blockPingDistanceLabelEnabled
                 && offscreenPingArrowsEnabled == other.offscreenPingArrowsEnabled
@@ -213,6 +226,7 @@ public class LegionsConfig {
                 && teamRatingTotalsEnabled == other.teamRatingTotalsEnabled
                 && opponentLimitEnabled == other.opponentLimitEnabled
                 && playerRenderOptimizationEnabled == other.playerRenderOptimizationEnabled
+                && adaptivePerformanceEnabled == other.adaptivePerformanceEnabled
                 && opponentLimit == other.opponentLimit
                 && playerRenderDistance == other.playerRenderDistance
                 && pingDurationSeconds == other.pingDurationSeconds
@@ -246,6 +260,7 @@ public class LegionsConfig {
         JsonObject object = element.getAsJsonObject();
         migrateField(object, "automaticFoeOutlinesEnabled", "enemyHighlightsEnabled");
         migrateField(object, "teamQuipTotalsEnabled", "teamRatingTotalsEnabled");
+        migrateField(object, "warningParticlesEnabled", "customWorldBorderEnabled");
     }
 
     private static void migrateField(JsonObject object, String oldName, String newName) {

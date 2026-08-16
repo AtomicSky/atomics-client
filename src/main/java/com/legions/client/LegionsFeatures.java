@@ -270,7 +270,7 @@ public final class LegionsFeatures {
         }
 
         boolean opponent = isOpponent(client.player, player);
-        if (opponent && LegionsClient.CONFIG.opponentLimitEnabled && !visibleOpponentCache(client).contains(player.getUuid())) {
+        if (opponent && opponentLimitEnabled() && !visibleOpponentCache(client).contains(player.getUuid())) {
             return true;
         }
 
@@ -278,11 +278,12 @@ public final class LegionsFeatures {
     }
 
     private static boolean shouldCullForRenderOptimization(MinecraftClient client, PlayerEntity player) {
-        if (!LegionsClient.CONFIG.playerRenderOptimizationEnabled) {
+        if (!playerRenderOptimizationEnabled()) {
             return false;
         }
 
-        int renderDistance = LegionsClient.CONFIG.playerRenderDistance;
+        int renderDistance = LegionsAdaptivePerformance.effectivePlayerRenderDistance(
+                LegionsClient.CONFIG.playerRenderDistance);
         double maxDistanceSquared = (double) renderDistance * renderDistance;
         return player.squaredDistanceTo(client.player) > maxDistanceSquared;
     }
@@ -290,12 +291,14 @@ public final class LegionsFeatures {
     private static Set<UUID> visibleOpponentCache(MinecraftClient client) {
         int playerCount = client.world.getPlayers().size();
         long tick = client.world.getTime();
-        int visibleOpponents = Math.max(0, LegionsClient.CONFIG.opponentLimit);
+        int visibleOpponents = LegionsAdaptivePerformance.effectiveOpponentLimit(
+                LegionsClient.CONFIG.opponentLimit);
+        boolean limitEnabled = opponentLimitEnabled();
         if (visibleOpponentCacheTick == tick
                 && visibleOpponentCacheLocalPlayer != null
                 && visibleOpponentCacheLocalPlayer.equals(client.player.getUuid())
                 && visibleOpponentCacheLimit == visibleOpponents
-                && visibleOpponentCacheEnabled == LegionsClient.CONFIG.opponentLimitEnabled
+                && visibleOpponentCacheEnabled == limitEnabled
                 && visibleOpponentCachePlayerCount == playerCount) {
             return visibleOpponentCache;
         }
@@ -304,10 +307,10 @@ public final class LegionsFeatures {
         visibleOpponentCacheTick = tick;
         visibleOpponentCacheLocalPlayer = client.player.getUuid();
         visibleOpponentCacheLimit = visibleOpponents;
-        visibleOpponentCacheEnabled = LegionsClient.CONFIG.opponentLimitEnabled;
+        visibleOpponentCacheEnabled = limitEnabled;
         visibleOpponentCachePlayerCount = playerCount;
 
-        if (!LegionsClient.CONFIG.opponentLimitEnabled) {
+        if (!limitEnabled) {
             return visibleOpponentCache;
         }
 
@@ -329,6 +332,14 @@ public final class LegionsFeatures {
         }
         Arrays.fill(visibleOpponentUuids, 0, selectedOpponents, null);
         return visibleOpponentCache;
+    }
+
+    private static boolean opponentLimitEnabled() {
+        return LegionsClient.CONFIG.opponentLimitEnabled || LegionsAdaptivePerformance.isActivelyReducing();
+    }
+
+    private static boolean playerRenderOptimizationEnabled() {
+        return LegionsClient.CONFIG.playerRenderOptimizationEnabled || LegionsAdaptivePerformance.isActivelyReducing();
     }
 
     private static void ensureVisibleOpponentCapacity(int capacity) {

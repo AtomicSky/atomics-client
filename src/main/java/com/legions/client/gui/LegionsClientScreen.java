@@ -80,8 +80,18 @@ public class LegionsClientScreen extends Screen {
         y += ROW_SPACING;
         addToggle(controlX, screenY(y), controlWidth, "Spectator Glow", () -> LegionsClient.CONFIG.spectatorGlowEnabled, value -> LegionsClient.CONFIG.spectatorGlowEnabled = value, defaultConfig.spectatorGlowEnabled);
         y += ROW_SPACING;
-        addToggle(controlX, screenY(y), controlWidth, "Warning Particles", () -> LegionsClient.CONFIG.warningParticlesEnabled, LegionsClient::setWarningParticlesEnabled, defaultConfig.warningParticlesEnabled);
+
+        y = addSectionHeader(controlX, y, controlWidth, "World Border");
+        addToggle(controlX, screenY(y), controlWidth, "Custom World Border", () -> LegionsClient.CONFIG.customWorldBorderEnabled, LegionsClient::setCustomWorldBorderEnabled, defaultConfig.customWorldBorderEnabled);
         y += ROW_SPACING;
+        if (LegionsClient.CONFIG.customWorldBorderEnabled) {
+            addTextField(controlX, screenY(y), controlWidth, "Border Color", LegionsClient.CONFIG.customWorldBorderColor, "#ff5555", value -> LegionsClient.CONFIG.customWorldBorderColor = value, defaultConfig.customWorldBorderColor);
+            y += ROW_SPACING;
+            addSlider(controlX, screenY(y), controlWidth, "Border Opacity %", 5, 100, () -> LegionsClient.CONFIG.customWorldBorderOpacity, value -> LegionsClient.CONFIG.customWorldBorderOpacity = value, defaultConfig.customWorldBorderOpacity);
+            y += ROW_SPACING;
+            addToggle(controlX, screenY(y), controlWidth, "Show Glitter Particles", () -> LegionsClient.CONFIG.customWorldBorderParticlesVisible, value -> LegionsClient.CONFIG.customWorldBorderParticlesVisible = value, defaultConfig.customWorldBorderParticlesVisible);
+            y += ROW_SPACING;
+        }
 
         y = addSectionHeader(controlX, y, controlWidth, "Team Ping");
         addToggle(controlX, screenY(y), controlWidth, "Team Ping", () -> LegionsClient.CONFIG.teamPingEnabled, value -> LegionsClient.CONFIG.teamPingEnabled = value, defaultConfig.teamPingEnabled);
@@ -146,6 +156,8 @@ public class LegionsClientScreen extends Screen {
         }
 
         y = addSectionHeader(controlX, y, controlWidth, "Player Visibility");
+        addToggle(controlX, screenY(y), controlWidth, "Adaptive Performance", () -> LegionsClient.CONFIG.adaptivePerformanceEnabled, value -> LegionsClient.CONFIG.adaptivePerformanceEnabled = value, defaultConfig.adaptivePerformanceEnabled);
+        y += ROW_SPACING;
         addToggle(controlX, screenY(y), controlWidth, "Limit Opponents Shown", () -> LegionsClient.CONFIG.opponentLimitEnabled, value -> LegionsClient.CONFIG.opponentLimitEnabled = value, defaultConfig.opponentLimitEnabled);
         y += ROW_SPACING;
         if (LegionsClient.CONFIG.opponentLimitEnabled) {

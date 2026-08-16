@@ -107,7 +107,14 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
         y = legions_client$addToggle(leftX, y, controlWidth, "Enemy Highlights", () -> LegionsClient.CONFIG.enemyHighlightsEnabled, value -> LegionsClient.CONFIG.enemyHighlightsEnabled = value, LEGIONS_DEFAULT_CONFIG.enemyHighlightsEnabled);
         y = legions_client$addToggle(leftX, y, controlWidth, "Dynamic Highlight Opacity", () -> LegionsClient.CONFIG.dynamicHighlightOpacityEnabled, value -> LegionsClient.CONFIG.dynamicHighlightOpacityEnabled = value, LEGIONS_DEFAULT_CONFIG.dynamicHighlightOpacityEnabled);
         y = legions_client$addToggle(leftX, y, controlWidth, "Spectator Glow", () -> LegionsClient.CONFIG.spectatorGlowEnabled, value -> LegionsClient.CONFIG.spectatorGlowEnabled = value, LEGIONS_DEFAULT_CONFIG.spectatorGlowEnabled);
-        y = legions_client$addToggle(leftX, y, controlWidth, "Warning Particles", () -> LegionsClient.CONFIG.warningParticlesEnabled, LegionsClient::setWarningParticlesEnabled, LEGIONS_DEFAULT_CONFIG.warningParticlesEnabled);
+
+        y = legions_client$addSubHeader(leftX, y, controlWidth, "World Border");
+        y = legions_client$addToggle(leftX, y, controlWidth, "Custom World Border", () -> LegionsClient.CONFIG.customWorldBorderEnabled, LegionsClient::setCustomWorldBorderEnabled, LEGIONS_DEFAULT_CONFIG.customWorldBorderEnabled);
+        if (LegionsClient.CONFIG.customWorldBorderEnabled) {
+            y = legions_client$addTextField(leftX, y, controlWidth, "Border Color", LegionsClient.CONFIG.customWorldBorderColor, "#ff5555", value -> LegionsClient.CONFIG.customWorldBorderColor = value, LEGIONS_DEFAULT_CONFIG.customWorldBorderColor);
+            y = legions_client$addIntSlider(leftX, y, controlWidth, "Border Opacity %", 5, 100, LegionsClient.CONFIG.customWorldBorderOpacity, value -> LegionsClient.CONFIG.customWorldBorderOpacity = value, LEGIONS_DEFAULT_CONFIG.customWorldBorderOpacity);
+            y = legions_client$addToggle(leftX, y, controlWidth, "Show Glitter Particles", () -> LegionsClient.CONFIG.customWorldBorderParticlesVisible, value -> LegionsClient.CONFIG.customWorldBorderParticlesVisible = value, LEGIONS_DEFAULT_CONFIG.customWorldBorderParticlesVisible);
+        }
 
         y = legions_client$addSubHeader(leftX, y, controlWidth, "Team Ping");
         y = legions_client$addToggle(leftX, y, controlWidth, "Team Ping", () -> LegionsClient.CONFIG.teamPingEnabled, value -> LegionsClient.CONFIG.teamPingEnabled = value, LEGIONS_DEFAULT_CONFIG.teamPingEnabled);
@@ -151,6 +158,7 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
         }
 
         y = legions_client$addSubHeader(leftX, y, controlWidth, "Player Visibility");
+        y = legions_client$addToggle(leftX, y, controlWidth, "Adaptive Performance", () -> LegionsClient.CONFIG.adaptivePerformanceEnabled, value -> LegionsClient.CONFIG.adaptivePerformanceEnabled = value, LEGIONS_DEFAULT_CONFIG.adaptivePerformanceEnabled);
         y = legions_client$addToggle(leftX, y, controlWidth, "Limit Opponents Shown", () -> LegionsClient.CONFIG.opponentLimitEnabled, value -> LegionsClient.CONFIG.opponentLimitEnabled = value, LEGIONS_DEFAULT_CONFIG.opponentLimitEnabled);
         if (LegionsClient.CONFIG.opponentLimitEnabled) {
             y = legions_client$addIntSlider(leftX, y, controlWidth, "Opponents Shown", 1, 20, LegionsClient.CONFIG.opponentLimit, value -> LegionsClient.CONFIG.opponentLimit = value, LEGIONS_DEFAULT_CONFIG.opponentLimit);
@@ -207,8 +215,18 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
                     "Dynamic Highlight Opacity", LEGIONS_DEFAULT_CONFIG.dynamicHighlightOpacityEnabled, () -> LegionsClient.CONFIG.dynamicHighlightOpacityEnabled, value -> LegionsClient.CONFIG.dynamicHighlightOpacityEnabled = value);
             rowY = legions_client$addNativeToggle(addToggle, toggleSetterType, leftX, rowY, controlWidth,
                     "Spectator Glow", LEGIONS_DEFAULT_CONFIG.spectatorGlowEnabled, () -> LegionsClient.CONFIG.spectatorGlowEnabled, value -> LegionsClient.CONFIG.spectatorGlowEnabled = value);
+
+            rowY = legions_client$addSubHeader(leftX, rowY, controlWidth, "World Border");
             rowY = legions_client$addNativeToggle(addToggle, toggleSetterType, leftX, rowY, controlWidth,
-                    "Warning Particles", LEGIONS_DEFAULT_CONFIG.warningParticlesEnabled, () -> LegionsClient.CONFIG.warningParticlesEnabled, LegionsClient::setWarningParticlesEnabled);
+                    "Custom World Border", LEGIONS_DEFAULT_CONFIG.customWorldBorderEnabled, () -> LegionsClient.CONFIG.customWorldBorderEnabled, LegionsClient::setCustomWorldBorderEnabled);
+            if (LegionsClient.CONFIG.customWorldBorderEnabled) {
+                rowY = legions_client$addTextField(leftX, rowY, controlWidth, "Border Color", LegionsClient.CONFIG.customWorldBorderColor, "#ff5555", value -> LegionsClient.CONFIG.customWorldBorderColor = value, LEGIONS_DEFAULT_CONFIG.customWorldBorderColor);
+                rowY = legions_client$addNativeIntSlider(addIntSlider, intSetterType, leftX, rowY, controlWidth,
+                        "Border Opacity %", LegionsClient.CONFIG.customWorldBorderOpacity, 5, 100, 5, LEGIONS_DEFAULT_CONFIG.customWorldBorderOpacity,
+                        () -> LegionsClient.CONFIG.customWorldBorderOpacity, value -> LegionsClient.CONFIG.customWorldBorderOpacity = value);
+                rowY = legions_client$addNativeToggle(addToggle, toggleSetterType, leftX, rowY, controlWidth,
+                        "Show Glitter Particles", LEGIONS_DEFAULT_CONFIG.customWorldBorderParticlesVisible, () -> LegionsClient.CONFIG.customWorldBorderParticlesVisible, value -> LegionsClient.CONFIG.customWorldBorderParticlesVisible = value);
+            }
 
             rowY = legions_client$addSubHeader(leftX, rowY, controlWidth, "Team Ping");
             rowY = legions_client$addNativeToggle(addToggle, toggleSetterType, leftX, rowY, controlWidth,
@@ -279,6 +297,8 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
             }
 
             rowY = legions_client$addSubHeader(leftX, rowY, controlWidth, "Player Visibility");
+            rowY = legions_client$addNativeToggle(addToggle, toggleSetterType, leftX, rowY, controlWidth,
+                    "Adaptive Performance", LEGIONS_DEFAULT_CONFIG.adaptivePerformanceEnabled, () -> LegionsClient.CONFIG.adaptivePerformanceEnabled, value -> LegionsClient.CONFIG.adaptivePerformanceEnabled = value);
             rowY = legions_client$addNativeToggle(addToggle, toggleSetterType, leftX, rowY, controlWidth,
                     "Limit Opponents Shown", LEGIONS_DEFAULT_CONFIG.opponentLimitEnabled, () -> LegionsClient.CONFIG.opponentLimitEnabled, value -> LegionsClient.CONFIG.opponentLimitEnabled = value);
             if (LegionsClient.CONFIG.opponentLimitEnabled) {
@@ -489,7 +509,7 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
         if (query.isBlank()) {
             return true;
         }
-        String terms = "legions lc server ip ips address addresses list domain rating quip quips ranking total totals sum nametag nametags any ignore bypass enemy highlight dynamic fixed armor spectator glow warning particle team ping customize keybind key mouse row rows duplicate color audience last attacker attacked attack block distance label arrow offscreen edge scale ui opacity fight detector radius marker refresh local spectator team hud team counter team count player count scoreboard scoreboard teams left players left count move opponent opponents shown limit hidden hide render optimization distance fps performance opacity";
+        String terms = "legions lc server ip ips address addresses list domain rating quip quips ranking total totals sum nametag nametags any ignore bypass enemy highlight dynamic fixed armor spectator glow custom world border circle cylinder glitter team ping customize keybind key mouse row rows duplicate color audience last attacker attacked attack block distance label arrow offscreen edge scale ui opacity fight detector radius marker refresh local spectator team hud team counter team count player count scoreboard scoreboard teams left players left count move opponent opponents shown limit hidden hide render optimization adaptive distance fps performance opacity";
         return legions_client$matchesSearch(query, terms);
     }
 
