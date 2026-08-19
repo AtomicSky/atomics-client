@@ -89,7 +89,7 @@ public class LegionsClientScreen extends Screen {
             y += ROW_SPACING;
             addSlider(controlX, screenY(y), controlWidth, "Border Opacity %", 5, 100, () -> LegionsClient.CONFIG.customWorldBorderOpacity, value -> LegionsClient.CONFIG.customWorldBorderOpacity = value, defaultConfig.customWorldBorderOpacity);
             y += ROW_SPACING;
-            addToggle(controlX, screenY(y), controlWidth, "Show Glitter Particles", () -> LegionsClient.CONFIG.customWorldBorderParticlesVisible, value -> LegionsClient.CONFIG.customWorldBorderParticlesVisible = value, defaultConfig.customWorldBorderParticlesVisible);
+            addToggle(controlX, screenY(y), controlWidth, "Hide Glitter Particles", () -> LegionsClient.CONFIG.customWorldBorderHideGlitterParticles, value -> LegionsClient.CONFIG.customWorldBorderHideGlitterParticles = value, defaultConfig.customWorldBorderHideGlitterParticles);
             y += ROW_SPACING;
         }
 

@@ -23,6 +23,8 @@ public final class LegionsWorldBorder {
     private static final long SAMPLE_TTL_MILLIS = 1_500L;
     private static final long BORDER_TTL_MILLIS = 10_000L;
     private static final double MIN_SAMPLE_SEPARATION_SQUARED = 0.35D * 0.35D;
+    private static final double MIN_SAMPLE_UPDATE_DISTANCE_SQUARED = 0.05D * 0.05D;
+    private static final double SAMPLE_POSITION_SMOOTHING = 0.35D;
     private static final double SAME_HEIGHT_BAND = 1.0D;
     private static final int MIN_CIRCLE_SAMPLES = 6;
     private static final double MIN_CIRCLE_RADIUS = 2.0D;
@@ -30,12 +32,11 @@ public final class LegionsWorldBorder {
     private static final double MIN_OBSERVED_ARC_RADIANS = Math.toRadians(90.0D);
     private static final double MIN_CIRCLE_RESIDUAL = 0.75D;
     private static final double MAX_CIRCLE_RELATIVE_RESIDUAL = 0.04D;
-    private static final long PREDICTED_CIRCLE_TTL_MILLIS = 4_000L;
     private static final double MAX_OBSERVED_GAP_MULTIPLIER = 2.75D;
     private static final double MIN_OBSERVED_GAP_DISTANCE = 3.0D;
-    private static final double PREDICTED_SEGMENT_LENGTH = 1.25D;
-    private static final int MIN_PREDICTED_SEGMENTS = 64;
-    private static final int MAX_PREDICTED_SEGMENTS = 256;
+    private static final double PREDICTED_SEGMENT_LENGTH = 3.0D;
+    private static final int MIN_PREDICTED_SEGMENTS = 48;
+    private static final int MAX_PREDICTED_SEGMENTS = 160;
     private static final int OBSERVED_CURVE_SEGMENTS = 4;
     private static final double OBSERVED_CURVE_STRENGTH = 0.06D;
     private static final double MAX_OBSERVED_CURVE_OFFSET = 1.25D;
@@ -43,8 +44,11 @@ public final class LegionsWorldBorder {
     private static final double MAX_CENTER_STEP_PER_TICK = 1.25D;
     private static final double MAX_RADIUS_STEP_PER_TICK = 0.75D;
     private static final double SMOOTHING_SETTLED_DISTANCE = 0.01D;
-    private static final double CONNECTOR_BAND_SPACING = 8.0D;
-    private static final double CONNECTOR_VISIBLE_RANGE = 64.0D;
+    private static final long BORDER_FADE_IN_MILLIS = 650L;
+    private static final long BORDER_FADE_OUT_MILLIS = 750L;
+    private static final double CONNECTOR_BAND_SPACING = 16.0D;
+    private static final double CONNECTOR_VISIBLE_RANGE = 32.0D;
+    private static final double REDUCED_CONNECTOR_VISIBLE_RANGE = 16.0D;
     private static final float BORDER_STROKE_WIDTH = 1.25F;
     private static final Set<Identifier> GLITTER_TEXTURES = Set.of(
             Identifier.ofVanilla("glitter_0"),
@@ -61,19 +65,20 @@ public final class LegionsWorldBorder {
     private static final ArrayList<BorderSegment> borderSegments = new ArrayList<>();
     private static ClientWorld sampledWorld;
     private static long lastParticleAt;
-    private static long lastCircleFitAt;
+    private static long borderFadeStartedAt;
     private static int recomputeTicks;
     private static boolean samplesChanged;
     private static CircleFit predictedCircle;
     private static CircleFit displayedCircle;
     private static boolean displayingPredictedCircle;
+    private static double selectedHeightY = Double.NaN;
 
     private LegionsWorldBorder() {
     }
 
     public static boolean captureGlitterParticle(Sprite sprite, double x, double y, double z) {
         MinecraftClient client = MinecraftClient.getInstance();
-        if (!available(client) || !isGlitterSprite(sprite)) {
+        if (!isGlitterSprite(sprite) || !available(client)) {
             return false;
         }
 
@@ -88,7 +93,7 @@ public final class LegionsWorldBorder {
         MinecraftClient client = MinecraftClient.getInstance();
         return isGlitterSprite(sprite)
                 && available(client)
-                && !LegionsClient.CONFIG.customWorldBorderParticlesVisible;
+                && LegionsClient.CONFIG.customWorldBorderHideGlitterParticles;
     }
 
     public static void tick(MinecraftClient client) {
@@ -104,14 +109,19 @@ public final class LegionsWorldBorder {
 
         if (!borderSegments.isEmpty() && now - lastParticleAt > BORDER_TTL_MILLIS) {
             borderSegments.clear();
+            borderFadeStartedAt = 0L;
             predictedCircle = null;
             displayedCircle = null;
             displayingPredictedCircle = false;
+            selectedHeightY = Double.NaN;
         }
         if (samplesChanged && ++recomputeTicks >= RECOMPUTE_INTERVAL_TICKS) {
             recomputeTicks = 0;
             samplesChanged = false;
-            rebuildBorderSegments(now);
+            rebuildBorderSegments();
+            if (borderSegments.isEmpty()) {
+                borderFadeStartedAt = 0L;
+            }
         }
         advanceCircleSmoothing();
     }
@@ -125,16 +135,28 @@ public final class LegionsWorldBorder {
 
         double minY = client.world.getBottomY();
         double maxY = client.world.getTopYInclusive() + 1.0D;
+        long now = System.currentTimeMillis();
+        if (borderFadeStartedAt == 0L) {
+            borderFadeStartedAt = now;
+        }
+        float fadeIn = Math.max(0.0F, Math.min(1.0F,
+                (now - borderFadeStartedAt) / (float) BORDER_FADE_IN_MILLIS));
+        float fadeOut = Math.max(0.0F, Math.min(1.0F,
+                (BORDER_TTL_MILLIS - (now - lastParticleAt)) / (float) BORDER_FADE_OUT_MILLIS));
+        float visibility = Math.min(fadeIn, fadeOut);
         int borderRgb = configuredBorderRgb();
         int opacity = LegionsClient.CONFIG.customWorldBorderOpacity;
-        int strokeColor = withAlpha(borderRgb, Math.round(255.0F * opacity / 100.0F));
-        int fillColor = withAlpha(borderRgb, Math.round(255.0F * opacity / 100.0F * 0.23F));
+        int strokeColor = withAlpha(borderRgb, Math.round(255.0F * opacity / 100.0F * visibility));
+        int fillColor = withAlpha(borderRgb, Math.round(255.0F * opacity / 100.0F * 0.23F * visibility));
         DrawStyle wallStyle = DrawStyle.filled(fillColor);
         Entity camera = client.getCameraEntity() == null ? client.player : client.getCameraEntity();
         double cameraY = camera == null ? (minY + maxY) * 0.5D : camera.getY();
+        double connectorRange = LegionsAdaptivePerformance.isActivelyReducing()
+                ? REDUCED_CONNECTOR_VISIBLE_RANGE
+                : CONNECTOR_VISIBLE_RANGE;
         double firstConnectorY = Math.max(minY,
-                Math.ceil((cameraY - CONNECTOR_VISIBLE_RANGE) / CONNECTOR_BAND_SPACING) * CONNECTOR_BAND_SPACING);
-        double lastConnectorY = Math.min(maxY, cameraY + CONNECTOR_VISIBLE_RANGE);
+                Math.ceil((cameraY - connectorRange) / CONNECTOR_BAND_SPACING) * CONNECTOR_BAND_SPACING);
+        double lastConnectorY = Math.min(maxY, cameraY + connectorRange);
 
         for (BorderSegment segment : borderSegments) {
             Vec3d bottomFirst = new Vec3d(segment.firstX, minY, segment.firstZ);
@@ -156,12 +178,13 @@ public final class LegionsWorldBorder {
         borderSegments.clear();
         sampledWorld = null;
         lastParticleAt = 0L;
-        lastCircleFitAt = 0L;
+        borderFadeStartedAt = 0L;
         recomputeTicks = 0;
         samplesChanged = false;
         predictedCircle = null;
         displayedCircle = null;
         displayingPredictedCircle = false;
+        selectedHeightY = Double.NaN;
     }
 
     private static boolean available(MinecraftClient client) {
@@ -206,9 +229,18 @@ public final class LegionsWorldBorder {
     private static void rememberSample(double x, double y, double z, long now) {
         for (int index = samples.size() - 1; index >= 0; index--) {
             Sample sample = samples.get(index);
-            if (Math.abs(sample.y - y) <= SAME_HEIGHT_BAND * 0.5D
-                    && distanceSquared(sample.x, sample.z, x, z) <= MIN_SAMPLE_SEPARATION_SQUARED) {
+            double horizontalDistanceSquared = distanceSquared(sample.x, sample.z, x, z);
+            double yDifference = y - sample.y;
+            if (Math.abs(yDifference) <= SAME_HEIGHT_BAND * 0.5D
+                    && horizontalDistanceSquared <= MIN_SAMPLE_SEPARATION_SQUARED) {
                 sample.seenAt = now;
+                if (horizontalDistanceSquared > MIN_SAMPLE_UPDATE_DISTANCE_SQUARED
+                        || Math.abs(yDifference) > 0.05D) {
+                    sample.x += (x - sample.x) * SAMPLE_POSITION_SMOOTHING;
+                    sample.y += yDifference * SAMPLE_POSITION_SMOOTHING;
+                    sample.z += (z - sample.z) * SAMPLE_POSITION_SMOOTHING;
+                    samplesChanged = true;
+                }
                 return;
             }
         }
@@ -220,7 +252,7 @@ public final class LegionsWorldBorder {
         samplesChanged = true;
     }
 
-    private static void rebuildBorderSegments(long now) {
+    private static void rebuildBorderSegments() {
         borderSegments.clear();
         List<HorizontalPoint> levelPoints = findBestHeightLevel();
         List<HorizontalPoint> perimeter = convexHull(levelPoints);
@@ -232,12 +264,13 @@ public final class LegionsWorldBorder {
                 displayedCircle = currentFit;
             }
             displayingPredictedCircle = true;
-            lastCircleFitAt = now;
             addPredictedCircle(displayedCircle);
             return;
         }
 
-        if (predictedCircle != null && now - lastCircleFitAt <= PREDICTED_CIRCLE_TTL_MILLIS) {
+        // Once a circle has been acquired, keep that render state through temporary
+        // sample gaps. The normal border TTL clears it when the signal really stops.
+        if (predictedCircle != null) {
             displayingPredictedCircle = true;
             if (displayedCircle == null) {
                 displayedCircle = predictedCircle;
@@ -524,6 +557,7 @@ public final class LegionsWorldBorder {
 
     private static List<HorizontalPoint> findBestHeightLevel() {
         List<HorizontalPoint> best = List.of();
+        double bestHeightY = Double.NaN;
         for (double offset : new double[]{0.0D, SAME_HEIGHT_BAND * 0.5D}) {
             Map<Long, ArrayList<HorizontalPoint>> levels = new HashMap<>();
             for (Sample sample : samples) {
@@ -531,11 +565,21 @@ public final class LegionsWorldBorder {
                 ArrayList<HorizontalPoint> points = levels.computeIfAbsent(level, ignored -> new ArrayList<>());
                 rememberHorizontalPoint(points, sample.x, sample.z);
             }
-            for (ArrayList<HorizontalPoint> points : levels.values()) {
-                if (points.size() > best.size()) {
+            for (Map.Entry<Long, ArrayList<HorizontalPoint>> entry : levels.entrySet()) {
+                ArrayList<HorizontalPoint> points = entry.getValue();
+                double heightY = entry.getKey() * SAME_HEIGHT_BAND - offset + SAME_HEIGHT_BAND * 0.5D;
+                boolean closerToPrevious = points.size() == best.size()
+                        && Double.isFinite(selectedHeightY)
+                        && (!Double.isFinite(bestHeightY)
+                        || Math.abs(heightY - selectedHeightY) < Math.abs(bestHeightY - selectedHeightY));
+                if (points.size() > best.size() || closerToPrevious) {
                     best = points;
+                    bestHeightY = heightY;
                 }
             }
+        }
+        if (!best.isEmpty()) {
+            selectedHeightY = bestHeightY;
         }
         return best;
     }
@@ -590,9 +634,9 @@ public final class LegionsWorldBorder {
     }
 
     private static final class Sample {
-        private final double x;
-        private final double y;
-        private final double z;
+        private double x;
+        private double y;
+        private double z;
         private long seenAt;
 
         private Sample(double x, double y, double z, long seenAt) {

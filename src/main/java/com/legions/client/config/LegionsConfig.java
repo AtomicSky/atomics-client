@@ -33,7 +33,7 @@ public class LegionsConfig {
     public boolean customWorldBorderEnabled = true;
     public String customWorldBorderColor = "#ff5555";
     public int customWorldBorderOpacity = 70;
-    public boolean customWorldBorderParticlesVisible = true;
+    public boolean customWorldBorderHideGlitterParticles = false;
     public boolean teamPingEnabled = true;
     public boolean blockPingDistanceLabelEnabled = true;
     public boolean offscreenPingArrowsEnabled = true;
@@ -150,7 +150,7 @@ public class LegionsConfig {
         copy.customWorldBorderEnabled = customWorldBorderEnabled;
         copy.customWorldBorderColor = customWorldBorderColor;
         copy.customWorldBorderOpacity = customWorldBorderOpacity;
-        copy.customWorldBorderParticlesVisible = customWorldBorderParticlesVisible;
+        copy.customWorldBorderHideGlitterParticles = customWorldBorderHideGlitterParticles;
         copy.teamPingEnabled = teamPingEnabled;
         copy.blockPingDistanceLabelEnabled = blockPingDistanceLabelEnabled;
         copy.offscreenPingArrowsEnabled = offscreenPingArrowsEnabled;
@@ -201,7 +201,7 @@ public class LegionsConfig {
                 && customWorldBorderEnabled == other.customWorldBorderEnabled
                 && customWorldBorderColor.equals(other.customWorldBorderColor)
                 && customWorldBorderOpacity == other.customWorldBorderOpacity
-                && customWorldBorderParticlesVisible == other.customWorldBorderParticlesVisible
+                && customWorldBorderHideGlitterParticles == other.customWorldBorderHideGlitterParticles
                 && teamPingEnabled == other.teamPingEnabled
                 && blockPingDistanceLabelEnabled == other.blockPingDistanceLabelEnabled
                 && offscreenPingArrowsEnabled == other.offscreenPingArrowsEnabled
@@ -261,11 +261,19 @@ public class LegionsConfig {
         migrateField(object, "automaticFoeOutlinesEnabled", "enemyHighlightsEnabled");
         migrateField(object, "teamQuipTotalsEnabled", "teamRatingTotalsEnabled");
         migrateField(object, "warningParticlesEnabled", "customWorldBorderEnabled");
+        migrateInvertedBooleanField(object, "customWorldBorderParticlesVisible",
+                "customWorldBorderHideGlitterParticles");
     }
 
     private static void migrateField(JsonObject object, String oldName, String newName) {
         if (!object.has(newName) && object.has(oldName)) {
             object.add(newName, object.get(oldName));
+        }
+    }
+
+    private static void migrateInvertedBooleanField(JsonObject object, String oldName, String newName) {
+        if (!object.has(newName) && object.has(oldName)) {
+            object.addProperty(newName, !object.get(oldName).getAsBoolean());
         }
     }
 

@@ -8,8 +8,6 @@ import net.minecraft.scoreboard.Team;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 
-import java.util.Locale;
-
 public final class LegionsTeammateAttackWarning {
     private static final float WARNING_VOLUME = 0.8F;
     private static final float WARNING_PITCH = 1.1F;
@@ -50,7 +48,14 @@ public final class LegionsTeammateAttackWarning {
         if (value == null) {
             return false;
         }
-        String normalized = value.trim().toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", "");
-        return normalized.equals("ffa") || normalized.equals("freeforall");
+        StringBuilder normalized = new StringBuilder(value.length());
+        for (int index = 0; index < value.length(); index++) {
+            char character = Character.toLowerCase(value.charAt(index));
+            if ((character >= 'a' && character <= 'z') || (character >= '0' && character <= '9')) {
+                normalized.append(character);
+            }
+        }
+        String label = normalized.toString();
+        return label.equals("ffa") || label.equals("freeforall");
     }
 }

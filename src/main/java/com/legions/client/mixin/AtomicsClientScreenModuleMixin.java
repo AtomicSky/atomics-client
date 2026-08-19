@@ -113,7 +113,7 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
         if (LegionsClient.CONFIG.customWorldBorderEnabled) {
             y = legions_client$addTextField(leftX, y, controlWidth, "Border Color", LegionsClient.CONFIG.customWorldBorderColor, "#ff5555", value -> LegionsClient.CONFIG.customWorldBorderColor = value, LEGIONS_DEFAULT_CONFIG.customWorldBorderColor);
             y = legions_client$addIntSlider(leftX, y, controlWidth, "Border Opacity %", 5, 100, LegionsClient.CONFIG.customWorldBorderOpacity, value -> LegionsClient.CONFIG.customWorldBorderOpacity = value, LEGIONS_DEFAULT_CONFIG.customWorldBorderOpacity);
-            y = legions_client$addToggle(leftX, y, controlWidth, "Show Glitter Particles", () -> LegionsClient.CONFIG.customWorldBorderParticlesVisible, value -> LegionsClient.CONFIG.customWorldBorderParticlesVisible = value, LEGIONS_DEFAULT_CONFIG.customWorldBorderParticlesVisible);
+            y = legions_client$addToggle(leftX, y, controlWidth, "Hide Glitter Particles", () -> LegionsClient.CONFIG.customWorldBorderHideGlitterParticles, value -> LegionsClient.CONFIG.customWorldBorderHideGlitterParticles = value, LEGIONS_DEFAULT_CONFIG.customWorldBorderHideGlitterParticles);
         }
 
         y = legions_client$addSubHeader(leftX, y, controlWidth, "Team Ping");
@@ -225,7 +225,7 @@ public abstract class AtomicsClientScreenModuleMixin extends Screen {
                         "Border Opacity %", LegionsClient.CONFIG.customWorldBorderOpacity, 5, 100, 5, LEGIONS_DEFAULT_CONFIG.customWorldBorderOpacity,
                         () -> LegionsClient.CONFIG.customWorldBorderOpacity, value -> LegionsClient.CONFIG.customWorldBorderOpacity = value);
                 rowY = legions_client$addNativeToggle(addToggle, toggleSetterType, leftX, rowY, controlWidth,
-                        "Show Glitter Particles", LEGIONS_DEFAULT_CONFIG.customWorldBorderParticlesVisible, () -> LegionsClient.CONFIG.customWorldBorderParticlesVisible, value -> LegionsClient.CONFIG.customWorldBorderParticlesVisible = value);
+                        "Hide Glitter Particles", LEGIONS_DEFAULT_CONFIG.customWorldBorderHideGlitterParticles, () -> LegionsClient.CONFIG.customWorldBorderHideGlitterParticles, value -> LegionsClient.CONFIG.customWorldBorderHideGlitterParticles = value);
             }
 
             rowY = legions_client$addSubHeader(leftX, rowY, controlWidth, "Team Ping");
